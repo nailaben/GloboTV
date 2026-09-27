@@ -2,6 +2,7 @@ const express = require('express');
 const router = express.Router();
 const { pool } = require('../config/db');
 const authMiddleware = require('../middleware/auth');
+const jwt = require('jsonwebtoken');
 
 // Generate unique order number
 const generateOrderNumber = () => {
@@ -59,11 +60,20 @@ router.post('/', async (req, res) => {
         const order_number = generateOrderNumber();
 
         // Create order
+        let customerId = null;
+        const bearer = req.headers.authorization?.split(' ')[1];
+        if (bearer) {
+            try {
+                const decoded = jwt.verify(bearer, process.env.JWT_SECRET);
+                if (decoded.type === 'customer') customerId = decoded.id;
+            } catch { /* Guest checkout remains available if the token is invalid or expired. */ }
+        }
+
         const orderResult = await client.query(`
-            INSERT INTO orders (order_number, customer_name, customer_phone, customer_email, customer_address, notes, subtotal, total_amount, status)
-            VALUES ($1, $2, $3, $4, $5, $6, $7, $8, 'pending')
+            INSERT INTO orders (order_number, customer_name, customer_phone, customer_email, customer_address, customer_id, notes, subtotal, total_amount, status)
+            VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, 'pending')
             RETURNING *
-        `, [order_number, customer_name, customer_phone, customer_email, customer_address, notes || '', subtotal, total_amount]);
+        `, [order_number, customer_name, customer_phone, customer_email, customer_address, customerId, notes || '', subtotal, total_amount]);
 
         const order = orderResult.rows[0];
 

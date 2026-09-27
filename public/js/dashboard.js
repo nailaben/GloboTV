@@ -76,10 +76,22 @@ async function loadStats() {
             animateCount('stat-orders', totalOrders);
             document.getElementById('stat-revenue').textContent = formatPrice(totalRevenue);
             animateCount('stat-pending', pendingOrders);
-            const navBadge = document.getElementById('orders-badge');
-            if (navBadge) navBadge.textContent = pendingOrders;
+        } else {
+            showStatsUnavailable();
         }
-    } catch (e) { console.error('Stats error:', e); }
+    } catch (e) {
+        console.error('Stats error:', e);
+        showStatsUnavailable();
+    }
+}
+
+function showStatsUnavailable() {
+    ['stat-products', 'stat-orders', 'stat-pending'].forEach(id => {
+        const element = document.getElementById(id);
+        if (element) element.textContent = '0';
+    });
+    const revenue = document.getElementById('stat-revenue');
+    if (revenue) revenue.textContent = formatPrice(0);
 }
 
 function animateCount(id, target) {
@@ -122,8 +134,18 @@ async function loadProductsTable(search = '') {
     const tbody = document.getElementById('products-tbody');
     tbody.innerHTML = `<tr><td colspan="7" style="text-align:center;padding:2rem"><div class="spinner" style="margin:0 auto"></div></td></tr>`;
 
-    const res = await api.getSellerProducts();
-    if (!res.success) return;
+    let res;
+    try {
+        res = await api.getSellerProducts();
+    } catch (error) {
+        console.error('Load seller products error:', error);
+        tbody.innerHTML = `<tr><td colspan="7"><div class="empty-state"><p>${t('تعذر تحميل المنتجات. حدّث الصفحة وحاول مجدداً.', 'Could not load products. Refresh and try again.', 'Impossible de charger les produits. Actualisez la page.')}</p></div></td></tr>`;
+        return;
+    }
+    if (!res.success) {
+        tbody.innerHTML = `<tr><td colspan="7"><div class="empty-state"><p>${res.message || t('تعذر تحميل المنتجات.', 'Could not load products.', 'Impossible de charger les produits.')}</p></div></td></tr>`;
+        return;
+    }
 
     products = res.products;
 

@@ -48,7 +48,7 @@ const authMiddleware = require('../middleware/auth');
 router.get('/stats', authMiddleware, async (req, res) => {
     try {
         const [productsResult, ordersResult, revenueResult, pendingResult] = await Promise.all([
-            pool.query('SELECT COUNT(*) FROM products WHERE seller_id = $1 AND is_active = true', [req.seller.id]),
+            pool.query('SELECT COUNT(*) FROM products WHERE seller_id = $1', [req.seller.id]),
             pool.query('SELECT COUNT(*) FROM orders'),
             pool.query('SELECT COALESCE(SUM(total_amount), 0) as total FROM orders WHERE status != $1', ['cancelled']),
             pool.query("SELECT COUNT(*) FROM orders WHERE status = 'pending'")

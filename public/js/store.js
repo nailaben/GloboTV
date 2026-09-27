@@ -14,7 +14,11 @@ document.addEventListener('DOMContentLoaded', async () => {
     setupLangToggle();
     setupCart();
     document.addEventListener('langChange', () => { applyTranslations(); renderProducts(); renderCart(); renderCategories(); });
-    await loadCategories();
+    try {
+        await loadCategories();
+    } catch (error) {
+        console.error('Load categories error:', error);
+    }
     await loadProducts();
 });
 
@@ -44,6 +48,10 @@ const i18n = {
         search_placeholder: 'ابحث عن منتج...',
         store_link: 'المتجر',
         cart_added: '✓ أُضيف إلى السلة',
+        like_product: 'أعجبني',
+        unlike_product: 'إزالة من المفضلة',
+        liked_product: 'أُضيف إلى المفضلة',
+        unliked_product: 'أُزيل من المفضلة',
         footer_desc: 'وجهتك الأسرع والأكثر موثوقية للحصول على البطاقات الرقمية بأفضل الأسعار',
         quick_links: 'روابط سريعة', home: 'الرئيسية', support: 'الدعم', contact: 'اتصل بنا',
         privacy: 'سياسة الخصوصية', terms: 'شروط الاستخدام', copyright: '© 2024 PLAYORA. جميع الحقوق محفوظة.',
@@ -72,6 +80,10 @@ const i18n = {
         search_placeholder: 'Search products...',
         store_link: 'Store',
         cart_added: '✓ Added to cart',
+        like_product: 'Add to favorites',
+        unlike_product: 'Remove from favorites',
+        liked_product: 'Added to favorites',
+        unliked_product: 'Removed from favorites',
         footer_desc: 'Your fast and trusted destination for digital cards at great prices',
         quick_links: 'Quick Links', home: 'Home', support: 'Support', contact: 'Contact us',
         privacy: 'Privacy Policy', terms: 'Terms of Use', copyright: '© 2024 PLAYORA. All rights reserved.',
@@ -100,6 +112,10 @@ const i18n = {
         search_placeholder: 'Rechercher un produit…',
         store_link: 'Boutique',
         cart_added: '✓ Ajouté au panier',
+        like_product: 'Ajouter aux favoris',
+        unlike_product: 'Retirer des favoris',
+        liked_product: 'Ajouté aux favoris',
+        unliked_product: 'Retiré des favoris',
         footer_desc: 'Votre destination rapide et fiable pour des cartes numériques au meilleur prix',
         quick_links: 'Liens rapides', home: 'Accueil', support: 'Assistance', contact: 'Nous contacter',
         privacy: 'Politique de confidentialité', terms: 'Conditions d’utilisation', copyright: '© 2024 PLAYORA. Tous droits réservés.',
@@ -274,6 +290,25 @@ window.filterByCategory = function(cat) {
 };
 
 // ---- Products ----
+function getLikedProductIds() {
+    try {
+        const ids = JSON.parse(localStorage.getItem('playora_liked_products') || '[]');
+        return Array.isArray(ids) ? ids.map(String) : [];
+    } catch {
+        return [];
+    }
+}
+
+window.toggleProductLike = function(productId) {
+    const likedIds = getLikedProductIds();
+    const id = String(productId);
+    const isLiked = likedIds.includes(id);
+    const nextIds = isLiked ? likedIds.filter(item => item !== id) : [...likedIds, id];
+    localStorage.setItem('playora_liked_products', JSON.stringify(nextIds));
+    renderProducts();
+    showToast(tr(isLiked ? 'unliked_product' : 'liked_product'), 'success', 1800);
+};
+
 async function loadProducts() {
     showSkeletons();
     try {
@@ -281,8 +316,11 @@ async function loadProducts() {
         if (res.success) {
             allProducts = res.products;
             renderProducts();
+        } else {
+            throw new Error(res.message || 'Could not load products');
         }
     } catch (e) {
+        console.error('Load products error:', e);
         document.getElementById('products-grid').innerHTML = `
             <div class="empty-state" style="grid-column:1/-1">
                 <div class="empty-state-icon">⚠️</div>
@@ -335,17 +373,25 @@ function renderProducts() {
         return;
     }
 
+    const likedProductIds = getLikedProductIds();
     grid.innerHTML = filtered.map(product => {
         const outOfStock = product.stock_quantity <= 0;
         const name = currentLang === 'ar' ? product.name_ar : product.name_en;
         const desc = currentLang === 'ar' ? product.description_ar : product.description_en;
         const catName = currentLang === 'ar' ? product.category_name_ar : product.category_name_en;
+        const isLiked = likedProductIds.includes(String(product.id));
 
         return `
         <div class="product-card" onclick="goToProduct(${product.id})">
             <div class="product-card-img">
                 <img src="${product.image_url || '/images/placeholder.png'}" alt="${name}" 
                      onerror="this.src='/images/placeholder.png'" loading="lazy">
+                <button class="product-like-btn ${isLiked ? 'is-liked' : ''}"
+                        onclick="event.stopPropagation(); toggleProductLike(${product.id})"
+                        aria-label="${tr(isLiked ? 'unlike_product' : 'like_product')}"
+                        title="${tr(isLiked ? 'unlike_product' : 'like_product')}" aria-pressed="${isLiked}">
+                    <span class="material-symbols-outlined">${isLiked ? 'favorite' : 'favorite_border'}</span>
+                </button>
                 ${catName ? `<span class="product-card-badge">${catName}</span>` : ''}
                 ${outOfStock ? `<div class="product-card-out">${tr('out_of_stock')}</div>` : ''}
             </div>

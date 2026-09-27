@@ -73,6 +73,25 @@ router.get('/categories', async (req, res) => {
     }
 });
 
+// GET /api/products/seller/all - Get all seller products including inactive
+// This fixed path must come before /:id so Express does not treat "seller" as an ID.
+router.get('/seller/all', authMiddleware, async (req, res) => {
+    try {
+        const result = await pool.query(`
+            SELECT p.*, c.name_ar as category_name_ar, c.name_en as category_name_en
+            FROM products p
+            LEFT JOIN categories c ON p.category_id = c.id
+            WHERE p.seller_id = $1
+            ORDER BY p.created_at DESC
+        `, [req.seller.id]);
+
+        res.json({ success: true, products: result.rows });
+    } catch (err) {
+        console.error('Get seller products error:', err);
+        res.status(500).json({ success: false, message: 'Server error' });
+    }
+});
+
 // GET /api/products/:id - Get single product (public)
 router.get('/:id', async (req, res) => {
     try {
@@ -190,24 +209,6 @@ router.delete('/:id', authMiddleware, async (req, res) => {
         res.json({ success: true, message: 'Product deleted successfully' });
     } catch (err) {
         console.error('Delete product error:', err);
-        res.status(500).json({ success: false, message: 'Server error' });
-    }
-});
-
-// GET /api/products/seller/all - Get all seller products including inactive
-router.get('/seller/all', authMiddleware, async (req, res) => {
-    try {
-        const result = await pool.query(`
-            SELECT p.*, c.name_ar as category_name_ar, c.name_en as category_name_en
-            FROM products p
-            LEFT JOIN categories c ON p.category_id = c.id
-            WHERE p.seller_id = $1
-            ORDER BY p.created_at DESC
-        `, [req.seller.id]);
-
-        res.json({ success: true, products: result.rows });
-    } catch (err) {
-        console.error('Get seller products error:', err);
         res.status(500).json({ success: false, message: 'Server error' });
     }
 });

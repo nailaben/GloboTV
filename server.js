@@ -8,6 +8,7 @@ const { testConnection } = require('./config/db');
 const productsRouter = require('./routes/products');
 const ordersRouter = require('./routes/orders');
 const sellerRouter = require('./routes/seller');
+const customerRouter = require('./routes/customer');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -28,6 +29,7 @@ app.use(express.static(path.join(__dirname, 'public')));
 app.use('/api/products', productsRouter);
 app.use('/api/orders', ordersRouter);
 app.use('/api/seller', sellerRouter);
+app.use('/api/customer', customerRouter);
 
 // Health check
 app.get('/api/health', (req, res) => {

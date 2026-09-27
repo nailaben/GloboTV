@@ -59,9 +59,32 @@ const api = {
     createOrder: async (orderData) => {
         const res = await fetch(`${API_BASE}/orders`, {
             method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
+            headers: {
+                'Content-Type': 'application/json',
+                ...(localStorage.getItem('playora_customer_token') ? { 'Authorization': `Bearer ${localStorage.getItem('playora_customer_token')}` } : {})
+            },
             body: JSON.stringify(orderData)
         });
+        return res.json();
+    },
+
+    customerRegister: async (data) => {
+        const res = await fetch(`${API_BASE}/customer/register`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(data) });
+        return res.json();
+    },
+
+    customerLogin: async (data) => {
+        const res = await fetch(`${API_BASE}/customer/login`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(data) });
+        return res.json();
+    },
+
+    getCustomer: async () => {
+        const res = await fetch(`${API_BASE}/customer/me`, { headers: { 'Authorization': `Bearer ${localStorage.getItem('playora_customer_token') || ''}` } });
+        return res.json();
+    },
+
+    getCustomerOrders: async () => {
+        const res = await fetch(`${API_BASE}/customer/orders`, { headers: { 'Authorization': `Bearer ${localStorage.getItem('playora_customer_token') || ''}` } });
         return res.json();
     },
 
