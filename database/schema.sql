@@ -88,6 +88,10 @@ CREATE TABLE IF NOT EXISTS categories (
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
+-- Keep upgrades safe when the categories table already predates French labels.
+ALTER TABLE categories
+ADD COLUMN IF NOT EXISTS name_fr VARCHAR(100) NOT NULL DEFAULT '';
+
 
 -- =============================================
 -- Fix duplicate categories safely
@@ -161,6 +165,18 @@ CREATE TABLE IF NOT EXISTS products (
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
+
+-- Add localized fields to an existing products table before any queries use them.
+ALTER TABLE products
+ADD COLUMN IF NOT EXISTS name_fr VARCHAR(255) NOT NULL DEFAULT '';
+ALTER TABLE products
+ADD COLUMN IF NOT EXISTS description_fr TEXT;
+UPDATE products
+SET name_fr = name_en
+WHERE name_fr = '';
+UPDATE products
+SET description_fr = description_en
+WHERE description_fr IS NULL;
 
 
 -- =============================================
@@ -258,6 +274,19 @@ CREATE TABLE IF NOT EXISTS order_items (
     unit_price DECIMAL(10,2) NOT NULL,
     subtotal DECIMAL(10,2) NOT NULL
 );
+
+-- Preserve order history while adding localized product and offer snapshots.
+ALTER TABLE order_items
+ADD COLUMN IF NOT EXISTS product_name_fr VARCHAR(255) NOT NULL DEFAULT '';
+ALTER TABLE order_items
+ADD COLUMN IF NOT EXISTS offer_label_en VARCHAR(120) NOT NULL DEFAULT '';
+ALTER TABLE order_items
+ADD COLUMN IF NOT EXISTS offer_label_fr VARCHAR(120) NOT NULL DEFAULT '';
+ALTER TABLE order_items
+ADD COLUMN IF NOT EXISTS offer_id INTEGER REFERENCES product_offers(id) ON DELETE SET NULL;
+UPDATE order_items
+SET product_name_fr = product_name_en
+WHERE product_name_fr = '';
 
 
 -- =============================================
