@@ -39,9 +39,11 @@ CREATE TABLE IF NOT EXISTS categories (
     id SERIAL PRIMARY KEY,
     name_ar VARCHAR(100) NOT NULL,
     name_en VARCHAR(100) NOT NULL,
+    name_fr VARCHAR(100) NOT NULL DEFAULT '',
     icon VARCHAR(50) DEFAULT 'category',
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
+CREATE UNIQUE INDEX IF NOT EXISTS categories_name_en_lower_unique ON categories (lower(name_en));
 
 -- Create products table
 CREATE TABLE IF NOT EXISTS products (
@@ -49,8 +51,10 @@ CREATE TABLE IF NOT EXISTS products (
     seller_id INTEGER REFERENCES sellers(id) ON DELETE CASCADE,
     name_ar VARCHAR(255) NOT NULL,
     name_en VARCHAR(255) NOT NULL,
+    name_fr VARCHAR(255) NOT NULL DEFAULT '',
     description_ar TEXT,
     description_en TEXT,
+    description_fr TEXT,
     price DECIMAL(10,2) NOT NULL,
     category_id INTEGER REFERENCES categories(id),
     stock_quantity INTEGER DEFAULT 0,
@@ -58,6 +62,17 @@ CREATE TABLE IF NOT EXISTS products (
     is_active BOOLEAN DEFAULT true,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE TABLE IF NOT EXISTS product_offers (
+    id SERIAL PRIMARY KEY,
+    product_id INTEGER NOT NULL REFERENCES products(id) ON DELETE CASCADE,
+    label_en VARCHAR(120) NOT NULL,
+    label_fr VARCHAR(120) NOT NULL,
+    price_eur DECIMAL(10,2) NOT NULL CHECK (price_eur >= 0),
+    sort_order INTEGER NOT NULL DEFAULT 0,
+    is_active BOOLEAN NOT NULL DEFAULT true,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
 -- Create orders table
@@ -84,12 +99,14 @@ CREATE TABLE IF NOT EXISTS orders (
     notes TEXT,
     subtotal DECIMAL(10,2) NOT NULL,
     total_amount DECIMAL(10,2) NOT NULL,
+    currency VARCHAR(3) NOT NULL DEFAULT 'EUR',
     status VARCHAR(50) DEFAULT 'pending',
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
 ALTER TABLE orders ADD COLUMN IF NOT EXISTS customer_id INTEGER REFERENCES customers(id) ON DELETE SET NULL;
+ALTER TABLE orders ADD COLUMN IF NOT EXISTS currency VARCHAR(3) NOT NULL DEFAULT 'USD';
 
 -- Create order_items table
 CREATE TABLE IF NOT EXISTS order_items (
@@ -98,6 +115,10 @@ CREATE TABLE IF NOT EXISTS order_items (
     product_id INTEGER REFERENCES products(id) ON DELETE SET NULL,
     product_name_ar VARCHAR(255) NOT NULL,
     product_name_en VARCHAR(255) NOT NULL,
+    product_name_fr VARCHAR(255) NOT NULL DEFAULT '',
+    offer_label_en VARCHAR(120) NOT NULL DEFAULT '',
+    offer_label_fr VARCHAR(120) NOT NULL DEFAULT '',
+    offer_id INTEGER REFERENCES product_offers(id) ON DELETE SET NULL,
     quantity INTEGER NOT NULL,
     unit_price DECIMAL(10,2) NOT NULL,
     subtotal DECIMAL(10,2) NOT NULL
@@ -128,13 +149,11 @@ BEFORE UPDATE ON orders
 FOR EACH ROW
 EXECUTE FUNCTION update_updated_at_column();
 -- Insert default categories
-INSERT INTO categories (name_ar, name_en, icon) VALUES
-    ('بطاقات رقمية', 'Digital Cards', 'credit_card'),
-    ('ألعاب', 'Gaming', 'sports_esports'),
-    ('بث مباشر', 'Streaming', 'play_circle'),
-    ('برامج', 'Software', 'computer'),
-    ('هواتف وإلكترونيات', 'Electronics', 'phone_android')
+INSERT INTO categories (name_ar, name_en, name_fr, icon) VALUES
+    ('IP-TV', 'IP-TV', 'IP-TV', 'live_tv')
 ON CONFLICT DO NOTHING;
+
+UPDATE categories SET name_fr = name_en WHERE name_fr = '';
 
 -- Insert default seller (password: admin123)
 INSERT INTO sellers (name, email, username, password_hash) VALUES

@@ -1,10 +1,10 @@
 <!DOCTYPE html>
-<html lang="ar" dir="rtl">
+<html lang="en" dir="ltr">
 
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>إتمام الطلب | LogoName</title>
+    <title>Checkout | PLAYORA</title>
     <link rel="stylesheet"
         href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:opsz,wght,FILL,GRAD@24,400,0,0">
     <link rel="stylesheet" href="/css/main.css">
@@ -163,10 +163,10 @@
             <div class="container checkout-header-inner">
 
                 <div style="display:flex;align-items:center;gap:1rem">
-                    <button class="lang-toggle" type="button" aria-label="Change language">العربية</button>
+                    <select class="language-select" aria-label="Choose language"><option value="en">English</option><option value="fr">Français</option></select>
                     <a href="/" class="btn btn-ghost btn-sm">
                         <span class="material-symbols-outlined">arrow_back</span>
-                        <span data-co-i18n="back_to_store">العودة للمتجر</span>
+                        <span data-co-i18n="back_to_store">Back to Store</span>
                     </a>
                 </div>
             </div>
@@ -175,9 +175,9 @@
         <!-- Breadcrumb -->
         <div class="container" style="padding-top:1.5rem">
             <div style="display:flex;align-items:center;gap:0.5rem;font-size:0.85rem;color:var(--text-muted)">
-                <a href="/" style="color:var(--text-muted);hover:color:white">المتجر</a>
+                <a href="/" style="color:var(--text-muted);hover:color:white" data-co-i18n="store_link">Store</a>
                 <span class="material-symbols-outlined" style="font-size:0.9rem">chevron_left</span>
-                <span style="color:var(--primary-light)" data-co-i18n="checkout_title">إتمام الطلب</span>
+                <span style="color:var(--primary-light)" data-co-i18n="checkout_title">Checkout</span>
             </div>
         </div>
 
@@ -190,40 +190,40 @@
                     <div class="checkout-form-card">
                         <div class="checkout-section-title">
                             <span class="material-symbols-outlined">person</span>
-                            <span data-co-i18n="customer_info">بيانات المشتري</span>
+                            <span data-co-i18n="customer_info">Customer Information</span>
                         </div>
                         <form id="checkout-form" novalidate>
                             <div class="form-grid-2">
                                 <div class="form-group">
-                                    <label class="form-label" data-co-i18n="full_name">الاسم الكامل</label>
+                                    <label class="form-label" data-co-i18n="full_name">Full Name</label>
                                     <input type="text" id="customer-name" class="form-input"
-                                        data-co-placeholder="name_placeholder" placeholder="أدخل اسمك الكامل">
+                                        data-co-placeholder="name_placeholder" placeholder="Enter your full name">
                                     <div class="form-error" id="customer-name-error"></div>
                                 </div>
                                 <div class="form-group">
-                                    <label class="form-label" data-co-i18n="phone">رقم الهاتف</label>
+                                    <label class="form-label" data-co-i18n="phone">Phone Number</label>
                                     <input type="tel" id="customer-phone" class="form-input"
                                         data-co-placeholder="phone_placeholder" placeholder="0555123456">
                                     <div class="form-error" id="customer-phone-error"></div>
                                 </div>
                             </div>
                             <div class="form-group">
-                                <label class="form-label" data-co-i18n="email">البريد الإلكتروني</label>
+                                <label class="form-label" data-co-i18n="email">Email Address</label>
                                 <input type="email" id="customer-email" class="form-input"
                                     data-co-placeholder="email_placeholder" placeholder="example@email.com">
                                 <div class="form-error" id="customer-email-error"></div>
                             </div>
                             <div class="form-group">
-                                <label class="form-label" data-co-i18n="address">العنوان</label>
+                                <label class="form-label" data-co-i18n="address">Delivery Address</label>
                                 <textarea id="customer-address" class="form-textarea"
                                     data-co-placeholder="address_placeholder"
-                                    placeholder="المدينة، الحي، الشارع، رقم البناء" rows="3"></textarea>
+                                    placeholder="City, district, street, building" rows="3"></textarea>
                                 <div class="form-error" id="customer-address-error"></div>
                             </div>
                             <div class="form-group">
-                                <label class="form-label" data-co-i18n="notes">ملاحظات (اختياري)</label>
+                                <label class="form-label" data-co-i18n="notes">Notes (Optional)</label>
                                 <textarea id="customer-notes" class="form-textarea"
-                                    data-co-placeholder="notes_placeholder" placeholder="أي ملاحظات إضافية..."
+                                    data-co-placeholder="notes_placeholder" placeholder="Any additional notes..."
                                     rows="2"></textarea>
                             </div>
 
@@ -232,13 +232,13 @@
                                 style="display:flex;align-items:center;gap:0.5rem;padding:0.8rem;background:rgba(16,185,129,0.08);border:1px solid rgba(16,185,129,0.2);border-radius:var(--radius-sm);margin-bottom:1.25rem">
                                 <span class="material-symbols-outlined" style="color:#10B981;font-size:1rem">lock</span>
                                 <span style="font-size:0.8rem;color:var(--text-secondary)">
-                                    بياناتك محمية وآمنة تماماً
+                                    Your information is protected and secure.
                                 </span>
                             </div>
 
                             <button type="submit" class="btn btn-primary btn-lg w-full" id="submit-btn">
                                 <span class="material-symbols-outlined">shopping_bag</span>
-                                <span data-co-i18n="place_order">تأكيد الطلب</span>
+                                <span data-co-i18n="place_order">Place Order</span>
                             </button>
                         </form>
                     </div>
@@ -247,18 +247,18 @@
                     <div class="order-summary-card">
                         <div class="checkout-section-title">
                             <span class="material-symbols-outlined">receipt_long</span>
-                            <span data-co-i18n="order_summary">ملخص الطلب</span>
+                            <span data-co-i18n="order_summary">Order Summary</span>
                         </div>
                         <div id="order-items">
                             <!-- Rendered by JS -->
                         </div>
                         <div style="margin-top:1rem">
                             <div class="summary-row">
-                                <span data-co-i18n="subtotal">المجموع الفرعي</span>
+                                <span data-co-i18n="subtotal">Subtotal</span>
                                 <span id="order-subtotal">$0.00</span>
                             </div>
                             <div class="summary-row total">
-                                <span data-co-i18n="total">الإجمالي</span>
+                                <span data-co-i18n="total">Total</span>
                                 <span class="price" id="order-total">$0.00</span>
                             </div>
                         </div>

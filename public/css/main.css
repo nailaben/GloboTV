@@ -745,6 +745,44 @@ a {
     gap: 15px;
 }
 
+/* Explicit, compact language picker */
+.language-select {
+    appearance: none;
+    -webkit-appearance: none;
+    min-height: 40px;
+    min-width: 132px;
+    padding: 0 34px 0 38px;
+    border: 1px solid rgba(98, 78, 210, .2);
+    border-radius: 999px;
+    color: #4d42a8;
+    background-color: rgba(248, 247, 255, .92);
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='18' height='18' viewBox='0 0 24 24' fill='none' stroke='%23594bd0' stroke-width='1.7'%3E%3Ccircle cx='12' cy='12' r='9'/%3E%3Cpath d='M3 12h18M12 3a15 15 0 0 1 0 18M12 3a15 15 0 0 0 0 18'/%3E%3C/svg%3E"), url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%23736bb1' stroke-width='2.2'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E");
+    background-repeat: no-repeat;
+    background-position: 13px center, right 12px center;
+    background-size: 17px 17px, 11px 11px;
+    font-family: inherit;
+    font-size: .82rem;
+    font-weight: 650;
+    line-height: 1;
+    cursor: pointer;
+    box-shadow: 0 3px 12px rgba(48, 36, 115, .07), inset 0 1px rgba(255,255,255,.8);
+    transition: border-color .18s ease, box-shadow .18s ease, transform .18s ease, background-color .18s ease;
+}
+.language-select:hover { border-color: rgba(98, 78, 210, .5); box-shadow: 0 5px 18px rgba(70, 54, 160, .13); transform: translateY(-1px); }
+.language-select:focus-visible { outline: none; border-color: #6b52ef; box-shadow: 0 0 0 3px rgba(107, 82, 239, .2); }
+.language-select option { color: #242139; background: #fff; }
+.auth-card .language-select, .login-card .language-select, .dashboard-language .language-select, .customer-top .language-select, .success-card .language-select {
+    color: #e9e3ff;
+    border-color: rgba(181, 161, 255, .2);
+    background-color: rgba(43, 38, 70, .94);
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='18' height='18' viewBox='0 0 24 24' fill='none' stroke='%23c6b9ff' stroke-width='1.7'%3E%3Ccircle cx='12' cy='12' r='9'/%3E%3Cpath d='M3 12h18M12 3a15 15 0 0 1 0 18M12 3a15 15 0 0 0 0 18'/%3E%3C/svg%3E"), url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%23c6b9ff' stroke-width='2.2'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E");
+    box-shadow: 0 4px 16px rgba(0,0,0,.17), inset 0 1px rgba(255,255,255,.04);
+}
+.auth-card .language-select:hover, .login-card .language-select:hover, .dashboard-language .language-select:hover, .customer-top .language-select:hover, .success-card .language-select:hover { background-color: #342d57; border-color: rgba(181, 161, 255, .48); }
+.auth-card .language-select option, .login-card .language-select option, .dashboard-language .language-select option, .customer-top .language-select option, .success-card .language-select option { color: #f4f0ff; background: #211d36; }
+.dashboard-language > span { display: none; }
+@media (prefers-reduced-motion: reduce) { .language-select { transition: none; } }
+
 /* Language */
 .lang-toggle {
     border: none;

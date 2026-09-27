@@ -28,6 +28,11 @@ router.post('/', async (req, res) => {
         const validatedItems = [];
 
         for (const item of items) {
+            const quantity = Number(item.quantity);
+            if (!Number.isInteger(quantity) || quantity < 1) {
+                await client.query('ROLLBACK');
+                return res.status(400).json({ success: false, message: 'Each item must have a valid quantity' });
+            }
             const productResult = await client.query(
                 'SELECT * FROM products WHERE id = $1 AND is_active = true',
                 [item.product_id]
@@ -40,18 +45,25 @@ router.post('/', async (req, res) => {
 
             const product = productResult.rows[0];
 
-            if (product.stock_quantity < item.quantity) {
+            if (product.stock_quantity < quantity) {
                 await client.query('ROLLBACK');
-                return res.status(400).json({ success: false, message: `Insufficient stock for ${product.name_ar}` });
+                return res.status(400).json({ success: false, message: `Insufficient stock for ${product.name_en}` });
             }
 
-            const itemSubtotal = product.price * item.quantity;
+            const offerResult = await client.query('SELECT * FROM product_offers WHERE id=$1 AND product_id=$2 AND is_active=true', [item.offer_id, product.id]);
+            if (!item.offer_id || offerResult.rows.length === 0) {
+                await client.query('ROLLBACK');
+                return res.status(400).json({ success: false, message: `Choose a valid offer for ${product.name_en}` });
+            }
+            const offer = offerResult.rows[0];
+            const itemSubtotal = Number(offer.price_eur) * quantity;
             subtotal += itemSubtotal;
 
             validatedItems.push({
                 product,
-                quantity: item.quantity,
-                unit_price: product.price,
+                offer,
+                quantity,
+                unit_price: Number(offer.price_eur),
                 subtotal: itemSubtotal
             });
         }
@@ -70,8 +82,8 @@ router.post('/', async (req, res) => {
         }
 
         const orderResult = await client.query(`
-            INSERT INTO orders (order_number, customer_name, customer_phone, customer_email, customer_address, customer_id, notes, subtotal, total_amount, status)
-            VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, 'pending')
+            INSERT INTO orders (order_number, customer_name, customer_phone, customer_email, customer_address, customer_id, notes, subtotal, total_amount, currency, status)
+            VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, 'EUR', 'pending')
             RETURNING *
         `, [order_number, customer_name, customer_phone, customer_email, customer_address, customerId, notes || '', subtotal, total_amount]);
 
@@ -80,9 +92,9 @@ router.post('/', async (req, res) => {
         // Create order items and update stock
         for (const item of validatedItems) {
             await client.query(`
-                INSERT INTO order_items (order_id, product_id, product_name_ar, product_name_en, quantity, unit_price, subtotal)
-                VALUES ($1, $2, $3, $4, $5, $6, $7)
-            `, [order.id, item.product.id, item.product.name_ar, item.product.name_en, item.quantity, item.unit_price, item.subtotal]);
+                INSERT INTO order_items (order_id, product_id, product_name_ar, product_name_en, product_name_fr, offer_id, offer_label_en, offer_label_fr, quantity, unit_price, subtotal)
+                VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
+            `, [order.id, item.product.id, item.product.name_ar, item.product.name_en, item.product.name_fr || item.product.name_en, item.offer.id, item.offer.label_en, item.offer.label_fr, item.quantity, item.unit_price, item.subtotal]);
 
             // Reduce stock
             await client.query(
@@ -100,6 +112,9 @@ router.post('/', async (req, res) => {
                 items: validatedItems.map(i => ({
                     product_name_ar: i.product.name_ar,
                     product_name_en: i.product.name_en,
+                    product_name_fr: i.product.name_fr || i.product.name_en,
+                    offer_label_en: i.offer.label_en,
+                    offer_label_fr: i.offer.label_fr,
                     quantity: i.quantity,
                     unit_price: i.unit_price,
                     subtotal: i.subtotal

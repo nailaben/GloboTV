@@ -1,9 +1,9 @@
 <!DOCTYPE html>
-<html lang="ar" dir="rtl">
+<html lang="en" dir="ltr">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>تم تأكيد طلبك | LogoName</title>
+    <title>Order confirmed | PLAYORA</title>
     <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:opsz,wght,FILL,GRAD@24,400,0,0">
     <link rel="stylesheet" href="/css/main.css">
     <style>
@@ -88,18 +88,18 @@
     <div class="success-orb success-orb-2"></div>
 
     <div class="success-card">
-        <button class="lang-toggle" type="button" aria-label="Change language" style="position:absolute;top:1rem;right:1rem">العربية</button>
+        <select class="language-select" aria-label="Choose language" style="position:absolute;top:1rem;right:1rem"><option value="en">English</option><option value="fr">Français</option></select>
         <div class="success-icon">
             <span class="material-symbols-outlined">check_circle</span>
         </div>
 
-        <h1 class="success-title" id="success-title">تم تأكيد طلبك! </h1>
+        <h1 class="success-title" id="success-title">Order Confirmed!</h1>
         <p class="success-subtitle" id="success-subtitle">
-            شكراً لك! سيتم التواصل معك قريباً لتأكيد طلبك وإتمام عملية التسليم
+            Thank you! We’ll contact you soon to confirm your order and arrange delivery.
         </p>
 
         <div class="order-number-box">
-            <div class="order-number-label" id="order-num-label">رقم الطلب</div>
+            <div class="order-number-label" id="order-num-label">Order Number</div>
             <div class="order-number-value" id="order-number">PLY-XXXXXX</div>
         </div>
 
@@ -109,14 +109,14 @@
 
         <!-- Order Items -->
         <div id="order-items-section" style="margin-bottom:2rem;text-align:start">
-            <div style="font-size:0.85rem;font-weight:700;color:var(--text-secondary);margin-bottom:0.75rem" id="items-label">المنتجات المطلوبة</div>
+            <div style="font-size:0.85rem;font-weight:700;color:var(--text-secondary);margin-bottom:0.75rem" id="items-label">Ordered Items</div>
             <div id="order-items-list"></div>
         </div>
 
         <div class="cta-group">
             <a href="/" class="btn btn-primary">
                 <span class="material-symbols-outlined">home</span>
-                <span id="back-btn-text">العودة للمتجر</span>
+                <span id="back-btn-text">Back to Store</span>
             </a>
         </div>
 
@@ -128,10 +128,8 @@
 <script src="/js/api.js"></script>
 <script>
     initLang();
-    document.querySelector('.lang-toggle')?.addEventListener('click', () => {
-        nextLang();
-        window.location.reload();
-    });
+    setupLangToggle();
+    document.addEventListener('langChange', () => window.location.reload());
     const lang = currentLang;
 
     const order = JSON.parse(sessionStorage.getItem('last_order') || '{}');
@@ -144,19 +142,6 @@
     document.getElementById('order-number').textContent = order.order_number || '—';
 
     const labels = {
-        ar: {
-            title: 'تم تأكيد طلبك! 🎉',
-            subtitle: 'شكراً لك! سيتم التواصل معك قريباً لتأكيد طلبك وإتمام عملية التسليم',
-            order_num: 'رقم الطلب',
-            customer: 'اسم العميل',
-            phone: 'رقم الهاتف',
-            email: 'البريد الإلكتروني',
-            address: 'العنوان',
-            total: 'الإجمالي',
-            items: 'المنتجات المطلوبة',
-            back: 'العودة للمتجر',
-            qty: 'الكمية',
-        },
         en: {
             title: 'Order Confirmed! 🎉',
             subtitle: "Thank you! We'll contact you soon to confirm your order and complete the delivery",
@@ -185,9 +170,9 @@
         }
     };
 
-    const l = labels[lang] || labels.ar;
+    const l = labels[lang] || labels.en;
     document.documentElement.lang = lang;
-    document.body.dir = lang === 'ar' ? 'rtl' : 'ltr';
+    document.body.dir = 'ltr';
     document.getElementById('success-title').textContent = l.title;
     document.getElementById('success-subtitle').textContent = l.subtitle;
     document.getElementById('order-num-label').textContent = l.order_num;
@@ -199,7 +184,7 @@
         { label: l.customer, value: order.customer_name },
         { label: l.phone, value: order.customer_phone },
         { label: l.email, value: order.customer_email },
-        { label: l.total, value: formatPrice(order.total_amount) },
+        { label: l.total, value: new Intl.NumberFormat(lang === 'fr' ? 'fr-FR' : 'en-IE', { style: 'currency', currency: order.currency || 'USD' }).format(Number(order.total_amount)) },
     ];
 
     document.getElementById('order-details').innerHTML = details.map(d => `
@@ -213,8 +198,8 @@
     if (order.items && order.items.length > 0) {
         document.getElementById('order-items-list').innerHTML = order.items.map(item => `
             <div style="display:flex;justify-content:space-between;align-items:center;padding:0.6rem 0;border-bottom:1px solid var(--border-light);font-size:0.875rem">
-                <span>${lang === 'ar' ? item.product_name_ar : item.product_name_en} × ${item.quantity}</span>
-                <span style="font-weight:700;color:var(--primary-light)">${formatPrice(item.subtotal)}</span>
+                <span>${lang === 'fr' ? (item.product_name_fr || item.product_name_en) : item.product_name_en} — ${lang === 'fr' ? item.offer_label_fr : item.offer_label_en} × ${item.quantity}</span>
+                <span style="font-weight:700;color:var(--primary-light)">${new Intl.NumberFormat(lang === 'fr' ? 'fr-FR' : 'en-IE', { style: 'currency', currency: order.currency || 'USD' }).format(Number(item.subtotal))}</span>
             </div>
         `).join('');
     }

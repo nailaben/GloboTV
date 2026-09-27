@@ -77,9 +77,11 @@
             position: absolute;
             top: 16px;
             right: 18px;
-            padding: 7px 10px;
-            border: 1px solid var(--login-card-edge);
-            border-radius: 9px;
+            min-width: 124px;
+            min-height: 36px;
+            padding: 0 32px 0 36px;
+            border: 1px solid rgba(181, 161, 255, .2);
+            border-radius: 999px;
             color: #d5c8ff;
             background: #211d36;
             font: 600 12px Inter, sans-serif;
@@ -281,7 +283,7 @@
 <body>
     <main class="login-page">
         <section class="login-card" aria-labelledby="login-title">
-            <button class="login-language lang-toggle" type="button" aria-label="Change language">العربية</button>
+            <select class="login-language language-select" aria-label="Choose language"><option value="en">English</option><option value="fr">Français</option></select>
             <div class="brand-mark" aria-label="PLAYORA logo">
                 <svg viewBox="0 0 32 32" fill="none" aria-hidden="true">
                     <path d="m16 4 11 5.8L16 15.5 5 9.8 16 4Z" stroke="currentColor" stroke-width="2.2" stroke-linejoin="round"/>
@@ -327,11 +329,11 @@
     <script>
         const loginTranslations = {
             en: { title: 'Welcome back', subtitle: 'Sign in to continue to your seller account', username: 'Username', usernamePlaceholder: 'Enter your username', password: 'Password', passwordPlaceholder: 'Enter your password', signIn: 'Sign in', footer: 'Looking for great deals?', visitStore: 'Visit the store', showPassword: 'Show password', hidePassword: 'Hide password', required: 'Enter your username and password to continue.', incorrect: 'That username and password do not match a seller account.', connection: 'Could not connect to the server. Please try again.', signingIn: 'Signing in…' },
-            ar: { title: 'مرحبًا بعودتك', subtitle: 'سجّل الدخول للمتابعة إلى حساب البائع', username: 'اسم المستخدم', usernamePlaceholder: 'أدخل اسم المستخدم', password: 'كلمة المرور', passwordPlaceholder: 'أدخل كلمة المرور', signIn: 'تسجيل الدخول', footer: 'تبحث عن عروض رائعة؟', visitStore: 'تفضل بزيارة المتجر', showPassword: 'إظهار كلمة المرور', hidePassword: 'إخفاء كلمة المرور', required: 'أدخل اسم المستخدم وكلمة المرور للمتابعة.', incorrect: 'اسم المستخدم أو كلمة المرور غير صحيحين.', connection: 'تعذر الاتصال بالخادم. حاول مرة أخرى.', signingIn: 'جارٍ تسجيل الدخول…' },
             fr: { title: 'Heureux de vous revoir', subtitle: 'Connectez-vous à votre compte vendeur', username: 'Nom d’utilisateur', usernamePlaceholder: 'Saisissez votre nom d’utilisateur', password: 'Mot de passe', passwordPlaceholder: 'Saisissez votre mot de passe', signIn: 'Se connecter', footer: 'À la recherche de bonnes affaires ?', visitStore: 'Visiter la boutique', showPassword: 'Afficher le mot de passe', hidePassword: 'Masquer le mot de passe', required: 'Saisissez votre nom d’utilisateur et votre mot de passe.', incorrect: 'Nom d’utilisateur ou mot de passe incorrect.', connection: 'Connexion au serveur impossible. Réessayez.', signingIn: 'Connexion…' }
         };
         let loginErrorKey = '';
         initLang();
+        setupLangToggle();
         if (getToken()) window.location.href = '/seller/dashboard.html';
 
         const form = document.getElementById('login-form');
@@ -349,7 +351,6 @@
             loginButton.textContent = copy.signIn;
             if (loginErrorKey) showError(loginErrorKey);
         }
-        document.querySelectorAll('.lang-toggle').forEach(button => button.addEventListener('click', nextLang));
         document.addEventListener('langChange', applyLoginLanguage);
         applyLoginLanguage();
 

@@ -24,38 +24,6 @@ document.addEventListener('DOMContentLoaded', async () => {
 
 // ---- Translations ----
 const i18n = {
-    ar: {
-        hero_badge: '🌟 وجهتك الأسرع للبطاقات الرقمية',
-        hero_title_1: 'اكتشف عالم',
-        hero_title_2: 'البطاقات الرقمية',
-        hero_desc: 'أسرع وأسهل طريقة للحصول على بطاقات Google Play وiTunes وPSN والمزيد',
-        shop_now: 'تسوق الآن',
-        explore_cats: 'استعرض الفئات',
-        all_products: 'كل المنتجات',
-        new_arrivals: 'المنتجات',
-        out_of_stock: 'نفدت الكمية',
-        add_to_cart: 'أضف للسلة',
-        cart_title: 'سلة التسوق',
-        cart_empty: 'سلتك فارغة',
-        checkout: 'إتمام الطلب',
-        subtotal: 'المجموع',
-        total: 'الإجمالي',
-        products_label: 'منتج',
-        orders_label: 'طلب مكتمل',
-        customers_label: 'عميل راضٍ',
-        loading: 'جاري التحميل...',
-        no_products: 'لا توجد منتجات',
-        search_placeholder: 'ابحث عن منتج...',
-        store_link: 'المتجر',
-        cart_added: '✓ أُضيف إلى السلة',
-        like_product: 'أعجبني',
-        unlike_product: 'إزالة من المفضلة',
-        liked_product: 'أُضيف إلى المفضلة',
-        unliked_product: 'أُزيل من المفضلة',
-        footer_desc: 'وجهتك الأسرع والأكثر موثوقية للحصول على البطاقات الرقمية بأفضل الأسعار',
-        quick_links: 'روابط سريعة', home: 'الرئيسية', support: 'الدعم', contact: 'اتصل بنا',
-        privacy: 'سياسة الخصوصية', terms: 'شروط الاستخدام', copyright: '© 2024 PLAYORA. جميع الحقوق محفوظة.',
-    },
     en: {
         hero_badge: '🌟 Your Fastest Digital Cards Destination',
         hero_title_1: 'Discover the World of',
@@ -80,6 +48,7 @@ const i18n = {
         search_placeholder: 'Search products...',
         store_link: 'Store',
         cart_added: '✓ Added to cart',
+        connection_error: 'Could not connect to the server',
         like_product: 'Add to favorites',
         unlike_product: 'Remove from favorites',
         liked_product: 'Added to favorites',
@@ -112,6 +81,7 @@ const i18n = {
         search_placeholder: 'Rechercher un produit…',
         store_link: 'Boutique',
         cart_added: '✓ Ajouté au panier',
+        connection_error: 'Connexion au serveur impossible',
         like_product: 'Ajouter aux favoris',
         unlike_product: 'Retirer des favoris',
         liked_product: 'Ajouté aux favoris',
@@ -122,7 +92,7 @@ const i18n = {
     }
 };
 
-function tr(key) { return (i18n[currentLang] || i18n.ar)[key] || key; }
+function tr(key) { return (i18n[currentLang] || i18n.en)[key] || key; }
 
 function applyTranslations() {
     document.querySelectorAll('[data-i18n]').forEach(el => {
@@ -157,9 +127,7 @@ function setupNavbar() {
 }
 
 function setupLangToggle() {
-    document.querySelectorAll('.lang-toggle').forEach(btn => {
-        btn.addEventListener('click', nextLang);
-    });
+    document.querySelectorAll('.language-select').forEach(select => select.addEventListener('change', () => setLang(select.value)));
 }
 
 // ---- Cart ----
@@ -219,37 +187,37 @@ function renderCart() {
     body.innerHTML = cart.map(item => `
         <div class="cart-item">
             <img class="cart-item-img" src="${item.image_url || '/images/placeholder.png'}" 
-                 alt="${currentLang === 'ar' ? item.name_ar : item.name_en}" onerror="this.src='/images/placeholder.png'">
+                 alt="${currentLang === 'fr' ? (item.name_fr || item.name_en) : item.name_en}" onerror="this.src='/images/placeholder.png'">
             <div class="cart-item-info">
-                <div class="cart-item-name">${currentLang === 'ar' ? item.name_ar : item.name_en}</div>
-                <div class="cart-item-price">${formatPrice(item.price * item.quantity)}</div>
+                <div class="cart-item-name">${currentLang === 'fr' ? (item.name_fr || item.name_en) : item.name_en}</div>
+                <div class="cart-item-price">${formatCartPrice(item, item.price * item.quantity)}</div>
                 <div class="qty-control">
-                    <button class="qty-btn" onclick="changeQty(${item.product_id}, -1)">−</button>
+                    <button class="qty-btn" onclick="changeQty('${item.product_id}', '${item.offer_id || ''}', -1)">−</button>
                     <span class="qty-value">${item.quantity}</span>
-                    <button class="qty-btn" onclick="changeQty(${item.product_id}, 1)">+</button>
+                    <button class="qty-btn" onclick="changeQty('${item.product_id}', '${item.offer_id || ''}', 1)">+</button>
                 </div>
             </div>
-            <span class="cart-item-remove material-symbols-outlined" onclick="removeItem(${item.product_id})">close</span>
+            <span class="cart-item-remove material-symbols-outlined" onclick="removeItem('${item.product_id}', '${item.offer_id || ''}')">close</span>
         </div>
     `).join('');
 
-    totalEl.textContent = formatPrice(getCartTotal());
+    totalEl.textContent = new Intl.NumberFormat(currentLang === 'fr' ? 'fr-FR' : 'en-IE', { style: 'currency', currency: cart[0]?.currency || 'EUR' }).format(getCartTotal());
 }
 
-window.changeQty = function(productId, delta) {
+window.changeQty = function(productId, offerId, delta) {
     const cart = getCart();
-    const item = cart.find(i => i.product_id === productId);
+    const item = cart.find(i => String(i.product_id) === String(productId) && String(i.offer_id || '') === String(offerId || ''));
     if (item) {
         const newQty = item.quantity + delta;
-        if (newQty <= 0) { removeFromCart(productId); }
-        else { updateCartQty(productId, newQty); }
+        if (newQty <= 0) { removeFromCart(productId, offerId); }
+        else { updateCartQty(productId, newQty, offerId); }
     }
     updateCartBadge();
     renderCart();
 };
 
-window.removeItem = function(productId) {
-    removeFromCart(productId);
+window.removeItem = function(productId, offerId) {
+    removeFromCart(productId, offerId);
     updateCartBadge();
     renderCart();
 };
@@ -276,7 +244,7 @@ function renderCategories() {
     const catBtns = allCategories.map(cat => `
         <button class="cat-btn ${activeCategory === String(cat.id) ? 'active' : ''}" onclick="filterByCategory('${cat.id}')">
             <span class="material-symbols-outlined">${cat.icon}</span>
-            ${currentLang === 'ar' ? cat.name_ar : cat.name_en}
+            ${currentLang === 'fr' ? (cat.name_fr || cat.name_en) : cat.name_en}
         </button>
     `).join('');
 
@@ -324,7 +292,7 @@ async function loadProducts() {
         document.getElementById('products-grid').innerHTML = `
             <div class="empty-state" style="grid-column:1/-1">
                 <div class="empty-state-icon">⚠️</div>
-                <p>تعذر الاتصال بالخادم</p>
+                <p>${tr('connection_error')}</p>
             </div>`;
     }
 }
@@ -357,9 +325,8 @@ function renderProducts() {
     if (searchQuery) {
         const q = searchQuery.toLowerCase();
         filtered = filtered.filter(p =>
-            p.name_ar.toLowerCase().includes(q) ||
             p.name_en.toLowerCase().includes(q) ||
-            (p.description_ar && p.description_ar.toLowerCase().includes(q)) ||
+            (p.name_fr || '').toLowerCase().includes(q) ||
             (p.description_en && p.description_en.toLowerCase().includes(q))
         );
     }
@@ -376,9 +343,9 @@ function renderProducts() {
     const likedProductIds = getLikedProductIds();
     grid.innerHTML = filtered.map(product => {
         const outOfStock = product.stock_quantity <= 0;
-        const name = currentLang === 'ar' ? product.name_ar : product.name_en;
-        const desc = currentLang === 'ar' ? product.description_ar : product.description_en;
-        const catName = currentLang === 'ar' ? product.category_name_ar : product.category_name_en;
+        const name = currentLang === 'fr' ? (product.name_fr || product.name_en) : product.name_en;
+        const desc = currentLang === 'fr' ? (product.description_fr || product.description_en) : product.description_en;
+        const catName = currentLang === 'fr' ? (product.category_name_fr || product.category_name_en) : product.category_name_en;
         const isLiked = likedProductIds.includes(String(product.id));
 
         return `
@@ -399,7 +366,7 @@ function renderProducts() {
                 <div class="product-card-name">${name}</div>
                 <div class="product-card-desc">${desc || ''}</div>
                 <div class="product-card-footer">
-                    <span class="product-price">${formatPrice(product.price)}</span>
+                    <span class="product-price">${product.starting_price_eur != null ? new Intl.NumberFormat(currentLang === 'fr' ? 'fr-FR' : 'en-IE',{style:'currency',currency:'EUR'}).format(Number(product.starting_price_eur)) : '—'}</span>
                     <button class="add-to-cart-btn" 
                             onclick="event.stopPropagation(); handleAddToCart(${product.id})"
                             ${outOfStock ? 'disabled' : ''}
@@ -418,15 +385,7 @@ window.goToProduct = function(id) {
 };
 
 window.handleAddToCart = function(productId) {
-    const product = allProducts.find(p => p.id === productId);
-    if (!product || product.stock_quantity <= 0) return;
-    addToCart(product);
-    updateCartBadge();
-    showToast(
-        tr('cart_added'),
-        'success', 2000
-    );
-    if (cartOpen) renderCart();
+    window.goToProduct(productId);
 };
 
 // ---- Scroll to products ----

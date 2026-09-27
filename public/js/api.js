@@ -153,7 +153,8 @@ function saveCart(cart) { localStorage.setItem('playora_cart', JSON.stringify(ca
 
 function addToCart(product, quantity = 1) {
     const cart = getCart();
-    const existing = cart.find(item => item.product_id === product.id);
+    const offer = product.selectedOffer || null;
+    const existing = cart.find(item => String(item.product_id) === String(product.id) && String(item.offer_id || '') === String(offer?.id || ''));
     if (existing) {
         existing.quantity = Math.min(existing.quantity + quantity, product.stock_quantity);
     } else {
@@ -161,7 +162,12 @@ function addToCart(product, quantity = 1) {
             product_id: product.id,
             name_ar: product.name_ar,
             name_en: product.name_en,
-            price: product.price,
+            name_fr: product.name_fr || product.name_en,
+            offer_id: offer?.id || null,
+            offer_label_en: offer?.label_en || '',
+            offer_label_fr: offer?.label_fr || '',
+            price: offer ? Number(offer.price_eur) : Number(product.price),
+            currency: offer ? 'EUR' : 'USD',
             image_url: product.image_url,
             stock_quantity: product.stock_quantity,
             quantity
@@ -171,15 +177,15 @@ function addToCart(product, quantity = 1) {
     return cart;
 }
 
-function removeFromCart(productId) {
-    const cart = getCart().filter(item => item.product_id !== productId);
+function removeFromCart(productId, offerId = null) {
+    const cart = getCart().filter(item => !(String(item.product_id) === String(productId) && String(item.offer_id || '') === String(offerId || '')));
     saveCart(cart);
     return cart;
 }
 
-function updateCartQty(productId, qty) {
+function updateCartQty(productId, qty, offerId = null) {
     const cart = getCart().map(item => {
-        if (item.product_id === productId) item.quantity = Math.max(1, Math.min(qty, item.stock_quantity));
+        if (String(item.product_id) === String(productId) && String(item.offer_id || '') === String(offerId || '')) item.quantity = Math.max(1, Math.min(qty, item.stock_quantity));
         return item;
     });
     saveCart(cart);
@@ -197,25 +203,19 @@ function getCartCount() {
 function clearCart() { localStorage.removeItem('playora_cart'); }
 
 // ---- Language ----
-const supportedLanguages = ['ar', 'fr', 'en'];
-const languageNames = { ar: 'العربية', fr: 'Français', en: 'English' };
+const supportedLanguages = ['en', 'fr'];
+const languageNames = { fr: 'Français', en: 'English' };
 let currentLang = supportedLanguages.includes(localStorage.getItem('playora_lang'))
     ? localStorage.getItem('playora_lang')
-    : 'ar';
+    : 'en';
 
 function setLang(lang) {
     if (!supportedLanguages.includes(lang)) return;
     currentLang = lang;
     localStorage.setItem('playora_lang', lang);
     document.documentElement.lang = lang;
-    document.body.dir = lang === 'ar' ? 'rtl' : 'ltr';
-    document.querySelectorAll('.lang-toggle').forEach(button => {
-        const label = button.querySelector('.language-name');
-        if (label) label.textContent = languageNames[lang];
-        else button.textContent = languageNames[lang];
-        button.setAttribute('aria-label', `Language: ${languageNames[lang]}`);
-        button.title = `Language: ${languageNames[lang]}`;
-    });
+    document.body.dir = 'ltr';
+    document.querySelectorAll('.language-select').forEach(select => { select.value = lang; });
     document.dispatchEvent(new CustomEvent('langChange', { detail: lang }));
 }
 
@@ -224,11 +224,18 @@ function nextLang() {
     setLang(supportedLanguages[(index + 1) % supportedLanguages.length]);
 }
 
-function t(ar, en, fr = en) { return currentLang === 'ar' ? ar : currentLang === 'fr' ? fr : en; }
+function t(en, fr = en) { return currentLang === 'fr' ? fr : en; }
 
 function initLang() {
-    const lang = localStorage.getItem('playora_lang') || 'ar';
+    const savedLanguage = localStorage.getItem('playora_lang');
+    const lang = supportedLanguages.includes(savedLanguage) ? savedLanguage : 'en';
     setLang(lang);
+}
+
+function setupLangToggle() {
+    document.querySelectorAll('.language-select').forEach(select => {
+        select.addEventListener('change', () => setLang(select.value));
+    });
 }
 
 // ---- Toast Notifications ----
@@ -253,12 +260,14 @@ function formatPrice(price) {
     return `$${parseFloat(price).toFixed(2)}`;
 }
 
+function formatCartPrice(item, amount = item.price) {
+    return new Intl.NumberFormat(currentLang === 'fr' ? 'fr-FR' : 'en-IE', { style: 'currency', currency: item.currency || 'USD' }).format(Number(amount));
+}
+
 // ---- Format Date ----
 function formatDate(dateStr) {
     const date = new Date(dateStr);
-    return currentLang === 'ar'
-        ? date.toLocaleDateString('ar-DZ', { year: 'numeric', month: 'long', day: 'numeric' })
-        : date.toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric' });
+    return date.toLocaleDateString(currentLang === 'fr' ? 'fr-FR' : 'en-US', { year: 'numeric', month: 'short', day: 'numeric' });
 }
 
 // ---- Image Fallback ----

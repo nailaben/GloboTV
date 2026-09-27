@@ -12,31 +12,6 @@ document.addEventListener('DOMContentLoaded', () => {
 });
 
 const checkoutI18n = {
-    ar: {
-        checkout_title: 'إتمام الطلب',
-        order_summary: 'ملخص الطلب',
-        customer_info: 'بيانات المشتري',
-        full_name: 'الاسم الكامل',
-        phone: 'رقم الهاتف',
-        email: 'البريد الإلكتروني',
-        address: 'العنوان',
-        notes: 'ملاحظات (اختياري)',
-        place_order: 'تأكيد الطلب',
-        subtotal: 'المجموع الفرعي',
-        total: 'الإجمالي',
-        required: 'هذا الحقل مطلوب',
-        invalid_phone: 'رقم هاتف غير صالح',
-        invalid_email: 'بريد إلكتروني غير صالح',
-        empty_cart: 'سلتك فارغة',
-        processing: 'جاري معالجة الطلب...',
-        back_to_store: 'العودة للمتجر',
-        name_placeholder: 'أدخل اسمك الكامل',
-        phone_placeholder: 'مثال: 0555123456',
-        email_placeholder: 'example@email.com',
-        address_placeholder: 'المدينة، الحي، الشارع، رقم البناء',
-        notes_placeholder: 'أي ملاحظات إضافية للطلب',
-        qty_label: 'الكمية',
-    },
     en: {
         checkout_title: 'Checkout',
         order_summary: 'Order Summary',
@@ -55,12 +30,15 @@ const checkoutI18n = {
         empty_cart: 'Your cart is empty',
         processing: 'Processing order...',
         back_to_store: 'Back to Store',
+        store_link: 'Store',
         name_placeholder: 'Enter your full name',
         phone_placeholder: 'e.g. 0555123456',
         email_placeholder: 'example@email.com',
         address_placeholder: 'City, District, Street, Building',
         notes_placeholder: 'Any additional notes for your order',
         qty_label: 'Qty',
+        generic_error: 'An error occurred. Please try again.',
+        connection_error: 'Could not connect to the server.',
     },
     fr: {
         checkout_title: 'Finaliser la commande',
@@ -80,16 +58,19 @@ const checkoutI18n = {
         empty_cart: 'Votre panier est vide',
         processing: 'Traitement de la commande…',
         back_to_store: 'Retour à la boutique',
+        store_link: 'Boutique',
         name_placeholder: 'Saisissez votre nom complet',
         phone_placeholder: 'Ex. : 0555123456',
         email_placeholder: 'exemple@email.com',
         address_placeholder: 'Ville, quartier, rue, numéro',
         notes_placeholder: 'Remarques supplémentaires',
         qty_label: 'Qté',
+        generic_error: 'Une erreur est survenue. Réessayez.',
+        connection_error: 'Connexion au serveur impossible.',
     }
 };
 
-function ctr(key) { return (checkoutI18n[currentLang] || checkoutI18n.ar)[key] || key; }
+function ctr(key) { return (checkoutI18n[currentLang] || checkoutI18n.en)[key] || key; }
 
 function applyCheckoutTranslations() {
     document.querySelectorAll('[data-co-i18n]').forEach(el => {
@@ -101,9 +82,7 @@ function applyCheckoutTranslations() {
 }
 
 function setupLangToggle() {
-    document.querySelectorAll('.lang-toggle').forEach(btn => {
-        btn.addEventListener('click', nextLang);
-    });
+    document.querySelectorAll('.language-select').forEach(select => select.addEventListener('change', () => setLang(select.value)));
 }
 
 function renderOrderSummary() {
@@ -119,19 +98,22 @@ function renderOrderSummary() {
 
     container.innerHTML = cart.map(item => `
         <div class="checkout-item">
-            <img src="${item.image_url || '/images/placeholder.png'}" alt="${currentLang === 'ar' ? item.name_ar : item.name_en}" 
+            <img src="${item.image_url || '/images/placeholder.png'}" alt="${currentLang === 'fr' ? (item.name_fr || item.name_en) : item.name_en}"
                  onerror="this.src='/images/placeholder.png'">
             <div class="checkout-item-info">
-                <div class="checkout-item-name">${currentLang === 'ar' ? item.name_ar : item.name_en}</div>
+                <div class="checkout-item-name">${currentLang === 'fr' ? (item.name_fr || item.name_en) : item.name_en}</div>
+                <div class="checkout-item-qty">${currentLang === 'fr' ? item.offer_label_fr : item.offer_label_en}</div>
                 <div class="checkout-item-qty">${ctr('qty_label')}: ${item.quantity}</div>
             </div>
-            <div class="checkout-item-price">${formatPrice(item.price * item.quantity)}</div>
+            <div class="checkout-item-price">${formatCartPrice(item, item.price * item.quantity)}</div>
         </div>
     `).join('');
 
     const total = getCartTotal();
-    subtotalEl.textContent = formatPrice(total);
-    totalEl.textContent = formatPrice(total);
+    const currency = cart[0]?.currency || 'EUR';
+    const formattedTotal = new Intl.NumberFormat(currentLang === 'fr' ? 'fr-FR' : 'en-IE', { style: 'currency', currency }).format(total);
+    subtotalEl.textContent = formattedTotal;
+    totalEl.textContent = formattedTotal;
 }
 
 function setupForm() {
@@ -151,7 +133,7 @@ function setupForm() {
             customer_email: document.getElementById('customer-email').value.trim(),
             customer_address: document.getElementById('customer-address').value.trim(),
             notes: document.getElementById('customer-notes').value.trim(),
-            items: cart.map(item => ({ product_id: item.product_id, quantity: item.quantity }))
+            items: cart.map(item => ({ product_id: item.product_id, offer_id: item.offer_id, quantity: item.quantity }))
         };
 
         try {
@@ -161,12 +143,12 @@ function setupForm() {
                 sessionStorage.setItem('last_order', JSON.stringify(res.order));
                 window.location.href = '/order-success.html';
             } else {
-                showToast(res.message || 'حدث خطأ، حاول مجدداً', 'error');
+                showToast(res.message || ctr('generic_error'), 'error');
                 btn.disabled = false;
                 btn.textContent = ctr('place_order');
             }
         } catch (err) {
-            showToast('حدث خطأ في الاتصال بالخادم', 'error');
+            showToast(ctr('connection_error'), 'error');
             btn.disabled = false;
             btn.textContent = ctr('place_order');
         }

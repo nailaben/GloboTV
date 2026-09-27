@@ -49,9 +49,9 @@ router.get('/stats', authMiddleware, async (req, res) => {
     try {
         const [productsResult, ordersResult, revenueResult, pendingResult] = await Promise.all([
             pool.query('SELECT COUNT(*) FROM products WHERE seller_id = $1', [req.seller.id]),
-            pool.query('SELECT COUNT(*) FROM orders'),
-            pool.query('SELECT COALESCE(SUM(total_amount), 0) as total FROM orders WHERE status != $1', ['cancelled']),
-            pool.query("SELECT COUNT(*) FROM orders WHERE status = 'pending'")
+            pool.query('SELECT COUNT(DISTINCT o.id) FROM orders o JOIN order_items oi ON oi.order_id=o.id JOIN products p ON p.id=oi.product_id WHERE p.seller_id=$1', [req.seller.id]),
+            pool.query("SELECT COALESCE(SUM(oi.subtotal), 0) AS total FROM order_items oi JOIN orders o ON o.id=oi.order_id JOIN products p ON p.id=oi.product_id WHERE p.seller_id=$1 AND o.status != 'cancelled' AND o.currency='EUR'", [req.seller.id]),
+            pool.query("SELECT COUNT(DISTINCT o.id) FROM orders o JOIN order_items oi ON oi.order_id=o.id JOIN products p ON p.id=oi.product_id WHERE p.seller_id=$1 AND o.status = 'pending'", [req.seller.id])
         ]);
 
         res.json({

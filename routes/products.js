@@ -36,7 +36,8 @@ router.get('/', async (req, res) => {
     try {
         const { category, search, lang } = req.query;
         let query = `
-            SELECT p.*, c.name_ar as category_name_ar, c.name_en as category_name_en, c.icon as category_icon
+            SELECT p.*, c.name_en as category_name_en, c.name_fr as category_name_fr, c.icon as category_icon,
+                   (SELECT MIN(price_eur) FROM product_offers po WHERE po.product_id=p.id AND po.is_active=true) AS starting_price_eur
             FROM products p
             LEFT JOIN categories c ON p.category_id = c.id
             WHERE p.is_active = true
@@ -50,7 +51,7 @@ router.get('/', async (req, res) => {
 
         if (search) {
             params.push(`%${search}%`);
-            query += ` AND (p.name_ar ILIKE $${params.length} OR p.name_en ILIKE $${params.length} OR p.description_ar ILIKE $${params.length} OR p.description_en ILIKE $${params.length})`;
+            query += ` AND (p.name_en ILIKE $${params.length} OR p.name_fr ILIKE $${params.length} OR p.description_en ILIKE $${params.length} OR p.description_fr ILIKE $${params.length})`;
         }
 
         query += ' ORDER BY p.created_at DESC';
@@ -78,7 +79,8 @@ router.get('/categories', async (req, res) => {
 router.get('/seller/all', authMiddleware, async (req, res) => {
     try {
         const result = await pool.query(`
-            SELECT p.*, c.name_ar as category_name_ar, c.name_en as category_name_en
+            SELECT p.*, c.name_en as category_name_en, c.name_fr as category_name_fr,
+                   COALESCE((SELECT json_agg(po ORDER BY po.sort_order, po.id) FROM product_offers po WHERE po.product_id=p.id), '[]'::json) AS offers
             FROM products p
             LEFT JOIN categories c ON p.category_id = c.id
             WHERE p.seller_id = $1
@@ -96,7 +98,7 @@ router.get('/seller/all', authMiddleware, async (req, res) => {
 router.get('/:id', async (req, res) => {
     try {
         const result = await pool.query(`
-            SELECT p.*, c.name_ar as category_name_ar, c.name_en as category_name_en
+            SELECT p.*, c.name_en as category_name_en, c.name_fr as category_name_fr
             FROM products p
             LEFT JOIN categories c ON p.category_id = c.id
             WHERE p.id = $1 AND p.is_active = true
@@ -106,8 +108,10 @@ router.get('/:id', async (req, res) => {
             return res.status(404).json({ success: false, message: 'Product not found' });
         }
 
-        // Get related products
         const product = result.rows[0];
+        const offers = await pool.query('SELECT id, label_en, label_fr, price_eur FROM product_offers WHERE product_id=$1 AND is_active=true ORDER BY sort_order,id', [product.id]);
+        product.offers = offers.rows;
+        // Get related products
         const related = await pool.query(`
             SELECT * FROM products
             WHERE category_id = $1 AND id != $2 AND is_active = true
@@ -123,10 +127,11 @@ router.get('/:id', async (req, res) => {
 
 // POST /api/products - Add new product (seller only)
 router.post('/', authMiddleware, upload.single('image'), async (req, res) => {
-    const { name_ar, name_en, description_ar, description_en, price, category_id, stock_quantity } = req.body;
+    const { name_fr, name_en, description_fr, description_en, price, category_id, stock_quantity } = req.body;
 
-    if (!name_ar || !name_en || !price) {
-        return res.status(400).json({ success: false, message: 'Name and price are required' });
+    const offers = parseOffers(req.body.offers_json);
+    if (!name_fr || !name_en || !price || !offers || !offers.length) {
+        return res.status(400).json({ success: false, message: 'French and English names, base price, and at least one valid offer are required' });
     }
 
     try {
@@ -136,10 +141,12 @@ router.post('/', authMiddleware, upload.single('image'), async (req, res) => {
         }
 
         const result = await pool.query(`
-            INSERT INTO products (seller_id, name_ar, name_en, description_ar, description_en, price, category_id, stock_quantity, image_url)
-            VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+            INSERT INTO products (seller_id, name_ar, name_en, name_fr, description_ar, description_en, description_fr, price, category_id, stock_quantity, image_url)
+            VALUES ($1, $2, $3, $4, '', $5, $6, $7, $8, $9, $10)
             RETURNING *
-        `, [req.seller.id, name_ar, name_en, description_ar || '', description_en || '', price, category_id || null, stock_quantity || 0, image_url]);
+        `, [req.seller.id, name_fr, name_en, name_fr, description_en || '', description_fr || '', price, category_id || null, stock_quantity || 0, image_url]);
+
+        await replaceOffers(result.rows[0].id, offers);
 
         res.status(201).json({ success: true, product: result.rows[0] });
     } catch (err) {
@@ -150,7 +157,7 @@ router.post('/', authMiddleware, upload.single('image'), async (req, res) => {
 
 // PUT /api/products/:id - Update product (seller only)
 router.put('/:id', authMiddleware, upload.single('image'), async (req, res) => {
-    const { name_ar, name_en, description_ar, description_en, price, category_id, stock_quantity, is_active } = req.body;
+    const { name_fr, name_en, description_fr, description_en, price, category_id, stock_quantity, is_active } = req.body;
 
     try {
         let image_url = req.body.image_url;
@@ -162,9 +169,9 @@ router.put('/:id', authMiddleware, upload.single('image'), async (req, res) => {
         const values = [];
         let idx = 1;
 
-        if (name_ar !== undefined) { updateFields.push(`name_ar = $${idx++}`); values.push(name_ar); }
+        if (name_fr !== undefined) { updateFields.push(`name_fr = $${idx++}`); values.push(name_fr); updateFields.push(`name_ar = $${idx++}`); values.push(name_fr); }
         if (name_en !== undefined) { updateFields.push(`name_en = $${idx++}`); values.push(name_en); }
-        if (description_ar !== undefined) { updateFields.push(`description_ar = $${idx++}`); values.push(description_ar); }
+        if (description_fr !== undefined) { updateFields.push(`description_fr = $${idx++}`); values.push(description_fr); }
         if (description_en !== undefined) { updateFields.push(`description_en = $${idx++}`); values.push(description_en); }
         if (price !== undefined) { updateFields.push(`price = $${idx++}`); values.push(price); }
         if (category_id !== undefined) { updateFields.push(`category_id = $${idx++}`); values.push(category_id); }
@@ -187,6 +194,11 @@ router.put('/:id', authMiddleware, upload.single('image'), async (req, res) => {
             return res.status(404).json({ success: false, message: 'Product not found' });
         }
 
+        if (req.body.offers_json !== undefined) {
+            const offers = parseOffers(req.body.offers_json);
+            if (!offers || !offers.length) return res.status(400).json({ success: false, message: 'Add at least one valid offer' });
+            await replaceOffers(req.params.id, offers);
+        }
         res.json({ success: true, product: result.rows[0] });
     } catch (err) {
         console.error('Update product error:', err);
@@ -214,3 +226,27 @@ router.delete('/:id', authMiddleware, async (req, res) => {
 });
 
 module.exports = router;
+
+function parseOffers(raw) {
+    try {
+        const offers = JSON.parse(raw || '[]');
+        if (!Array.isArray(offers)) return null;
+        const cleaned = offers.map(o => ({ label_en: String(o.label_en || '').trim(), label_fr: String(o.label_fr || '').trim(), price_eur: Number(o.price_eur) }))
+            .filter(o => o.label_en && o.label_fr && Number.isFinite(o.price_eur) && o.price_eur >= 0);
+        return cleaned.length === offers.length ? cleaned : null;
+    } catch { return null; }
+}
+
+async function replaceOffers(productId, offers) {
+    const client = await pool.connect();
+    try {
+        await client.query('BEGIN');
+        await client.query('DELETE FROM product_offers WHERE product_id=$1', [productId]);
+        for (let i = 0; i < offers.length; i++) {
+            const o = offers[i];
+            await client.query('INSERT INTO product_offers(product_id,label_en,label_fr,price_eur,sort_order) VALUES($1,$2,$3,$4,$5)', [productId, o.label_en, o.label_fr, o.price_eur, i]);
+        }
+        await client.query('COMMIT');
+    } catch (error) { await client.query('ROLLBACK'); throw error; }
+    finally { client.release(); }
+}
