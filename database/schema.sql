@@ -88,27 +88,57 @@ CREATE TABLE IF NOT EXISTS categories (
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
--- Remove duplicate categories before creating unique index
-WITH duplicate_categories AS (
-    SELECT
-        id,
-        ROW_NUMBER() OVER (
-            PARTITION BY LOWER(TRIM(name_en))
-            ORDER BY id
-        ) AS row_num
-    FROM categories
-)
-DELETE FROM categories
-WHERE id IN (
-    SELECT id
-    FROM duplicate_categories
-    WHERE row_num > 1
-);
 
+-- =============================================
+-- Fix duplicate categories safely
+-- Keep the oldest category and move products
+-- to the category that will be kept
+-- =============================================
+
+DO $$
+DECLARE
+    duplicate RECORD;
+    keep_id INTEGER;
+BEGIN
+
+    FOR duplicate IN
+        SELECT
+            LOWER(TRIM(name_en)) AS category_name,
+            MIN(id) AS keep_category_id
+        FROM categories
+        GROUP BY LOWER(TRIM(name_en))
+        HAVING COUNT(*) > 1
+    LOOP
+
+        keep_id := duplicate.keep_category_id;
+
+        -- Move products from duplicate categories
+        -- to the category we are keeping
+        UPDATE products
+        SET category_id = keep_id
+        WHERE category_id IN (
+            SELECT id
+            FROM categories
+            WHERE LOWER(TRIM(name_en)) = duplicate.category_name
+            AND id <> keep_id
+        );
+
+        -- Delete duplicate categories
+        DELETE FROM categories
+        WHERE LOWER(TRIM(name_en)) = duplicate.category_name
+        AND id <> keep_id;
+
+    END LOOP;
+
+END $$;
+
+
+-- =============================================
 -- Unique category name
+-- =============================================
+
 CREATE UNIQUE INDEX IF NOT EXISTS categories_name_en_lower_unique
 ON categories (LOWER(TRIM(name_en)));
-
 
 -- =============================================
 -- Create products table
