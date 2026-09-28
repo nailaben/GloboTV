@@ -9,6 +9,9 @@ let searchQuery = '';
 
 document.addEventListener('DOMContentLoaded', async () => {
     initLang();
+    const initialQuery = new URLSearchParams(location.search);
+    searchQuery = initialQuery.get('search') || '';
+    activeCategory = initialQuery.get('category') || 'all';
     applyTranslations();
     setupNavbar();
     setupLangToggle();
