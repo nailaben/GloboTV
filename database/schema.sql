@@ -1,296 +1,349 @@
 -- =============================================
--- PLAYORA Database Schema
+-- PLAYORA DATABASE SCHEMA
 -- PostgreSQL
 -- =============================================
 
-
 -- =============================================
--- Create sellers table
+-- 1. SELLERS
 -- =============================================
 
 CREATE TABLE IF NOT EXISTS sellers (
     id SERIAL PRIMARY KEY,
     name VARCHAR(100) NOT NULL,
-    email VARCHAR(255) UNIQUE NOT NULL,
-    username VARCHAR(50),
+    username VARCHAR(255),
     password_hash VARCHAR(255) NOT NULL,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
--- Add username column if it does not exist
-ALTER TABLE sellers
-ADD COLUMN IF NOT EXISTS username VARCHAR(50);
-
--- Generate usernames for existing sellers
-UPDATE sellers
-SET username = CASE
-    WHEN LOWER(email) = 'admin@playora.com' THEN 'charaf_ben'
-    ELSE COALESCE(
-        NULLIF(
-            LOWER(
-                REGEXP_REPLACE(
-                    SPLIT_PART(email, '@', 1),
-                    '[^a-zA-Z0-9_]+',
-                    '_',
-                    'g'
-                )
-            ),
-            ''
-        ),
-        'seller'
+-- If old database has user_name, rename it to username
+DO $$
+BEGIN
+    IF EXISTS (
+        SELECT 1
+        FROM information_schema.columns
+        WHERE table_name = 'sellers'
+        AND column_name = 'user_name'
     )
-END
-WHERE username IS NULL;
+    AND NOT EXISTS (
+        SELECT 1
+        FROM information_schema.columns
+        WHERE table_name = 'sellers'
+        AND column_name = 'username'
+    )
+    THEN
+        ALTER TABLE sellers
+        RENAME COLUMN user_name TO username;
+    END IF;
+END $$;
 
--- Fix admin username
+
+-- Generate username for old sellers that don't have one
 UPDATE sellers
-SET username = 'charaf_ben'
-WHERE LOWER(email) = 'admin@playora.com'
-  AND username = 'admin';
+SET username =
+    CASE
+        WHEN id = 1 THEN 'charaf_ben'
+        ELSE 'seller_' || id
+    END
+WHERE username IS NULL OR TRIM(username) = '';
 
--- Fix duplicate usernames
-WITH duplicate_usernames AS (
-    SELECT
-        id,
-        username,
-        ROW_NUMBER() OVER (
-            PARTITION BY LOWER(username)
-            ORDER BY id
-        ) AS row_num
-    FROM sellers
-    WHERE username IS NOT NULL
-)
-UPDATE sellers AS seller
-SET username = duplicate_usernames.username || seller.id::TEXT
-FROM duplicate_usernames
-WHERE seller.id = duplicate_usernames.id
-  AND duplicate_usernames.row_num > 1;
 
 -- Make username required
 ALTER TABLE sellers
 ALTER COLUMN username SET NOT NULL;
 
--- Unique username index
-CREATE UNIQUE INDEX IF NOT EXISTS sellers_username_lower_unique
+
+-- Unique username
+CREATE UNIQUE INDEX IF NOT EXISTS sellers_username_unique
 ON sellers (LOWER(TRIM(username)));
 
 
 -- =============================================
--- Create categories table
+-- 2. CATEGORIES
 -- =============================================
 
 CREATE TABLE IF NOT EXISTS categories (
     id SERIAL PRIMARY KEY,
-    name_ar VARCHAR(100) NOT NULL,
+    name_ar VARCHAR(100) NOT NULL DEFAULT '',
     name_en VARCHAR(100) NOT NULL,
     name_fr VARCHAR(100) NOT NULL DEFAULT '',
     icon VARCHAR(50) DEFAULT 'category',
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
--- Keep upgrades safe when the categories table already predates French labels.
+
+-- Add Arabic name if old table doesn't have it
+ALTER TABLE categories
+ADD COLUMN IF NOT EXISTS name_ar VARCHAR(100) NOT NULL DEFAULT '';
+
+
+-- Add French name if old table doesn't have it
 ALTER TABLE categories
 ADD COLUMN IF NOT EXISTS name_fr VARCHAR(100) NOT NULL DEFAULT '';
 
 
 -- =============================================
--- Fix duplicate categories safely
--- Keep the oldest category and move products
--- to the category that will be kept
--- =============================================
-
-DO $$
-DECLARE
-    duplicate RECORD;
-    keep_id INTEGER;
-BEGIN
-
-    FOR duplicate IN
-        SELECT
-            LOWER(TRIM(name_en)) AS category_name,
-            MIN(id) AS keep_category_id
-        FROM categories
-        GROUP BY LOWER(TRIM(name_en))
-        HAVING COUNT(*) > 1
-    LOOP
-
-        keep_id := duplicate.keep_category_id;
-
-        -- Move products from duplicate categories
-        -- to the category we are keeping
-        UPDATE products
-        SET category_id = keep_id
-        WHERE category_id IN (
-            SELECT id
-            FROM categories
-            WHERE LOWER(TRIM(name_en)) = duplicate.category_name
-            AND id <> keep_id
-        );
-
-        -- Delete duplicate categories
-        DELETE FROM categories
-        WHERE LOWER(TRIM(name_en)) = duplicate.category_name
-        AND id <> keep_id;
-
-    END LOOP;
-
-END $$;
-
-
--- =============================================
--- Unique category name
--- =============================================
-
-CREATE UNIQUE INDEX IF NOT EXISTS categories_name_en_lower_unique
-ON categories (LOWER(TRIM(name_en)));
-
--- =============================================
--- Create products table
+-- 3. PRODUCTS
 -- =============================================
 
 CREATE TABLE IF NOT EXISTS products (
     id SERIAL PRIMARY KEY,
-    seller_id INTEGER REFERENCES sellers(id) ON DELETE CASCADE,
+
+    seller_id INTEGER
+        REFERENCES sellers(id)
+        ON DELETE CASCADE,
+
     name_ar VARCHAR(255) NOT NULL,
     name_en VARCHAR(255) NOT NULL,
     name_fr VARCHAR(255) NOT NULL DEFAULT '',
+
     description_ar TEXT,
     description_en TEXT,
     description_fr TEXT,
+
     price DECIMAL(10,2) NOT NULL,
-    category_id INTEGER REFERENCES categories(id),
+
+    category_id INTEGER
+        REFERENCES categories(id)
+        ON DELETE SET NULL,
+
     stock_quantity INTEGER DEFAULT 0,
+
     image_url VARCHAR(500),
+
     is_active BOOLEAN DEFAULT TRUE,
+
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
--- Add localized fields to an existing products table before any queries use them.
+
+-- Add missing columns to old products table
 ALTER TABLE products
 ADD COLUMN IF NOT EXISTS name_fr VARCHAR(255) NOT NULL DEFAULT '';
+
 ALTER TABLE products
 ADD COLUMN IF NOT EXISTS description_fr TEXT;
+
+ALTER TABLE products
+ADD COLUMN IF NOT EXISTS stock_quantity INTEGER DEFAULT 0;
+
+ALTER TABLE products
+ADD COLUMN IF NOT EXISTS image_url VARCHAR(500);
+
+ALTER TABLE products
+ADD COLUMN IF NOT EXISTS is_active BOOLEAN DEFAULT TRUE;
+
+ALTER TABLE products
+ADD COLUMN IF NOT EXISTS created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP;
+
+ALTER TABLE products
+ADD COLUMN IF NOT EXISTS updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP;
+
+
+-- Fill French names from English if empty
 UPDATE products
 SET name_fr = name_en
-WHERE name_fr = '';
+WHERE name_fr IS NULL OR TRIM(name_fr) = '';
+
+
 UPDATE products
 SET description_fr = description_en
-WHERE description_fr IS NULL;
+WHERE description_fr IS NULL
+AND description_en IS NOT NULL;
 
 
 -- =============================================
--- Create product offers table
+-- 4. PRODUCT OFFERS
 -- =============================================
 
 CREATE TABLE IF NOT EXISTS product_offers (
     id SERIAL PRIMARY KEY,
+
     product_id INTEGER NOT NULL
         REFERENCES products(id)
         ON DELETE CASCADE,
+
     label_en VARCHAR(120) NOT NULL,
     label_fr VARCHAR(120) NOT NULL,
+
     price_eur DECIMAL(10,2) NOT NULL
         CHECK (price_eur >= 0),
+
     sort_order INTEGER NOT NULL DEFAULT 0,
+
     is_active BOOLEAN NOT NULL DEFAULT TRUE,
+
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
 
 -- =============================================
--- Create customers table
+-- 5. CUSTOMERS
 -- =============================================
 
 CREATE TABLE IF NOT EXISTS customers (
     id SERIAL PRIMARY KEY,
+
     name VARCHAR(150) NOT NULL,
+
     email VARCHAR(255) NOT NULL UNIQUE,
+
     password_hash VARCHAR(255) NOT NULL,
+
     phone VARCHAR(30),
+
     address TEXT,
+
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
--- Unique email index, case-insensitive
+
+-- Case-insensitive unique email
 CREATE UNIQUE INDEX IF NOT EXISTS customers_email_lower_unique
 ON customers (LOWER(TRIM(email)));
 
 
 -- =============================================
--- Create orders table
+-- 6. ORDERS
 -- =============================================
 
 CREATE TABLE IF NOT EXISTS orders (
     id SERIAL PRIMARY KEY,
+
     order_number VARCHAR(20) UNIQUE NOT NULL,
+
     customer_name VARCHAR(255) NOT NULL,
+
     customer_phone VARCHAR(20) NOT NULL,
+
     customer_email VARCHAR(255) NOT NULL,
+
     customer_address TEXT NOT NULL,
-    customer_id INTEGER REFERENCES customers(id) ON DELETE SET NULL,
+
+    customer_id INTEGER
+        REFERENCES customers(id)
+        ON DELETE SET NULL,
+
     notes TEXT,
+
     subtotal DECIMAL(10,2) NOT NULL,
+
     total_amount DECIMAL(10,2) NOT NULL,
+
     currency VARCHAR(3) NOT NULL DEFAULT 'EUR',
+
     status VARCHAR(50) DEFAULT 'pending',
+
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
--- Add customer_id if missing
-ALTER TABLE orders
-ADD COLUMN IF NOT EXISTS customer_id INTEGER
-REFERENCES customers(id)
-ON DELETE SET NULL;
 
--- Add currency if missing
+-- Add missing columns
 ALTER TABLE orders
-ADD COLUMN IF NOT EXISTS currency VARCHAR(3)
-NOT NULL DEFAULT 'USD';
+ADD COLUMN IF NOT EXISTS customer_id INTEGER;
+
+ALTER TABLE orders
+ADD COLUMN IF NOT EXISTS currency VARCHAR(3) NOT NULL DEFAULT 'EUR';
+
+
+-- Add foreign key only if needed
+DO $$
+BEGIN
+    IF NOT EXISTS (
+        SELECT 1
+        FROM pg_constraint
+        WHERE conname = 'orders_customer_id_fkey'
+    )
+    THEN
+        ALTER TABLE orders
+        ADD CONSTRAINT orders_customer_id_fkey
+        FOREIGN KEY (customer_id)
+        REFERENCES customers(id)
+        ON DELETE SET NULL;
+    END IF;
+END $$;
 
 
 -- =============================================
--- Create order_items table
+-- 7. ORDER ITEMS
 -- =============================================
 
 CREATE TABLE IF NOT EXISTS order_items (
     id SERIAL PRIMARY KEY,
+
     order_id INTEGER
         REFERENCES orders(id)
         ON DELETE CASCADE,
+
     product_id INTEGER
         REFERENCES products(id)
         ON DELETE SET NULL,
+
     product_name_ar VARCHAR(255) NOT NULL,
+
     product_name_en VARCHAR(255) NOT NULL,
+
     product_name_fr VARCHAR(255) NOT NULL DEFAULT '',
+
     offer_label_en VARCHAR(120) NOT NULL DEFAULT '',
+
     offer_label_fr VARCHAR(120) NOT NULL DEFAULT '',
+
     offer_id INTEGER
         REFERENCES product_offers(id)
         ON DELETE SET NULL,
+
     quantity INTEGER NOT NULL,
+
     unit_price DECIMAL(10,2) NOT NULL,
+
     subtotal DECIMAL(10,2) NOT NULL
 );
 
--- Preserve order history while adding localized product and offer snapshots.
+
+-- Add missing columns
 ALTER TABLE order_items
 ADD COLUMN IF NOT EXISTS product_name_fr VARCHAR(255) NOT NULL DEFAULT '';
+
 ALTER TABLE order_items
 ADD COLUMN IF NOT EXISTS offer_label_en VARCHAR(120) NOT NULL DEFAULT '';
+
 ALTER TABLE order_items
 ADD COLUMN IF NOT EXISTS offer_label_fr VARCHAR(120) NOT NULL DEFAULT '';
+
 ALTER TABLE order_items
-ADD COLUMN IF NOT EXISTS offer_id INTEGER REFERENCES product_offers(id) ON DELETE SET NULL;
+ADD COLUMN IF NOT EXISTS offer_id INTEGER;
+
+
+-- Add offer foreign key
+DO $$
+BEGIN
+    IF NOT EXISTS (
+        SELECT 1
+        FROM pg_constraint
+        WHERE conname = 'order_items_offer_id_fkey'
+    )
+    THEN
+        ALTER TABLE order_items
+        ADD CONSTRAINT order_items_offer_id_fkey
+        FOREIGN KEY (offer_id)
+        REFERENCES product_offers(id)
+        ON DELETE SET NULL;
+    END IF;
+END $$;
+
+
+-- Fill French product name
 UPDATE order_items
 SET product_name_fr = product_name_en
-WHERE product_name_fr = '';
+WHERE product_name_fr IS NULL
+OR TRIM(product_name_fr) = '';
 
 
 -- =============================================
--- Function to update updated_at
+-- 8. UPDATED_AT FUNCTION
 -- =============================================
 
 CREATE OR REPLACE FUNCTION update_updated_at_column()
@@ -299,11 +352,11 @@ BEGIN
     NEW.updated_at = CURRENT_TIMESTAMP;
     RETURN NEW;
 END;
-$$ LANGUAGE 'plpgsql';
+$$ LANGUAGE plpgsql;
 
 
 -- =============================================
--- Products trigger
+-- 9. PRODUCTS TRIGGER
 -- =============================================
 
 DROP TRIGGER IF EXISTS update_products_updated_at ON products;
@@ -315,7 +368,7 @@ EXECUTE FUNCTION update_updated_at_column();
 
 
 -- =============================================
--- Orders trigger
+-- 10. ORDERS TRIGGER
 -- =============================================
 
 DROP TRIGGER IF EXISTS update_orders_updated_at ON orders;
@@ -327,7 +380,7 @@ EXECUTE FUNCTION update_updated_at_column();
 
 
 -- =============================================
--- Insert default category
+-- 11. DEFAULT CATEGORY
 -- =============================================
 
 INSERT INTO categories (
@@ -336,43 +389,73 @@ INSERT INTO categories (
     name_fr,
     icon
 )
-VALUES (
+SELECT
     'IP-TV',
     'IP-TV',
     'IP-TV',
     'live_tv'
-)
-ON CONFLICT DO NOTHING;
-
-
--- Fill French name if empty
-UPDATE categories
-SET name_fr = name_en
-WHERE name_fr = '';
+WHERE NOT EXISTS (
+    SELECT 1
+    FROM categories
+    WHERE LOWER(TRIM(name_en)) = 'ip-tv'
+);
 
 
 -- =============================================
--- Insert default admin
--- Password: admin123
+-- 12. DEFAULT ADMIN SELLER
 -- =============================================
+
+-- Username:
+-- charaf_ben
+--
+-- Password:
+-- admin123
 
 INSERT INTO sellers (
     name,
-    email,
     username,
     password_hash
 )
-VALUES (
+SELECT
     'PLAYORA Admin',
-    'admin@playora.com',
     'charaf_ben',
     '$2a$10$LP4IPBr.AI/wi6YYfFFvne0ks8eS4iptKZll7oy5zn/31ChhxhI0S'
-)
-ON CONFLICT (email) DO NOTHING;
+WHERE NOT EXISTS (
+    SELECT 1
+    FROM sellers
+    WHERE LOWER(TRIM(username)) = 'charaf_ben'
+);
 
 
 -- =============================================
--- Product images
+-- 13. CHECK DATABASE
 -- =============================================
--- Product images in public/images are kept.
--- Products are added by the seller from the dashboard.
+
+SELECT
+    id,
+    name,
+    username,
+    created_at
+FROM sellers
+ORDER BY id;
+
+
+SELECT
+    id,
+    name_ar,
+    name_en,
+    name_fr,
+    icon
+FROM categories
+ORDER BY id;
+
+
+SELECT
+    id,
+    name_ar,
+    name_en,
+    price,
+    stock_quantity,
+    is_active
+FROM products
+ORDER BY id;
