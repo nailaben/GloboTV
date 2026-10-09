@@ -3,7 +3,7 @@ const bcrypt = require('bcryptjs');
 
 async function resetAdmin() {
     try {
-        const email = process.env.SELLER_EMAIL || 'admin@playora.com';
+        const email = process.env.SELLER_EMAIL || 'admin@globotv.com';
         const username = (process.env.SELLER_USERNAME || 'charaf_ben').trim().toLowerCase();
         const password = process.env.SELLER_PASSWORD || 'admin123';
         const salt = await bcrypt.genSalt(10);
@@ -16,7 +16,7 @@ async function resetAdmin() {
             console.log(`Updated password for existing seller: ${email}`);
         } else {
             await pool.query('INSERT INTO sellers (name, email, username, password_hash) VALUES ($1, $2, $3, $4)', [
-                'PLAYORA Admin',
+                'GloboTV Admin',
                 email,
                 username,
                 hash

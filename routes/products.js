@@ -113,9 +113,13 @@ router.get('/:id', async (req, res) => {
         product.offers = offers.rows;
         // Get related products
         const related = await pool.query(`
-            SELECT * FROM products
-            WHERE category_id = $1 AND id != $2 AND is_active = true
-            LIMIT 4
+            SELECT p.*, c.name_en AS category_name_en, c.name_fr AS category_name_fr,
+                   (SELECT MIN(price_eur) FROM product_offers po WHERE po.product_id=p.id AND po.is_active=true) AS starting_price_eur
+            FROM products p
+            LEFT JOIN categories c ON c.id=p.category_id
+            WHERE p.id != $2 AND p.is_active = true
+            ORDER BY (p.category_id = $1) IS TRUE DESC, p.created_at DESC
+            LIMIT 5
         `, [product.category_id, product.id]);
 
         res.json({ success: true, product, related: related.rows });
@@ -127,7 +131,7 @@ router.get('/:id', async (req, res) => {
 
 // POST /api/products - Add new product (seller only)
 router.post('/', authMiddleware, upload.single('image'), async (req, res) => {
-    const { name_fr, name_en, description_fr, description_en, price, category_id, stock_quantity } = req.body;
+    const { name_fr, name_en, description_fr, description_en, delivery_info_fr, delivery_info_en, reviews_fr, reviews_en, price, category_id, stock_quantity } = req.body;
 
     const offers = parseOffers(req.body.offers_json);
     if (!name_fr || !name_en || !price || !offers || !offers.length) {
@@ -141,10 +145,10 @@ router.post('/', authMiddleware, upload.single('image'), async (req, res) => {
         }
 
         const result = await pool.query(`
-            INSERT INTO products (seller_id, name_ar, name_en, name_fr, description_ar, description_en, description_fr, price, category_id, stock_quantity, image_url)
-            VALUES ($1, $2, $3, $4, '', $5, $6, $7, $8, $9, $10)
+            INSERT INTO products (seller_id, name_ar, name_en, name_fr, description_ar, description_en, description_fr, delivery_info_en, delivery_info_fr, reviews_en, reviews_fr, price, category_id, stock_quantity, image_url)
+            VALUES ($1, $2, $3, $4, '', $5, $6, $7, $8, $9, $10, $11, $12, $13, $14)
             RETURNING *
-        `, [req.seller.id, name_fr, name_en, name_fr, description_en || '', description_fr || '', price, category_id || null, stock_quantity || 0, image_url]);
+        `, [req.seller.id, name_fr, name_en, name_fr, description_en || '', description_fr || '', delivery_info_en || '', delivery_info_fr || '', reviews_en || '', reviews_fr || '', price, category_id || null, stock_quantity || 0, image_url]);
 
         await replaceOffers(result.rows[0].id, offers);
 
@@ -157,7 +161,7 @@ router.post('/', authMiddleware, upload.single('image'), async (req, res) => {
 
 // PUT /api/products/:id - Update product (seller only)
 router.put('/:id', authMiddleware, upload.single('image'), async (req, res) => {
-    const { name_fr, name_en, description_fr, description_en, price, category_id, stock_quantity, is_active } = req.body;
+    const { name_fr, name_en, description_fr, description_en, delivery_info_fr, delivery_info_en, reviews_fr, reviews_en, price, category_id, stock_quantity, is_active } = req.body;
 
     try {
         let image_url = req.body.image_url;
@@ -173,6 +177,10 @@ router.put('/:id', authMiddleware, upload.single('image'), async (req, res) => {
         if (name_en !== undefined) { updateFields.push(`name_en = $${idx++}`); values.push(name_en); }
         if (description_fr !== undefined) { updateFields.push(`description_fr = $${idx++}`); values.push(description_fr); }
         if (description_en !== undefined) { updateFields.push(`description_en = $${idx++}`); values.push(description_en); }
+        if (delivery_info_fr !== undefined) { updateFields.push(`delivery_info_fr = $${idx++}`); values.push(delivery_info_fr); }
+        if (delivery_info_en !== undefined) { updateFields.push(`delivery_info_en = $${idx++}`); values.push(delivery_info_en); }
+        if (reviews_fr !== undefined) { updateFields.push(`reviews_fr = $${idx++}`); values.push(reviews_fr); }
+        if (reviews_en !== undefined) { updateFields.push(`reviews_en = $${idx++}`); values.push(reviews_en); }
         if (price !== undefined) { updateFields.push(`price = $${idx++}`); values.push(price); }
         if (category_id !== undefined) { updateFields.push(`category_id = $${idx++}`); values.push(category_id); }
         if (stock_quantity !== undefined) { updateFields.push(`stock_quantity = $${idx++}`); values.push(stock_quantity); }

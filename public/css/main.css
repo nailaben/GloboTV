@@ -4,34 +4,35 @@
 
 @import url('https://fonts.googleapis.com/css2?family=Tajawal:wght@300;400;500;700;800;900&family=Inter:wght@300;400;500;600;700;800&family=Rubik:wght@400;500;700&display=swap');
 
-/* ---- CSS Variables (ODIGIX-inspired Light Theme) ---- */
+/* ---- PLAYORA dark theme ---- */
 :root {
-    --primary: #5540f5;
-    --primary-dark: #3d2ed4;
-    --primary-light: #7a6bf7;
-    --primary-pale: #eceafd;
-    --accent: #f59e0b;
-    --accent-dark: #d97706;
+    color-scheme: dark;
+    --primary: #831C91;
+    --primary-dark: #462C7D;
+    --primary-light: #D552A3;
+    --primary-pale: rgba(131, 28, 145, 0.18);
+    --accent: #FF70BF;
+    --accent-dark: #D552A3;
     --success: #22c55e;
     --danger: #ef4444;
     --warning: #f59e0b;
     --info: #3b82f6;
 
-    --bg: #f1f1f3;
-    --bg-secondary: #e8e8ee;
-    --bg-card: #ffffff;
-    --bg-card-hover: #f8f8fd;
-    --bg-glass: rgba(255, 255, 255, 0.85);
-    --border: rgba(85, 64, 245, 0.2);
-    --border-light: #e5e5e7;
+    --bg: #100b17;
+    --bg-secondary: #1a1222;
+    --bg-card: #1d1526;
+    --bg-card-hover: #291a30;
+    --bg-glass: rgba(29, 21, 38, 0.92);
+    --border: rgba(213, 82, 163, 0.28);
+    --border-light: #392943;
 
-    --text-primary: #111118;
-    --text-secondary: #555566;
-    --text-muted: #9999aa;
+    --text-primary: #fff4fb;
+    --text-secondary: #d0bfd0;
+    --text-muted: #a893aa;
 
-    --gradient-primary: linear-gradient(135deg, #5540f5 0%, #7a6bf7 100%);
-    --gradient-hero: linear-gradient(135deg, #f1f1f3 0%, #eceafd 50%, #e8e8ee 100%);
-    --gradient-card: linear-gradient(145deg, rgba(85, 64, 245, 0.05), rgba(245, 158, 11, 0.03));
+    --gradient-primary: linear-gradient(135deg, #462C7D 0%, #831C91 55%, #D552A3 100%);
+    --gradient-hero: linear-gradient(135deg, #171021 0%, #24132c 55%, #32152f 100%);
+    --gradient-card: linear-gradient(145deg, rgba(131, 28, 145, 0.14), rgba(255, 112, 191, 0.05));
 
     --shadow-sm: 0 2px 8px rgba(85, 64, 245, 0.08);
     --shadow-md: 0 4px 20px rgba(85, 64, 245, 0.12);
@@ -46,6 +47,16 @@
     --transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
     --transition-fast: all 0.15s ease;
 }
+
+/* Dark-only controls and shared surfaces. */
+html, input, select, textarea { color-scheme: dark; }
+input:not([type="checkbox"]):not([type="radio"]), select, textarea {
+    background-color: var(--bg-card);
+    color: var(--text-primary);
+    border-color: var(--border-light);
+}
+input::placeholder, textarea::placeholder { color: var(--text-muted); }
+::selection { background: #831C91; color: #fff4fb; }
 
 /* ---- Reset & Base ---- */
 *,
@@ -345,7 +356,7 @@ a {
 .form-textarea {
     width: 100%;
     padding: 0.75rem 1rem;
-    background: #ffffff;
+    background: var(--bg-card);
     border: 1.5px solid var(--border-light);
     border-radius: var(--radius-sm);
     color: var(--text-primary);
@@ -358,9 +369,9 @@ a {
 .form-input:focus,
 .form-select:focus,
 .form-textarea:focus {
-    border-color: var(--primary);
-    background: #ffffff;
-    box-shadow: 0 0 0 3px rgba(85, 64, 245, 0.12);
+    border-color: var(--primary-light);
+    background: var(--bg-card-hover);
+    box-shadow: 0 0 0 3px rgba(213, 82, 163, 0.2);
 }
 
 .form-input::placeholder {
@@ -368,7 +379,7 @@ a {
 }
 
 .form-select option {
-    background: #ffffff;
+    background: var(--bg-card);
     color: var(--text-primary);
 }
 
@@ -518,8 +529,8 @@ a {
 }
 
 .modal {
-    background: #ffffff;
-    border: 1px solid var(--border-light);
+    background: var(--bg-card);
+    border: 1px solid var(--border);
     border-radius: var(--radius-xl);
     padding: 2rem;
     width: 100%;
@@ -527,7 +538,8 @@ a {
     max-height: 90vh;
     overflow-y: auto;
     animation: scaleIn 0.3s cubic-bezier(0.34, 1.56, 0.64, 1);
-    box-shadow: 0 20px 60px rgba(0, 0, 0, 0.2);
+    box-shadow: 0 20px 60px rgba(0, 0, 0, 0.6);
+    color: var(--text-primary);
 }
 
 .modal-header {
@@ -549,7 +561,7 @@ a {
     width: 36px;
     height: 36px;
     border-radius: 50%;
-    background: #f5f5f8;
+    background: var(--bg-secondary);
     border: 1px solid var(--border-light);
     color: var(--text-secondary);
     cursor: pointer;

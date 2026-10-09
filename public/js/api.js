@@ -83,6 +83,18 @@ const api = {
         return res.json();
     },
 
+    updateCustomer: async (data) => {
+        const res = await fetch(`${API_BASE}/customer/me`, {
+            method: 'PUT',
+            headers: {
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${localStorage.getItem('playora_customer_token') || ''}`
+            },
+            body: JSON.stringify(data)
+        });
+        return res.json();
+    },
+
     getCustomerOrders: async () => {
         const res = await fetch(`${API_BASE}/customer/orders`, { headers: { 'Authorization': `Bearer ${localStorage.getItem('playora_customer_token') || ''}` } });
         return res.json();
@@ -149,7 +161,30 @@ function getCart() {
     return cart ? JSON.parse(cart) : [];
 }
 
-function saveCart(cart) { localStorage.setItem('playora_cart', JSON.stringify(cart)); }
+function saveCart(cart) {
+    localStorage.setItem('playora_cart', JSON.stringify(cart));
+    updateCartBadges();
+}
+
+function updateCartBadges() {
+    if (typeof getCartCount !== 'function') return;
+    const count = getCartCount();
+    document.querySelectorAll('[data-cart-count]').forEach(badge => {
+        badge.textContent = count > 99 ? '99+' : String(count);
+        badge.hidden = count === 0;
+        const cartButton = badge.closest('[aria-label]');
+        if (cartButton) {
+            const label = currentLang === 'fr' ? 'Panier' : 'Shopping cart';
+            cartButton.setAttribute('aria-label', count ? `${label}, ${count}` : label);
+        }
+    });
+}
+
+document.addEventListener('DOMContentLoaded', updateCartBadges);
+window.addEventListener('pageshow', updateCartBadges);
+window.addEventListener('storage', event => {
+    if (event.key === 'playora_cart') updateCartBadges();
+});
 
 function addToCart(product, quantity = 1) {
     const cart = getCart();

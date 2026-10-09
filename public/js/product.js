@@ -11,6 +11,7 @@ const productCopy = {
         descriptionTab: 'Description', deliveryTab: 'Delivery info', reviewsTab: 'Reviews', descriptionTitle: 'Product details',
         deliveryTitle: 'Delivery information', deliveryText: 'Your selected digital offer will be prepared for delivery after your order is confirmed.',
         reviewsTitle: 'Customer reviews', reviewsText: 'There are no reviews for this product yet.',
+        relatedTitle: 'You may also like',
         like: 'Add to favorites', unlike: 'Remove from favorites',
     },
     fr: {
@@ -22,6 +23,7 @@ const productCopy = {
         descriptionTab: 'Description', deliveryTab: 'Livraison', reviewsTab: 'Avis', descriptionTitle: 'Détails du produit',
         deliveryTitle: 'Informations de livraison', deliveryText: 'Votre offre numérique sera préparée après la confirmation de votre commande.',
         reviewsTitle: 'Avis clients', reviewsText: 'Ce produit n’a pas encore d’avis.',
+        relatedTitle: 'Vous aimerez aussi',
         like: 'Ajouter aux favoris', unlike: 'Retirer des favoris',
     }
 };
@@ -32,6 +34,7 @@ let selectedOffer = null;
 let quantity = 1;
 let activeTab = 'description';
 let liked = false;
+let relatedProducts = [];
 const root = document.getElementById('product-detail');
 
 function translateHeader() {
@@ -53,9 +56,30 @@ function productDescription() {
 }
 
 function renderTabContent() {
-    if (activeTab === 'delivery') return `<h3>${tx('deliveryTitle')}</h3><p>${tx('deliveryText')}</p>`;
-    if (activeTab === 'reviews') return `<h3>${tx('reviewsTitle')}</h3><p>${tx('reviewsText')}</p>`;
+    if (activeTab === 'delivery') {
+        const delivery = currentLang === 'fr'
+            ? (product.delivery_info_fr || product.delivery_info_en)
+            : product.delivery_info_en;
+        return `<h3>${tx('deliveryTitle')}</h3><p>${escapeProductText(delivery || tx('deliveryText'))}</p>`;
+    }
+    if (activeTab === 'reviews') {
+        const reviews = currentLang === 'fr'
+            ? (product.reviews_fr || product.reviews_en)
+            : product.reviews_en;
+        return `<h3>${tx('reviewsTitle')}</h3><p>${escapeProductText(reviews || tx('reviewsText'))}</p>`;
+    }
     return `<h3>${escapeProductText(productName())}: ${tx('descriptionTitle')}</h3><p>${escapeProductText(productDescription() || '')}</p>`;
+}
+
+function renderRelatedProducts() {
+    if (!relatedProducts.length) return '';
+    return `<section class="product-related"><h2>${tx('relatedTitle')}</h2><div class="product-related-grid">${relatedProducts.map(item => {
+        const name = currentLang === 'fr' ? (item.name_fr || item.name_en) : item.name_en;
+        const price = item.starting_price_eur == null
+            ? '—'
+            : new Intl.NumberFormat(currentLang === 'fr' ? 'fr-FR' : 'en-IE', { style: 'currency', currency: 'EUR' }).format(Number(item.starting_price_eur));
+        return `<a class="product-related-card" href="/product.html?id=${encodeURIComponent(item.id)}"><img src="${escapeProductText(item.image_url || '/images/placeholder.png')}" alt="${escapeProductText(name)}" loading="lazy" onerror="this.src='/images/placeholder.png'"><span class="product-related-name">${escapeProductText(name)}</span><strong>${price}</strong></a>`;
+    }).join('')}</div></section>`;
 }
 
 function renderProduct() {
@@ -70,10 +94,9 @@ function renderProduct() {
     }
     const favoriteIds = JSON.parse(localStorage.getItem('playora_liked_products') || '[]').map(String);
     liked = favoriteIds.includes(String(product.id));
-    document.title = `${escapeProductText(name)} | PLAYORA`;
+    document.title = `${escapeProductText(name)} | GloboTV`;
 
     root.innerHTML = `
-        <div class="product-breadcrumb"><a href="/">${tx('home')}</a><span>/</span><a href="/">${tx('shop')}</a><span>/</span><a href="/?category=${encodeURIComponent(product.category_id || '')}">${escapeProductText(category)}</a><span>/</span><strong>${escapeProductText(name)}</strong></div>
         <div class="product-layout">
             <div class="product-gallery">
                 <div class="product-gallery-main"><img id="product-main-image" src="${escapeProductText(product.image_url || '/images/placeholder.png')}" alt="${escapeProductText(name)}" onerror="this.src='/images/placeholder.png'"></div>
@@ -93,7 +116,8 @@ function renderProduct() {
                 <div class="product-trust"><div><span class="material-symbols-outlined">bolt</span><strong>${tx('instantTrust')}</strong><small>${tx('available')}</small></div><div><span class="material-symbols-outlined">verified_user</span><strong>${tx('secure')}</strong><small>CIB &amp; Edahabia</small></div><div><span class="material-symbols-outlined">headphones</span><strong>${tx('support')}</strong><small>${tx('help')}</small></div></div>
             </section>
         </div>
-        <section class="product-tabs"><div class="product-tab-list"><button class="product-tab ${activeTab === 'description' ? 'active' : ''}" data-tab="description" type="button">${tx('descriptionTab')}</button><button class="product-tab ${activeTab === 'delivery' ? 'active' : ''}" data-tab="delivery" type="button">${tx('deliveryTab')}</button><button class="product-tab ${activeTab === 'reviews' ? 'active' : ''}" data-tab="reviews" type="button">${tx('reviewsTab')}</button></div><div class="product-tab-content">${renderTabContent()}</div></section>`;
+        <section class="product-tabs"><div class="product-tab-list"><button class="product-tab ${activeTab === 'description' ? 'active' : ''}" data-tab="description" type="button">${tx('descriptionTab')}</button><button class="product-tab ${activeTab === 'delivery' ? 'active' : ''}" data-tab="delivery" type="button">${tx('deliveryTab')}</button><button class="product-tab ${activeTab === 'reviews' ? 'active' : ''}" data-tab="reviews" type="button">${tx('reviewsTab')}</button></div><div class="product-tab-content">${renderTabContent()}</div></section>
+        ${renderRelatedProducts()}`;
 
     root.querySelectorAll('[data-offer]').forEach(button => button.addEventListener('click', () => {
         selectedOffer = offers.find(offer => String(offer.id) === button.dataset.offer);
@@ -129,6 +153,7 @@ document.getElementById('product-search').addEventListener('keydown', event => {
         const result = await api.getProduct(id);
         if (!result.success) throw new Error('Product unavailable');
         product = result.product;
+        relatedProducts = result.related || [];
         renderProduct();
     } catch {
         root.innerHTML = `<div class="product-unavailable">${tx('failed')}</div>`;

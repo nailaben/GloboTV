@@ -1,1 +1,70 @@
-<!doctype html><html lang="en" dir="ltr"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>My account | PLAYORA</title><link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:opsz,wght,FILL,GRAD@24,400,0,0"><link rel="stylesheet" href="/css/auth.css"><link rel="stylesheet" href="/css/customer-pages.css"></head><body><main class="customer-page"><header class="customer-top"><a href="/">PLAYORA</a><nav><select class="language-select" aria-label="Choose language"><option value="en">English</option><option value="fr">Français</option></select><a href="/favorites.html">♥</a><button id="logout" data-en="Sign out" data-fr="Se déconnecter">Sign out</button></nav></header><section class="account-card"><div class="account-heading"><div class="account-avatar" id="avatar">P</div><div><h1 data-en="My account" data-fr="Mon compte">My account</h1><p id="customer-name"></p><p id="customer-email"></p></div></div><section class="account-section"><h2 data-en="My orders" data-fr="Mes commandes">My orders</h2><div id="orders" class="orders-list"></div></section></section></main><script src="/js/api.js"></script><script src="/js/customer-account.js"></script></body></html>
+<!doctype html>
+<html lang="en" dir="ltr">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width,initial-scale=1">
+    <title>My account | GloboTV</title>
+    <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:opsz,wght,FILL,GRAD@24,400,0,0">
+    <link rel="stylesheet" href="/css/auth.css">
+    <link rel="stylesheet" href="/css/customer-pages.css">
+</head>
+<body>
+    <main class="customer-page">
+        <header class="customer-top">
+            <a href="/">GloboTV</a>
+            <nav>
+                <select class="language-select" aria-label="Choose language">
+                    <option value="en">English</option>
+                    <option value="fr">Français</option>
+                </select>
+                <a href="/favorites.html" aria-label="Favorites">♥</a>
+                <button id="logout" data-en="Sign out" data-fr="Se déconnecter">Sign out</button>
+            </nav>
+        </header>
+        <section class="account-card">
+            <div class="account-heading">
+                <div class="account-avatar" id="avatar">G</div>
+                <div>
+                    <h1 data-en="My account" data-fr="Mon compte">My account</h1>
+                    <p id="customer-name"></p>
+                    <p id="customer-email"></p>
+                </div>
+            </div>
+            <section class="account-section">
+                <h2 data-en="Personal information" data-fr="Informations personnelles">Personal information</h2>
+                <form id="customer-profile-form" class="customer-profile-form">
+                    <div class="customer-profile-grid">
+                        <label class="customer-profile-field">
+                            <span data-en="Full name" data-fr="Nom complet">Full name</span>
+                            <input id="profile-name" name="name" autocomplete="name" minlength="2" required>
+                        </label>
+                        <label class="customer-profile-field customer-profile-field-wide">
+                            <span data-en="Email" data-fr="E-mail">Email</span>
+                            <input id="profile-email" name="email" type="email" autocomplete="email" required>
+                        </label>
+                        <label class="customer-profile-field customer-profile-field-wide">
+                            <span data-en="Address" data-fr="Adresse">Address</span>
+                            <input id="profile-address" name="address" autocomplete="street-address" required>
+                        </label>
+                        <label class="customer-profile-field">
+                            <span data-en="Phone number" data-fr="Numéro de téléphone">Phone number</span>
+                            <input id="profile-phone" name="phone" type="tel" autocomplete="tel" required>
+                        </label>
+                    </div>
+                    <p id="profile-message" class="profile-message" role="status" hidden></p>
+                    <div class="customer-profile-actions">
+                        <button class="profile-discard" id="discard-profile" type="button" data-en="Discard changes" data-fr="Annuler les modifications">Discard changes</button>
+                        <button class="profile-save" id="save-profile" type="submit" data-en="Save changes" data-fr="Enregistrer les modifications">Save changes</button>
+                    </div>
+                </form>
+            </section>
+            <section class="account-section">
+                <h2 data-en="My orders" data-fr="Mes commandes">My orders</h2>
+                <div id="orders" class="orders-list"></div>
+            </section>
+        </section>
+    </main>
+    <script src="/js/api.js"></script>
+    <script src="/js/customer-account.js"></script>
+</body>
+</html>

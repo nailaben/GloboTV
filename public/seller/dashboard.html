@@ -4,7 +4,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>PLAYORA Seller Dashboard</title>
+    <title>GloboTV Seller Dashboard</title>
     <link rel="stylesheet"
         href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:opsz,wght,FILL,GRAD@24,400,0,0">
     <link rel="stylesheet" href="/css/main.css">
@@ -20,7 +20,7 @@
         <!-- ===== SIDEBAR ===== -->
         <aside class="sidebar" id="sidebar">
             <div class="sidebar-header">
-                <span class="sidebar-logo text-gradient">LogoName</span>
+                <span class="sidebar-logo text-gradient">GloboTV</span>
                 <span class="sidebar-tagline" data-dash-i18n="seller_dashboard">Seller Dashboard</span>
             </div>
 
@@ -52,7 +52,7 @@
                     <div class="seller-avatar" id="seller-avatar">AD</div>
                     <div>
                         <div class="seller-name" id="seller-name">Seller</div>
-                        <div class="seller-email" id="seller-email">admin@playora.com</div>
+                        <div class="seller-email" id="seller-email">admin@globotv.com</div>
                     </div>
                     <button class="logout-btn" id="logout-btn" title="Log out" aria-label="Log out">
                         <span class="material-symbols-outlined">logout</span>
@@ -238,6 +238,23 @@
                     <label class="form-label" data-dash-i18n="desc_en">Description (English)</label>
                     <textarea id="prod-desc-en" class="form-textarea" placeholder="Product description in English..." data-dash-placeholder="description_example_en"
                         rows="2"></textarea>
+                </div>
+
+                <div class="form-group">
+                    <label class="form-label">Delivery info (French)</label>
+                    <textarea id="prod-delivery-fr" class="form-textarea" rows="2"></textarea>
+                </div>
+                <div class="form-group">
+                    <label class="form-label">Delivery info (English)</label>
+                    <textarea id="prod-delivery-en" class="form-textarea" rows="2"></textarea>
+                </div>
+                <div class="form-group">
+                    <label class="form-label">Reviews (French)</label>
+                    <textarea id="prod-reviews-fr" class="form-textarea" rows="2"></textarea>
+                </div>
+                <div class="form-group">
+                    <label class="form-label">Reviews (English)</label>
+                    <textarea id="prod-reviews-en" class="form-textarea" rows="2"></textarea>
                 </div>
 
                 <input type="hidden" id="prod-price" value="0.01">

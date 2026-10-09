@@ -33,7 +33,7 @@ app.use('/api/customer', customerRouter);
 
 // Health check
 app.get('/api/health', (req, res) => {
-    res.json({ success: true, message: 'PLAYORA API is running 🚀', timestamp: new Date() });
+    res.json({ success: true, message: 'GloboTV API is running 🚀', timestamp: new Date() });
 });
 
 // SPA fallback - serve index.html for all non-API routes
@@ -48,7 +48,7 @@ app.get('*', (req, res) => {
 
 // Start server
 app.listen(PORT, '0.0.0.0', async () => {
-    console.log(`\nPLAYORA Server running on port ${PORT}`);
+    console.log(`\nGloboTV Server running on port ${PORT}`);
     console.log(`Store: http://localhost:${PORT}`);
     console.log(`Dashboard: http://localhost:${PORT}/seller/login.html`);
     console.log(`API: http://localhost:${PORT}/api/health\n`);

@@ -1,7 +1,7 @@
 {
-  "name": "playora",
+  "name": "globotv",
   "version": "1.0.0",
-  "description": "PLAYORA E-Commerce Platform",
+  "description": "GloboTV E-Commerce Platform",
   "main": "server.js",
   "scripts": {
     "start": "node server.js",

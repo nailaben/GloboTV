@@ -99,6 +99,10 @@ CREATE TABLE IF NOT EXISTS products (
     description_ar TEXT,
     description_en TEXT,
     description_fr TEXT,
+    delivery_info_en TEXT,
+    delivery_info_fr TEXT,
+    reviews_en TEXT,
+    reviews_fr TEXT,
 
     price DECIMAL(10,2) NOT NULL,
 
@@ -123,6 +127,18 @@ ADD COLUMN IF NOT EXISTS name_fr VARCHAR(255) NOT NULL DEFAULT '';
 
 ALTER TABLE products
 ADD COLUMN IF NOT EXISTS description_fr TEXT;
+
+ALTER TABLE products
+ADD COLUMN IF NOT EXISTS delivery_info_en TEXT;
+
+ALTER TABLE products
+ADD COLUMN IF NOT EXISTS delivery_info_fr TEXT;
+
+ALTER TABLE products
+ADD COLUMN IF NOT EXISTS reviews_en TEXT;
+
+ALTER TABLE products
+ADD COLUMN IF NOT EXISTS reviews_fr TEXT;
 
 ALTER TABLE products
 ADD COLUMN IF NOT EXISTS stock_quantity INTEGER DEFAULT 0;

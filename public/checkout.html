@@ -4,7 +4,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Checkout | PLAYORA</title>
+    <title>Checkout | GloboTV</title>
     <link rel="stylesheet"
         href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:opsz,wght,FILL,GRAD@24,400,0,0">
     <link rel="stylesheet" href="/css/main.css">
@@ -36,16 +36,106 @@
             justify-content: space-between;
         }
 
+        .checkout-back-link {
+            min-height: 40px;
+            padding: 0 .95rem;
+            border: 1px solid rgba(98, 78, 210, .2);
+            border-radius: 999px;
+            background: rgba(248, 247, 255, .92);
+            color: #4d42a8;
+            box-shadow: 0 3px 12px rgba(48, 36, 115, .07), inset 0 1px rgba(255,255,255,.8);
+            transition: border-color .18s ease, box-shadow .18s ease, transform .18s ease, background-color .18s ease;
+        }
+
+        .checkout-back-link:hover {
+            background: #f0edff;
+            border-color: rgba(98, 78, 210, .5);
+            color: #4d42a8;
+            box-shadow: 0 5px 18px rgba(70, 54, 160, .13);
+            transform: translateY(-1px);
+        }
+
+        .checkout-step-back {
+            background: rgba(124, 58, 237, .12);
+            border: 1px solid rgba(167, 139, 250, .38);
+            color: #c4b5fd;
+        }
+
+        .checkout-step-back:hover {
+            background: rgba(124, 58, 237, .22);
+            border-color: rgba(196, 181, 253, .65);
+            color: #ede9fe;
+        }
+
         .checkout-content {
             padding: 3rem 0 5rem;
         }
 
+        .checkout-steps {
+            display: flex;
+            align-items: center;
+            width: 100%;
+            padding: 1.25rem max(20px, calc((100% - 1100px) / 2));
+            background: var(--bg-card);
+            border-bottom: 1px solid var(--border-light);
+        }
+
+        .checkout-step {
+            display: flex;
+            align-items: center;
+            gap: .6rem;
+            flex: 1;
+            min-width: 0;
+            color: var(--text-muted);
+            font-size: .85rem;
+            font-weight: 700;
+        }
+
+        .checkout-step:not(:last-child)::after {
+            content: '';
+            height: 1px;
+            flex: 1;
+            margin: 0 .8rem;
+            background: var(--border-light);
+        }
+
+        .checkout-step-number {
+            display: grid;
+            place-items: center;
+            flex: 0 0 30px;
+            width: 30px;
+            height: 30px;
+            border: 1px solid var(--border-light);
+            border-radius: 50%;
+            background: var(--bg);
+            color: var(--text-muted);
+            font-size: .78rem;
+        }
+
+        .checkout-step.is-active { color: #fff; }
+        .checkout-step.is-active .checkout-step-number {
+            color: #fff;
+            border-color: var(--primary);
+            background: var(--primary);
+            box-shadow: 0 0 0 4px rgba(124, 58, 237, .14);
+        }
+
+        .checkout-step.is-complete { color: var(--text-secondary); }
+        .checkout-step.is-complete .checkout-step-number {
+            color: var(--primary-light);
+            border-color: var(--primary-light);
+            background: rgba(124, 58, 237, .12);
+        }
+
         .checkout-grid {
             display: grid;
-            grid-template-columns: 1fr 420px;
+            grid-template-columns: minmax(0, 760px);
             gap: 2rem;
             align-items: start;
+            justify-content: center;
         }
+
+        .checkout-grid [hidden] { display: none !important; }
 
         .checkout-form-card,
         .order-summary-card {
@@ -53,6 +143,251 @@
             border: 1px solid var(--border-light);
             border-radius: var(--radius-xl);
             padding: 2rem;
+        }
+
+        .checkout-form-card {
+            min-height: 340px;
+        }
+
+        .order-summary-card {
+            max-width: 760px;
+            width: 100%;
+            margin: 0 auto;
+        }
+
+        .checkout-account-panel {
+            display: grid;
+            gap: 1rem;
+        }
+
+        .checkout-account-header {
+            margin-bottom: 0.25rem;
+        }
+
+        .checkout-account-title {
+            font-size: 2.3rem;
+            line-height: 1.1;
+            margin: 0;
+            letter-spacing: -0.05em;
+        }
+
+        .checkout-account-subtitle {
+            color: var(--text-muted);
+            margin: 0;
+            font-size: 0.97rem;
+        }
+
+        .checkout-account-toggle {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 0.75rem;
+            padding: 0.35rem;
+            background: rgba(133, 116, 170, 0.12);
+            border: 1px solid var(--border-light);
+            border-radius: 0.85rem;
+        }
+
+        .checkout-account-toggle button {
+            border: 0;
+            background: transparent;
+            color: var(--text-muted);
+            font-weight: 700;
+            padding: 0.9rem 1rem;
+            border-radius: 0.7rem;
+            cursor: pointer;
+        }
+
+        .checkout-account-toggle button.active {
+            background: linear-gradient(135deg, #7d3fe8, #6045ef);
+            box-shadow: 0 10px 28px rgba(116, 88, 245, 0.22);
+            color: #fff;
+        }
+
+        .checkout-google-button {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 0.7rem;
+            padding: 0.95rem 1rem;
+            border-radius: 0.85rem;
+            background: rgba(255, 255, 255, 0.08);
+            border: 1px solid var(--border-light);
+            color: var(--text-primary);
+            text-decoration: none;
+            font-weight: 700;
+            width: 100%;
+        }
+
+        .checkout-google-mark {
+            width: 1.25rem;
+            height: 1.25rem;
+            border-radius: 50%;
+            display: grid;
+            place-items: center;
+            background: conic-gradient(from -45deg, #4285f4 0 25%, #34a853 25% 50%, #fbbc05 50% 75%, #ea4335 75%);
+            color: transparent;
+            font-size: 0.7rem;
+            font-weight: 900;
+            background-clip: text;
+        }
+
+        .checkout-divider {
+            display: flex;
+            align-items: center;
+            gap: 0.8rem;
+            text-transform: uppercase;
+            font-size: 0.72rem;
+            letter-spacing: 0.14em;
+            color: var(--text-muted);
+            margin: 0.25rem 0;
+        }
+
+        .checkout-divider::before,
+        .checkout-divider::after {
+            content: "";
+            flex: 1;
+            height: 1px;
+            background: var(--border-light);
+        }
+
+        .checkout-auth-form {
+            display: grid;
+            gap: 1rem;
+        }
+
+        .checkout-field {
+            display: grid;
+            gap: 0.4rem;
+            font-weight: 600;
+            color: var(--text-secondary);
+        }
+
+        .checkout-field .checkout-input {
+            width: 100%;
+            border: 1px solid var(--border-light);
+            border-radius: 0.8rem;
+            background: rgba(255, 255, 255, 0.04);
+            color: var(--text-primary);
+            padding: 0.9rem 1rem;
+            font: inherit;
+        }
+
+        .checkout-password-wrap {
+            position: relative;
+        }
+
+        .checkout-password-wrap .checkout-input {
+            padding-right: 3rem;
+        }
+
+        .checkout-password-toggle {
+            position: absolute;
+            right: 0.8rem;
+            top: 50%;
+            transform: translateY(-50%);
+            border: 0;
+            background: transparent;
+            color: var(--text-muted);
+            cursor: pointer;
+        }
+
+        .checkout-auth-submit {
+            width: 100%;
+            margin-top: 0.5rem;
+        }
+
+        .checkout-account-card {
+            display: grid;
+            gap: 1rem;
+            padding: 1.5rem;
+        }
+
+        .checkout-account-info {
+            display: grid;
+            gap: 0.75rem;
+            padding: 1rem;
+            border-radius: 1rem;
+            border: 1px solid var(--border-light);
+            background: rgba(255, 255, 255, 0.025);
+        }
+
+        .checkout-account-row {
+            display: grid;
+            grid-template-columns: 120px 1fr;
+            gap: 0.75rem;
+            padding-bottom: 0.5rem;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+        }
+
+        .checkout-account-row:last-child {
+            border-bottom: none;
+            padding-bottom: 0;
+        }
+
+        .checkout-account-label {
+            color: var(--text-muted);
+            font-weight: 600;
+        }
+
+        .checkout-account-value {
+            color: var(--text-primary);
+            word-break: break-word;
+        }
+
+        .checkout-verify-panel { display: grid; gap: 1rem; }
+        .checkout-verify-heading h1 { margin: 0 0 .45rem; font-size: 2.1rem; }
+        .checkout-verify-heading p { margin: 0; color: var(--text-muted); }
+        .checkout-verify-card {
+            display: flex;
+            align-items: center;
+            gap: .9rem;
+            padding: 1rem;
+            border: 1px solid var(--border-light);
+            border-radius: var(--radius-md);
+            background: rgba(255,255,255,.025);
+        }
+        .checkout-verify-icon {
+            display: grid;
+            place-items: center;
+            width: 38px;
+            height: 38px;
+            flex: 0 0 38px;
+            border-radius: 50%;
+            color: var(--primary-light);
+            background: rgba(124,58,237,.12);
+        }
+        .checkout-verify-copy { flex: 1; min-width: 0; }
+        .checkout-verify-copy strong { display: block; }
+        .checkout-verify-copy small { display: block; margin-top: .3rem; color: var(--text-muted); overflow-wrap: anywhere; }
+        .checkout-verify-action { border: 0; background: transparent; color: var(--primary-light); font: inherit; font-size: .82rem; font-weight: 700; cursor: pointer; }
+        .checkout-verify-card.is-verified { border-color: rgba(34,197,94,.55); }
+        .checkout-verify-card.is-verified .checkout-verify-icon { color: #22c55e; background: rgba(34,197,94,.12); }
+        .checkout-verify-card.is-verified .checkout-verify-action { color: #22c55e; }
+        .checkout-verify-notice { padding: .9rem 1rem; border: 1px solid rgba(34,197,94,.4); border-radius: var(--radius-md); color: var(--text-secondary); background: rgba(34,197,94,.08); }
+        .checkout-phone-input { display: grid; grid-template-columns: minmax(145px, .7fr) minmax(0, 1.3fr); gap: .65rem; }
+        .checkout-country-select { min-width: 0; }
+        .checkout-payment-panel { display: grid; gap: 1rem; }
+        .checkout-payment-heading h1 { margin: 0 0 .45rem; font-size: 2.1rem; }
+        .checkout-payment-heading p { margin: 0; color: var(--text-muted); }
+        .checkout-method-card { display: flex; align-items: center; gap: .9rem; padding: 1.1rem; border: 1px solid var(--primary-light); border-radius: var(--radius-md); background: rgba(124,58,237,.08); }
+        .checkout-method-card input { accent-color: var(--primary-light); }
+        .checkout-method-icon { display: grid; place-items: center; width: 42px; height: 42px; border-radius: 12px; color: var(--primary-light); background: rgba(124,58,237,.14); }
+        .checkout-method-copy { flex: 1; }
+        .checkout-method-copy small { display: block; margin-top: .3rem; color: var(--text-muted); }
+        .checkout-payment-breakdown { overflow: hidden; border: 1px solid var(--border-light); border-radius: var(--radius-md); }
+        .checkout-payment-row { display: flex; justify-content: space-between; gap: 1rem; padding: .9rem 1rem; color: var(--text-secondary); }
+        .checkout-payment-row + .checkout-payment-row { border-top: 1px solid var(--border-light); }
+        .checkout-payment-row.total { color: var(--text-primary); background: rgba(124,58,237,.08); font-weight: 800; }
+        .checkout-payment-row.total strong { color: var(--primary-light); font-size: 1.15rem; }
+
+        @media (max-width: 900px) {
+            .checkout-grid {
+                grid-template-columns: 1fr;
+            }
+
+            .order-summary-card {
+                max-width: none;
+            }
         }
 
         .checkout-section-title {
@@ -151,6 +486,11 @@
             .form-grid-2 {
                 grid-template-columns: 1fr;
             }
+
+            .checkout-steps { padding: 1rem 12px; }
+            .checkout-step { justify-content: center; gap: .35rem; font-size: .68rem; }
+            .checkout-step:not(:last-child)::after { margin: 0 .35rem; }
+            .checkout-step-number { flex-basis: 26px; width: 26px; height: 26px; }
         }
     </style>
 </head>
@@ -164,87 +504,37 @@
 
                 <div style="display:flex;align-items:center;gap:1rem">
                     <select class="language-select" aria-label="Choose language"><option value="en">English</option><option value="fr">Français</option></select>
-                    <a href="/" class="btn btn-ghost btn-sm">
-                        <span class="material-symbols-outlined">arrow_back</span>
+                    <a href="/" class="btn btn-sm checkout-back-link">
                         <span data-co-i18n="back_to_store">Back to Store</span>
                     </a>
                 </div>
             </div>
         </div>
 
-        <!-- Breadcrumb -->
-        <div class="container" style="padding-top:1.5rem">
-            <div style="display:flex;align-items:center;gap:0.5rem;font-size:0.85rem;color:var(--text-muted)">
-                <a href="/" style="color:var(--text-muted);hover:color:white" data-co-i18n="store_link">Store</a>
-                <span class="material-symbols-outlined" style="font-size:0.9rem">chevron_left</span>
-                <span style="color:var(--primary-light)" data-co-i18n="checkout_title">Checkout</span>
+        <nav class="checkout-steps" aria-label="Checkout progress">
+            <div class="checkout-step is-active" aria-current="step">
+                <span class="checkout-step-number" aria-hidden="true">1</span>
+                <span data-co-i18n="step_cart">Cart</span>
             </div>
-        </div>
+            <div class="checkout-step">
+                <span class="checkout-step-number" aria-hidden="true">2</span>
+                <span data-co-i18n="step_account">Account</span>
+            </div>
+            <div class="checkout-step">
+                <span class="checkout-step-number" aria-hidden="true">3</span>
+                <span data-co-i18n="step_verify">Verify</span>
+            </div>
+            <div class="checkout-step">
+                <span class="checkout-step-number" aria-hidden="true">4</span>
+                <span data-co-i18n="step_payment">Payment</span>
+            </div>
+        </nav>
 
         <!-- Content -->
         <div class="checkout-content">
             <div class="container">
                 <div class="checkout-grid">
-
-                    <!-- Form -->
-                    <div class="checkout-form-card">
-                        <div class="checkout-section-title">
-                            <span class="material-symbols-outlined">person</span>
-                            <span data-co-i18n="customer_info">Customer Information</span>
-                        </div>
-                        <form id="checkout-form" novalidate>
-                            <div class="form-grid-2">
-                                <div class="form-group">
-                                    <label class="form-label" data-co-i18n="full_name">Full Name</label>
-                                    <input type="text" id="customer-name" class="form-input"
-                                        data-co-placeholder="name_placeholder" placeholder="Enter your full name">
-                                    <div class="form-error" id="customer-name-error"></div>
-                                </div>
-                                <div class="form-group">
-                                    <label class="form-label" data-co-i18n="phone">Phone Number</label>
-                                    <input type="tel" id="customer-phone" class="form-input"
-                                        data-co-placeholder="phone_placeholder" placeholder="0555123456">
-                                    <div class="form-error" id="customer-phone-error"></div>
-                                </div>
-                            </div>
-                            <div class="form-group">
-                                <label class="form-label" data-co-i18n="email">Email Address</label>
-                                <input type="email" id="customer-email" class="form-input"
-                                    data-co-placeholder="email_placeholder" placeholder="example@email.com">
-                                <div class="form-error" id="customer-email-error"></div>
-                            </div>
-                            <div class="form-group">
-                                <label class="form-label" data-co-i18n="address">Delivery Address</label>
-                                <textarea id="customer-address" class="form-textarea"
-                                    data-co-placeholder="address_placeholder"
-                                    placeholder="City, district, street, building" rows="3"></textarea>
-                                <div class="form-error" id="customer-address-error"></div>
-                            </div>
-                            <div class="form-group">
-                                <label class="form-label" data-co-i18n="notes">Notes (Optional)</label>
-                                <textarea id="customer-notes" class="form-textarea"
-                                    data-co-placeholder="notes_placeholder" placeholder="Any additional notes..."
-                                    rows="2"></textarea>
-                            </div>
-
-                            <!-- Security Info -->
-                            <div
-                                style="display:flex;align-items:center;gap:0.5rem;padding:0.8rem;background:rgba(16,185,129,0.08);border:1px solid rgba(16,185,129,0.2);border-radius:var(--radius-sm);margin-bottom:1.25rem">
-                                <span class="material-symbols-outlined" style="color:#10B981;font-size:1rem">lock</span>
-                                <span style="font-size:0.8rem;color:var(--text-secondary)">
-                                    Your information is protected and secure.
-                                </span>
-                            </div>
-
-                            <button type="submit" class="btn btn-primary btn-lg w-full" id="submit-btn">
-                                <span class="material-symbols-outlined">shopping_bag</span>
-                                <span data-co-i18n="place_order">Place Order</span>
-                            </button>
-                        </form>
-                    </div>
-
-                    <!-- Order Summary -->
-                    <div class="order-summary-card">
+                    <section class="order-summary-card" id="cart-step-content">
                         <div class="checkout-section-title">
                             <span class="material-symbols-outlined">receipt_long</span>
                             <span data-co-i18n="order_summary">Order Summary</span>
@@ -262,7 +552,117 @@
                                 <span class="price" id="order-total">$0.00</span>
                             </div>
                         </div>
-                    </div>
+                        <button type="button" class="btn btn-primary btn-lg w-full" id="continue-account-btn" style="margin-top:1.25rem;">
+                            <span data-co-i18n="continue_to_account">Continue to account</span>
+                        </button>
+                    </section>
+
+                    <section class="checkout-form-card" id="account-step-card" hidden>
+                        <button type="button" class="btn btn-sm checkout-step-back" id="back-to-summary-btn" style="margin-bottom:1.25rem;">
+                            <span data-co-i18n="back_to_summary">Back to Order Summary</span>
+                        </button>
+                        <div id="account-step-content"></div>
+                        <button type="button" class="btn btn-primary btn-lg w-full" id="continue-verify-btn" style="margin-top:1.25rem;">
+                            <span data-co-i18n="continue_to_verify">Continue to verification</span>
+                        </button>
+                    </section>
+
+                    <section class="checkout-form-card" id="verify-step-card" hidden>
+                        <button type="button" class="btn btn-sm checkout-step-back" id="back-to-account-btn" style="margin-bottom:1.25rem;">
+                            <span data-co-i18n="back_to_account">Back to Account</span>
+                        </button>
+                        <div class="checkout-verify-panel">
+                            <header class="checkout-verify-heading">
+                                <h1 data-co-i18n="verify_title">Verify your account</h1>
+                                <p data-co-i18n="verify_subtitle">Confirm the contact details where your codes will be delivered.</p>
+                            </header>
+                            <div class="checkout-verify-card" id="verify-email-card">
+                                <span class="checkout-verify-icon material-symbols-outlined" aria-hidden="true">mail</span>
+                                <div class="checkout-verify-copy">
+                                    <strong data-co-i18n="email_verification">Email verification</strong>
+                                    <small id="verify-email-value"></small>
+                                </div>
+                                <button type="button" class="checkout-verify-action" id="confirm-email-btn" data-co-i18n="confirm_email">Confirm email</button>
+                            </div>
+                            <div class="checkout-verify-card" id="verify-whatsapp-card">
+                                <span class="checkout-verify-icon material-symbols-outlined" aria-hidden="true">chat</span>
+                                <div class="checkout-verify-copy">
+                                    <strong data-co-i18n="whatsapp_verification">WhatsApp verification</strong>
+                                    <small id="verify-phone-value"></small>
+                                </div>
+                                <button type="button" class="checkout-verify-action" id="confirm-whatsapp-btn" data-co-i18n="confirm_whatsapp">Confirm WhatsApp</button>
+                            </div>
+                            <div class="form-group">
+                                <label class="form-label" for="verify-country-code" data-co-i18n="phone">Phone Number</label>
+                                <div class="checkout-phone-input">
+                                    <select class="form-input checkout-country-select" id="verify-country-code" aria-label="Choose country calling code">
+                                        <option value="+213" selected>🇩🇿 Algeria (+213)</option>
+                                        <option value="+33">🇫🇷 France (+33)</option>
+                                        <option value="+212">🇲🇦 Morocco (+212)</option>
+                                        <option value="+216">🇹🇳 Tunisia (+216)</option>
+                                        <option value="+234">🇳🇬 Nigeria (+234)</option>
+                                        <option value="+20">🇪🇬 Egypt (+20)</option>
+                                        <option value="+1">🇺🇸 United States / Canada (+1)</option>
+                                        <option value="+44">🇬🇧 United Kingdom (+44)</option>
+                                        <option value="+49">🇩🇪 Germany (+49)</option>
+                                        <option value="+34">🇪🇸 Spain (+34)</option>
+                                        <option value="+39">🇮🇹 Italy (+39)</option>
+                                        <option value="+31">🇳🇱 Netherlands (+31)</option>
+                                        <option value="+32">🇧🇪 Belgium (+32)</option>
+                                        <option value="+41">🇨🇭 Switzerland (+41)</option>
+                                        <option value="+351">🇵🇹 Portugal (+351)</option>
+                                        <option value="+90">🇹🇷 Türkiye (+90)</option>
+                                        <option value="+971">🇦🇪 United Arab Emirates (+971)</option>
+                                        <option value="+966">🇸🇦 Saudi Arabia (+966)</option>
+                                        <option value="+974">🇶🇦 Qatar (+974)</option>
+                                        <option value="+965">🇰🇼 Kuwait (+965)</option>
+                                        <option value="+962">🇯🇴 Jordan (+962)</option>
+                                        <option value="+961">🇱🇧 Lebanon (+961)</option>
+                                        <option value="+218">🇱🇾 Libya (+218)</option>
+                                        <option value="+221">🇸🇳 Senegal (+221)</option>
+                                        <option value="+225">🇨🇮 Côte d’Ivoire (+225)</option>
+                                        <option value="+233">🇬🇭 Ghana (+233)</option>
+                                        <option value="+254">🇰🇪 Kenya (+254)</option>
+                                        <option value="+27">🇿🇦 South Africa (+27)</option>
+                                        <option value="+91">🇮🇳 India (+91)</option>
+                                        <option value="+86">🇨🇳 China (+86)</option>
+                                        <option value="+81">🇯🇵 Japan (+81)</option>
+                                        <option value="+82">🇰🇷 South Korea (+82)</option>
+                                        <option value="+61">🇦🇺 Australia (+61)</option>
+                                        <option value="+7">🇷🇺 Russia (+7)</option>
+                                    </select>
+                                    <input class="form-input" id="verify-phone" type="tel" autocomplete="tel-national" data-co-placeholder="phone_placeholder" placeholder="e.g. 0555123456">
+                                </div>
+                            </div>
+                            <div class="form-group">
+                                <label class="form-label" for="verify-address" data-co-i18n="address">Delivery Address</label>
+                                <textarea class="form-textarea" id="verify-address" rows="2" data-co-placeholder="address_placeholder" placeholder="City, District, Street, Building"></textarea>
+                            </div>
+                            <div id="verify-notice" class="checkout-verify-notice" data-co-i18n="verify_notice">We use these contact details to deliver your codes after payment.</div>
+                            <button type="button" class="btn btn-primary btn-lg w-full" id="continue-payment-btn">
+                                <span data-co-i18n="continue_to_payment">Continue to payment</span>
+                            </button>
+                        </div>
+                    </section>
+
+                    <section class="checkout-form-card" id="payment-step-card" hidden>
+                        <button type="button" class="btn btn-sm checkout-step-back" id="back-to-verify-btn" style="margin-bottom:1.25rem;">
+                            <span data-co-i18n="back_to_verify">Back to Verify</span>
+                        </button>
+                        <div class="checkout-payment-panel">
+                            <div class="checkout-payment-breakdown">
+                                <div class="checkout-payment-row"><span data-co-i18n="items_label">Items</span><strong id="payment-items-count">0</strong></div>
+                                <div class="checkout-payment-row"><span data-co-i18n="payment_subtotal">Subtotal</span><strong id="payment-subtotal">—</strong></div>
+                                <div class="checkout-payment-row"><span data-co-i18n="payment_fees">Payment fees</span><strong data-co-i18n="provider_fees">Set by provider</strong></div>
+                                <div class="checkout-payment-row total"><span data-co-i18n="total">Total</span><strong id="payment-total">—</strong></div>
+                            </div>
+                            <p class="checkout-account-subtitle" data-co-i18n="payment_redirect_note">You will be redirected to the secure payment page to complete your order.</p>
+                            <button type="button" class="btn btn-primary btn-lg w-full" id="pay-now-btn">
+                                <span class="material-symbols-outlined">lock</span>
+                                <span data-co-i18n="pay_now">Pay now</span>
+                            </button>
+                        </div>
+                    </section>
 
                 </div>
             </div>

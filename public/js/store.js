@@ -6,6 +6,9 @@ let allProducts = [];
 let allCategories = [];
 let activeCategory = 'all';
 let searchQuery = '';
+let heroStartIndex = 0;
+let heroFanTimer = null;
+let heroFanBusy = false;
 
 document.addEventListener('DOMContentLoaded', async () => {
     initLang();
@@ -14,24 +17,76 @@ document.addEventListener('DOMContentLoaded', async () => {
     activeCategory = initialQuery.get('category') || 'all';
     applyTranslations();
     setupNavbar();
+    updateCustomerNav();
     setupLangToggle();
     setupCart();
+    setupProductCarousel();
+    createHeroParticles();
     document.addEventListener('langChange', () => { applyTranslations(); renderProducts(); renderCart(); renderCategories(); });
+    const searchInput = document.getElementById('search-input');
+    if (searchInput && searchQuery) {
+        searchInput.value = searchQuery;
+    }
     try {
         await loadCategories();
     } catch (error) {
         console.error('Load categories error:', error);
     }
     await loadProducts();
+    if (searchQuery) {
+        document.getElementById('products-section')?.scrollIntoView({ behavior: 'smooth' });
+    }
 });
+
+function setupProductCarousel() {
+    const carousel = document.getElementById('products-grid');
+    if (!carousel) return;
+
+    carousel.addEventListener('wheel', event => {
+        if (carousel.scrollWidth <= carousel.clientWidth) return;
+        if (Math.abs(event.deltaY) > Math.abs(event.deltaX)) {
+            event.preventDefault();
+            carousel.scrollLeft += event.deltaY;
+        }
+    }, { passive: false });
+
+    let startX = 0;
+    let startScroll = 0;
+    let dragging = false;
+    let dragged = false;
+    carousel.addEventListener('mousedown', event => {
+        if (event.button !== 0 || event.target.closest('button')) return;
+        startX = event.clientX;
+        startScroll = carousel.scrollLeft;
+        dragging = true;
+        dragged = false;
+        carousel.classList.add('is-dragging');
+    });
+    window.addEventListener('mousemove', event => {
+        if (!dragging) return;
+        const distance = event.clientX - startX;
+        if (Math.abs(distance) > 4) dragged = true;
+        if (dragged) carousel.scrollLeft = startScroll - distance;
+    });
+    window.addEventListener('mouseup', () => {
+        if (!dragging) return;
+        dragging = false;
+        carousel.classList.remove('is-dragging');
+    });
+    carousel.addEventListener('click', event => {
+        if (!dragged) return;
+        event.preventDefault();
+        event.stopPropagation();
+        dragged = false;
+    }, true);
+}
 
 // ---- Translations ----
 const i18n = {
     en: {
-        hero_badge: '🌟 Your Fastest Digital Cards Destination',
+        hero_badge: ' Your Fastest Digital Cards Destination',
         hero_title_1: 'Discover the World of',
-        hero_title_2: 'Digital Cards',
-        hero_desc: 'The fastest and easiest way to get Google Play, iTunes, PSN cards and more',
+        hero_title_2: 'IPTV Subscriptions',
         shop_now: 'Shop Now',
         explore_cats: 'Explore Categories',
         all_products: 'All Products',
@@ -48,9 +103,12 @@ const i18n = {
         customers_label: 'Happy Customers',
         loading: 'Loading...',
         no_products: 'No products found',
+        view_all_results: 'View all results',
         search_placeholder: 'Search products...',
-        store_link: 'Store',
-        cart_added: '✓ Added to cart',
+        store_link: 'Shop',
+        sign_in: 'Sign in',
+        my_account: 'My account',
+        cart_added: ' Added to cart',
         connection_error: 'Could not connect to the server',
         like_product: 'Add to favorites',
         unlike_product: 'Remove from favorites',
@@ -58,13 +116,12 @@ const i18n = {
         unliked_product: 'Removed from favorites',
         footer_desc: 'Your fast and trusted destination for digital cards at great prices',
         quick_links: 'Quick Links', home: 'Home', support: 'Support', contact: 'Contact us',
-        privacy: 'Privacy Policy', terms: 'Terms of Use', copyright: '© 2024 PLAYORA. All rights reserved.',
+        privacy: 'Privacy Policy', terms: 'Terms of Use', copyright: '© 2024 GloboTV. All rights reserved.',
     },
     fr: {
-        hero_badge: '🌟 Votre destination pour les cartes numériques',
+        hero_badge: ' Votre destination pour les cartes numériques',
         hero_title_1: 'Découvrez le monde des',
-        hero_title_2: 'cartes numériques',
-        hero_desc: 'Le moyen le plus rapide et simple d’obtenir des cartes Google Play, iTunes, PSN et plus encore',
+        hero_title_2: 'Abonnements IPTV',
         shop_now: 'Acheter',
         explore_cats: 'Explorer les catégories',
         all_products: 'Tous les produits',
@@ -81,9 +138,12 @@ const i18n = {
         customers_label: 'Clients satisfaits',
         loading: 'Chargement…',
         no_products: 'Aucun produit trouvé',
+        view_all_results: 'Voir tous les résultats',
         search_placeholder: 'Rechercher un produit…',
         store_link: 'Boutique',
-        cart_added: '✓ Ajouté au panier',
+        sign_in: 'Se connecter',
+        my_account: 'Mon compte',
+        cart_added: ' Ajouté au panier',
         connection_error: 'Connexion au serveur impossible',
         like_product: 'Ajouter aux favoris',
         unlike_product: 'Retirer des favoris',
@@ -91,7 +151,7 @@ const i18n = {
         unliked_product: 'Retiré des favoris',
         footer_desc: 'Votre destination rapide et fiable pour des cartes numériques au meilleur prix',
         quick_links: 'Liens rapides', home: 'Accueil', support: 'Assistance', contact: 'Nous contacter',
-        privacy: 'Politique de confidentialité', terms: 'Conditions d’utilisation', copyright: '© 2024 PLAYORA. Tous droits réservés.',
+        privacy: 'Politique de confidentialité', terms: 'Conditions d’utilisation', copyright: '© 2024 GloboTV. Tous droits réservés.',
     }
 };
 
@@ -107,25 +167,129 @@ function applyTranslations() {
     });
 }
 
-// ---- Navbar ----
+// ---- Customer session ----
+async function updateCustomerNav() {
+    const accountLink = document.querySelector('.account-link');
+    const customerToken = localStorage.getItem('playora_customer_token');
+    if (!accountLink || !customerToken) return;
+
+    try {
+        const result = await api.getCustomer();
+        if (!result.success || !result.customer) throw new Error('Customer session is invalid');
+
+        localStorage.setItem('playora_customer', JSON.stringify(result.customer));
+        accountLink.href = '/account.html';
+        accountLink.dataset.i18n = 'my_account';
+        accountLink.setAttribute('aria-label', tr('my_account'));
+        accountLink.textContent = tr('my_account');
+    } catch {
+        localStorage.removeItem('playora_customer_token');
+        localStorage.removeItem('playora_customer');
+    }
+}
+
+// ---- Navbar & Search Autocomplete ----
 function setupNavbar() {
     const navbar = document.getElementById('navbar');
     window.addEventListener('scroll', () => {
         navbar.classList.toggle('scrolled', window.scrollY > 50);
     });
 
-    // Search
     const searchInput = document.getElementById('search-input');
-    const mobileSearch = document.getElementById('mobile-search');
+    const searchDropdown = document.getElementById('search-dropdown');
+    let searchDebounce;
 
-    [searchInput, mobileSearch].forEach(input => {
-        if (!input) return;
-        let debounce;
-        input.addEventListener('input', (e) => {
-            clearTimeout(debounce);
+    function renderSearchDropdown(query) {
+        if (!searchDropdown) return;
+        const q = (query || '').trim().toLowerCase();
+        if (!q) {
+            searchDropdown.classList.remove('is-open');
+            searchDropdown.innerHTML = '';
+            return;
+        }
+
+        const matches = allProducts.filter(p =>
+            (p.name_en && p.name_en.toLowerCase().includes(q)) ||
+            (p.name_fr && p.name_fr.toLowerCase().includes(q)) ||
+            (p.description_en && p.description_en.toLowerCase().includes(q)) ||
+            (p.description_fr && p.description_fr.toLowerCase().includes(q))
+        );
+
+        if (matches.length === 0) {
+            searchDropdown.innerHTML = `
+                <div class="search-dropdown-empty">
+                    <span class="material-symbols-outlined">search_off</span>
+                    <div>${tr('no_products')}</div>
+                </div>`;
+            searchDropdown.classList.add('is-open');
+            return;
+        }
+
+        const topMatches = matches.slice(0, 6);
+        const itemsHtml = topMatches.map(p => {
+            const name = currentLang === 'fr' ? (p.name_fr || p.name_en) : p.name_en;
+            const catName = currentLang === 'fr' ? (p.category_name_fr || p.category_name_en) : p.category_name_en;
+            const price = p.starting_price_eur != null 
+                ? new Intl.NumberFormat(currentLang === 'fr' ? 'fr-FR' : 'en-IE', { style: 'currency', currency: 'EUR' }).format(Number(p.starting_price_eur))
+                : '';
+            return `
+                <a href="/product.html?id=${p.id}" class="search-dropdown-item">
+                    <img class="search-dropdown-img" src="${p.image_url || '/images/placeholder.png'}" alt="${name}" onerror="this.src='/images/placeholder.png'">
+                    <div class="search-dropdown-info">
+                        <div class="search-dropdown-name">${name}</div>
+                        <div class="search-dropdown-meta">
+                            ${catName ? `<span>${catName}</span>` : ''}
+                        </div>
+                    </div>
+                    ${price ? `<span class="search-dropdown-price">${price}</span>` : ''}
+                </a>`;
+        }).join('');
+
+        const footerHtml = `
+            <div class="search-dropdown-footer" onclick="scrollToProductsAndFilter()">
+                <span>${tr('view_all_results')} (${matches.length})</span>
+            </div>`;
+
+        searchDropdown.innerHTML = itemsHtml + footerHtml;
+        searchDropdown.classList.add('is-open');
+    }
+
+    window.scrollToProductsAndFilter = function() {
+        if (searchDropdown) searchDropdown.classList.remove('is-open');
+        renderProducts();
+        document.getElementById('products-section')?.scrollIntoView({ behavior: 'smooth' });
+    };
+
+    if (searchInput) {
+        searchInput.addEventListener('input', (e) => {
+            clearTimeout(searchDebounce);
             searchQuery = e.target.value;
-            debounce = setTimeout(() => renderProducts(), 300);
+            renderSearchDropdown(searchQuery);
+            searchDebounce = setTimeout(() => {
+                renderProducts();
+            }, 250);
         });
+
+        searchInput.addEventListener('focus', () => {
+            if (searchInput.value.trim()) {
+                renderSearchDropdown(searchInput.value);
+            }
+        });
+
+        searchInput.addEventListener('keydown', (e) => {
+            if (e.key === 'Enter') {
+                e.preventDefault();
+                scrollToProductsAndFilter();
+            } else if (e.key === 'Escape') {
+                searchDropdown?.classList.remove('is-open');
+            }
+        });
+    }
+
+    document.addEventListener('click', (e) => {
+        if (!e.target.closest('#product-nav-search')) {
+            searchDropdown?.classList.remove('is-open');
+        }
     });
 }
 
@@ -161,12 +325,7 @@ function closeCart() {
 }
 
 function updateCartBadge() {
-    const count = getCartCount();
-    const badge = document.getElementById('cart-count');
-    if (badge) {
-        badge.textContent = count;
-        badge.style.display = count > 0 ? 'flex' : 'none';
-    }
+    updateCartBadges();
 }
 
 function renderCart() {
@@ -395,3 +554,164 @@ window.handleAddToCart = function(productId) {
 window.scrollToProducts = function() {
     document.getElementById('products-section')?.scrollIntoView({ behavior: 'smooth' });
 };
+
+// ---- Hero Showcase ----
+function populateHeroShowcase() {
+    const fan = document.getElementById('hero-cards-fan');
+    const strip = document.getElementById('hero-strip');
+    if (!fan || !strip) return;
+
+    // Rotate through the real catalog while keeping up to five cards in the fan.
+    const fanProducts = allProducts.length > 0
+        ? Array.from({ length: 5 }, (_, offset) => allProducts[(heroStartIndex + offset) % allProducts.length])
+        : [];
+    const stripProducts = allProducts.length > 0 ? [...allProducts, ...allProducts] : []; // duplicate for infinite feel
+
+    // Render fan cards
+    fan.innerHTML = fanProducts.map(p => {
+        const name = currentLang === 'fr' ? (p.name_fr || p.name_en) : p.name_en;
+        return `<div class="hero-fan-card" onclick="goToProduct(${p.id})" title="${name}">
+            <img src="${p.image_url || '/images/placeholder.png'}" alt="${name}" onerror="this.src='/images/placeholder.png'" loading="lazy">
+        </div>`;
+    }).join('');
+
+    // If no products, show placeholder cards
+    if (fanProducts.length === 0) {
+        fan.innerHTML = Array(5).fill('').map((_, i) => 
+            `<div class="hero-fan-card" style="background: linear-gradient(155deg, rgba(70,44,125,0.6), rgba(41,26,48,0.9))"></div>`
+        ).join('');
+    }
+    const hasMoreProducts = allProducts.length > 1;
+    document.querySelectorAll('.hero-fan-arrow').forEach(button => {
+        button.hidden = !hasMoreProducts;
+    });
+
+    // Render strip cards
+    strip.innerHTML = stripProducts.map(p => {
+        const name = currentLang === 'fr' ? (p.name_fr || p.name_en) : p.name_en;
+        return `<div class="hero-strip-card" onclick="goToProduct(${p.id})" title="${name}">
+            <img src="${p.image_url || '/images/placeholder.png'}" alt="${name}" onerror="this.src='/images/placeholder.png'" loading="lazy">
+        </div>`;
+    }).join('');
+}
+
+function setupHeroFanControls() {
+    document.querySelector('.hero-fan-prev')?.addEventListener('click', () => {
+        shiftHeroFan(-1);
+    });
+    document.querySelector('.hero-fan-next')?.addEventListener('click', () => {
+        shiftHeroFan(1);
+    });
+    const showcase = document.getElementById('hero-showcase');
+    showcase?.addEventListener('mouseenter', stopHeroFanRotation);
+    showcase?.addEventListener('mouseleave', startHeroFanRotation);
+    showcase?.addEventListener('focusin', stopHeroFanRotation);
+    showcase?.addEventListener('focusout', startHeroFanRotation);
+
+}
+
+function shiftHeroFan(direction) {
+    const fan = document.getElementById('hero-cards-fan');
+    if (!fan || allProducts.length < 2 || heroFanBusy) return;
+    heroFanBusy = true;
+    fan.classList.remove('is-shifting-next', 'is-shifting-prev');
+    fan.classList.add(direction > 0 ? 'is-shifting-next' : 'is-shifting-prev');
+
+    window.setTimeout(() => {
+        fan.classList.remove('is-shifting-next', 'is-shifting-prev');
+        heroStartIndex = (heroStartIndex + direction + allProducts.length) % allProducts.length;
+        populateHeroShowcase();
+        heroFanBusy = false;
+    }, 360);
+}
+
+function startHeroFanRotation() {
+    stopHeroFanRotation();
+    if (allProducts.length < 2) return;
+    heroFanTimer = window.setInterval(() => shiftHeroFan(-1), 3400);
+}
+
+function stopHeroFanRotation() {
+    if (heroFanTimer) window.clearInterval(heroFanTimer);
+    heroFanTimer = null;
+}
+
+// ---- Floating Particles ----
+function createHeroParticles() {
+    const container = document.getElementById('hero-particles');
+    if (!container) return;
+
+    const colors = [
+        'rgba(213, 82, 163, 0.6)',
+        'rgba(131, 28, 145, 0.5)',
+        'rgba(255, 112, 191, 0.5)',
+        'rgba(70, 44, 125, 0.6)',
+        'rgba(255, 255, 255, 0.3)'
+    ];
+
+    for (let i = 0; i < 30; i++) {
+        const particle = document.createElement('div');
+        particle.className = 'hero-particle';
+        const size = Math.random() * 4 + 2;
+        const duration = Math.random() * 15 + 8;
+        const delay = Math.random() * 15;
+        const left = Math.random() * 100;
+        const drift = (Math.random() - 0.5) * 80;
+        const maxOpacity = Math.random() * 0.5 + 0.3;
+        const color = colors[Math.floor(Math.random() * colors.length)];
+
+        particle.style.cssText = `
+            --size: ${size}px;
+            --duration: ${duration}s;
+            --drift: ${drift}px;
+            --max-opacity: ${maxOpacity};
+            --color: ${color};
+            left: ${left}%;
+            animation-delay: -${delay}s;
+        `;
+        container.appendChild(particle);
+    }
+}
+
+// ---- Hero Strip Scroll ----
+function setupHeroStrip() {
+    const strip = document.getElementById('hero-strip');
+    if (!strip) return;
+
+    // Wheel scroll translates vertical movement into horizontal movement.
+    strip.addEventListener('wheel', event => {
+        if (strip.scrollWidth <= strip.clientWidth) return;
+        if (Math.abs(event.deltaY) > Math.abs(event.deltaX)) {
+            event.preventDefault();
+            strip.scrollLeft += event.deltaY;
+        }
+    }, { passive: false });
+
+    // Mouse drag scroll
+    let startX = 0, startScroll = 0, dragging = false, dragged = false;
+    strip.addEventListener('mousedown', event => {
+        if (event.button !== 0) return;
+        startX = event.clientX;
+        startScroll = strip.scrollLeft;
+        dragging = true;
+        dragged = false;
+        strip.classList.add('is-dragging');
+    });
+    window.addEventListener('mousemove', event => {
+        if (!dragging) return;
+        const distance = event.clientX - startX;
+        if (Math.abs(distance) > 4) dragged = true;
+        if (dragged) strip.scrollLeft = startScroll - distance;
+    });
+    window.addEventListener('mouseup', () => {
+        if (!dragging) return;
+        dragging = false;
+        strip.classList.remove('is-dragging');
+    });
+    strip.addEventListener('click', event => {
+        if (!dragged) return;
+        event.preventDefault();
+        event.stopPropagation();
+        dragged = false;
+    }, true);
+}

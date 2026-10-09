@@ -1,0 +1,125 @@
+/* Self-contained featured-card carousel. It deliberately does not style body, main, or .card. */
+.card-motion {
+    --motion-accent: #d552a3;
+    --motion-surface: #171126;
+    --motion-card-width: clamp(210px, 31vw, 300px);
+    position: relative;
+    overflow: hidden;
+    padding: clamp(2.5rem, 6vw, 5rem) 1rem 2.75rem;
+    background:
+        radial-gradient(circle at 50% 35%, rgba(213, 82, 163, .2), transparent 35rem),
+        linear-gradient(180deg, #0d0b17, var(--motion-surface));
+    color: #fff;
+    text-align: center;
+}
+
+.card-motion__intro { position: relative; z-index: 1; }
+.card-motion__eyebrow {
+    margin: 0 0 .55rem;
+    color: #f4acd6;
+    font-size: .75rem;
+    font-weight: 800;
+    letter-spacing: .16em;
+    text-transform: uppercase;
+}
+.card-motion h2 { margin: 0; font-size: clamp(1.5rem, 3vw, 2.35rem); }
+
+.card-motion__viewport {
+    position: relative;
+    width: min(100%, 780px);
+    height: clamp(360px, 50vh, 450px);
+    margin: 1.25rem auto 0;
+    outline: none;
+    touch-action: pan-y;
+    user-select: none;
+    cursor: grab;
+}
+.card-motion__viewport:focus-visible { outline: 2px solid #f5a9d4; outline-offset: 5px; border-radius: 18px; }
+.card-motion__viewport.is-dragging { cursor: grabbing; }
+
+.card-motion__stack {
+    position: absolute;
+    inset: 0;
+    perspective: 1000px;
+    transform-style: preserve-3d;
+}
+.card-motion__card {
+    position: absolute;
+    inset: 0;
+    height: min(380px, 88%);
+    width: auto;
+    aspect-ratio: 3 / 4.15;
+    max-width: min(300px, 85vw);
+    margin: auto;
+    overflow: hidden;
+    border: 1px solid rgba(255, 255, 255, .2);
+    border-radius: 18px;
+    background: #1a1429;
+    box-shadow: 0 24px 48px rgba(0, 0, 0, .45);
+    opacity: 0;
+    pointer-events: auto;
+    cursor: pointer;
+    transform: translate3d(0, 18px, -240px) scale(.74);
+    transition: transform .52s cubic-bezier(.2, .75, .25, 1), opacity .42s ease, filter .42s ease, border-color .2s ease;
+    will-change: transform, opacity;
+}
+.card-motion__card:hover { border-color: rgba(213, 82, 163, 0.6); }
+.card-motion__card img { display: block; width: 100%; height: 100%; object-fit: contain; background: #130f20; pointer-events: none; }
+.card-motion__card[data-position="0"] { z-index: 5; opacity: 1; transform: translate3d(0, 0, 20px) scale(1); }
+.card-motion__card[data-position="1"] { z-index: 4; opacity: .78; filter: brightness(.78); transform: translate3d(40%, 12px, -80px) rotateY(-15deg) rotateZ(6deg) scale(.86); }
+.card-motion__card[data-position="1"]:hover { opacity: .95; filter: brightness(.95); }
+.card-motion__card[data-position="2"] { z-index: 3; opacity: .34; filter: brightness(.58); transform: translate3d(73%, 28px, -180px) rotateY(-23deg) rotateZ(11deg) scale(.73); }
+.card-motion__card[data-position="2"]:hover { opacity: .7; filter: brightness(.75); }
+.card-motion__card[data-position="3"] { z-index: 2; opacity: .34; filter: brightness(.58); transform: translate3d(-73%, 28px, -180px) rotateY(23deg) rotateZ(-11deg) scale(.73); }
+.card-motion__card[data-position="3"]:hover { opacity: .7; filter: brightness(.75); }
+.card-motion__card[data-position="4"] { z-index: 4; opacity: .78; filter: brightness(.78); transform: translate3d(-40%, 12px, -80px) rotateY(15deg) rotateZ(-6deg) scale(.86); }
+.card-motion__card[data-position="4"]:hover { opacity: .95; filter: brightness(.95); }
+
+.card-motion__control {
+    position: absolute;
+    z-index: 8;
+    top: 50%;
+    display: grid;
+    width: 42px;
+    height: 42px;
+    padding: 0;
+    place-items: center;
+    border: 1px solid rgba(255, 255, 255, .25);
+    border-radius: 50%;
+    background: rgba(18, 14, 33, .78);
+    box-shadow: 0 6px 18px rgba(0, 0, 0, .3);
+    color: #fff;
+    cursor: pointer;
+    font: 2.1rem/1 system-ui, sans-serif;
+    transform: translateY(-50%);
+    transition: background-color .2s ease, transform .2s ease;
+}
+.card-motion__control:hover { background: var(--motion-accent); transform: translateY(-50%) scale(1.08); }
+.card-motion__control:focus-visible { outline: 2px solid #fff; outline-offset: 3px; }
+.card-motion__control--previous { left: max(.25rem, 2%); }
+.card-motion__control--next { right: max(.25rem, 2%); }
+.card-motion__status { position: absolute; z-index: 7; bottom: 0; left: 50%; color: #f3eaf5; font-size: .8rem; font-variant-numeric: tabular-nums; transform: translateX(-50%); }
+.card-motion__hint { margin: .25rem 0 0; color: #c9bdd0; font-size: .88rem; }
+
+/* On the home page, the deck belongs to the hero rather than a separate full-height section. */
+.hero > .container { position: relative; z-index: 1; }
+.hero .card-motion {
+    overflow: visible;
+    padding: 0;
+    background: transparent;
+}
+.hero .card-motion__viewport {
+    height: clamp(360px, 48vh, 460px);
+    margin-top: .5rem;
+}
+
+@media (max-width: 540px) {
+    .card-motion__viewport { height: 315px; }
+    .card-motion__card[data-position="2"] { transform: translate3d(61%, 26px, -180px) rotateY(-23deg) rotateZ(11deg) scale(.7); }
+    .card-motion__card[data-position="3"] { transform: translate3d(-61%, 26px, -180px) rotateY(23deg) rotateZ(-11deg) scale(.7); }
+    .card-motion__control { width: 38px; height: 38px; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .card-motion__card, .card-motion__control { transition: none; }
+}

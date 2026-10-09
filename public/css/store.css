@@ -132,126 +132,161 @@
 .hero {
     min-height: 100vh;
     display: flex;
-    align-items: center;
+    flex-direction: column;
+    justify-content: center;
     position: relative;
     overflow: hidden;
-    background: linear-gradient(135deg, #f1f1f3 0%, #eceafd 60%, #e8e8ee 100%);
+    background: radial-gradient(ellipse 120% 80% at 30% 20%, rgba(70, 44, 125, 0.35) 0%, transparent 55%),
+                radial-gradient(ellipse 100% 70% at 80% 60%, rgba(131, 28, 145, 0.25) 0%, transparent 50%),
+                linear-gradient(135deg, #0d0815 0%, #170e22 30%, #1a0e28 55%, #120a1c 100%);
+    padding-top: 100px;
+    padding-bottom: 0;
 }
 
 .hero-bg {
     position: absolute;
     inset: 0;
     overflow: hidden;
+    pointer-events: none;
 }
 
 .hero-orb {
     position: absolute;
     border-radius: 50%;
     filter: blur(80px);
-    opacity: 0.18;
-    animation: float 6s ease-in-out infinite;
+    animation: orbFloat 8s ease-in-out infinite;
 }
 
 .hero-orb-1 {
-    width: 600px;
-    height: 600px;
-    background: var(--primary);
-    top: -100px;
-    right: -100px;
+    width: 500px;
+    height: 500px;
+    background: radial-gradient(circle, rgba(131, 28, 145, 0.5), rgba(70, 44, 125, 0.2));
+    top: -120px;
+    right: 10%;
     animation-delay: 0s;
 }
 
 .hero-orb-2 {
-    width: 400px;
-    height: 400px;
-    background: var(--accent);
-    bottom: -50px;
-    left: -50px;
-    animation-delay: 3s;
+    width: 350px;
+    height: 350px;
+    background: radial-gradient(circle, rgba(213, 82, 163, 0.4), rgba(131, 28, 145, 0.15));
+    bottom: -80px;
+    left: -60px;
+    animation-delay: 2s;
 }
 
 .hero-orb-3 {
-    width: 300px;
-    height: 300px;
-    background: #3b82f6;
-    top: 40%;
-    left: 40%;
-    animation-delay: 1.5s;
+    width: 250px;
+    height: 250px;
+    background: radial-gradient(circle, rgba(255, 112, 191, 0.35), transparent);
+    top: 35%;
+    left: 50%;
+    animation-delay: 4s;
 }
 
-@keyframes float {
+.hero-orb-4 {
+    width: 180px;
+    height: 180px;
+    background: radial-gradient(circle, rgba(131, 28, 145, 0.6), transparent);
+    top: 15%;
+    left: 15%;
+    animation-delay: 1s;
+    animation-duration: 6s;
+}
 
-    0%,
-    100% {
-        transform: translateY(0) scale(1);
-    }
+.hero-orb-5 {
+    width: 120px;
+    height: 120px;
+    background: radial-gradient(circle, rgba(255, 112, 191, 0.5), transparent);
+    bottom: 25%;
+    right: 20%;
+    animation-delay: 3s;
+    animation-duration: 7s;
+}
 
-    50% {
-        transform: translateY(-30px) scale(1.05);
-    }
+@keyframes orbFloat {
+    0%, 100% { transform: translateY(0) scale(1); opacity: 0.7; }
+    50% { transform: translateY(-30px) scale(1.08); opacity: 1; }
+}
+
+/* Floating particles container */
+.hero-particles {
+    position: absolute;
+    inset: 0;
+    pointer-events: none;
+    z-index: 0;
+}
+
+.hero-particle {
+    position: absolute;
+    width: var(--size, 4px);
+    height: var(--size, 4px);
+    border-radius: 50%;
+    background: var(--color, rgba(213, 82, 163, 0.6));
+    animation: particleDrift var(--duration, 12s) linear infinite;
+    opacity: 0;
+}
+
+@keyframes particleDrift {
+    0% { transform: translateY(100vh) translateX(0); opacity: 0; }
+    10% { opacity: var(--max-opacity, 0.7); }
+    90% { opacity: var(--max-opacity, 0.7); }
+    100% { transform: translateY(-10vh) translateX(var(--drift, 40px)); opacity: 0; }
+}
+
+/* Hero layout: text left, showcase right */
+.hero-layout {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    align-items: center;
+    gap: 3rem;
+    position: relative;
+    z-index: 1;
+    padding: 2rem 0 3rem;
 }
 
 .hero-content {
     position: relative;
-    z-index: 1;
-    text-align: center;
-    max-width: 800px;
-    margin: 0 auto;
-    padding: 0 1.5rem;
-}
-
-.hero-badge {
-    display: inline-flex;
-    align-items: center;
-    gap: 0.5rem;
-    padding: 0.4rem 1rem;
-    background: rgba(85, 64, 245, 0.12);
-    border: 1px solid rgba(85, 64, 245, 0.25);
-    border-radius: 999px;
-    font-size: 0.85rem;
-    font-weight: 600;
-    color: var(--primary);
-    margin-bottom: 1.5rem;
-    animation: fadeInDown 0.6s ease;
+    z-index: 2;
+    text-align: left;
+    max-width: 600px;
 }
 
 .hero-title {
-    font-size: clamp(2.5rem, 7vw, 5rem);
+    font-size: clamp(2.2rem, 5.5vw, 4rem);
     font-weight: 900;
     line-height: 1.1;
     margin-bottom: 1.25rem;
     animation: fadeInUp 0.7s ease 0.1s both;
+    color: #fff4fb;
 }
 
 .hero-desc {
-    font-size: clamp(1rem, 2vw, 1.25rem);
+    font-size: clamp(0.95rem, 1.8vw, 1.15rem);
     color: var(--text-secondary);
-    margin-bottom: 2.5rem;
+    margin-bottom: 2rem;
     animation: fadeInUp 0.7s ease 0.2s both;
+    line-height: 1.7;
 }
 
 .hero-cta {
     display: flex;
     gap: 1rem;
-    justify-content: center;
     flex-wrap: wrap;
     animation: fadeInUp 0.7s ease 0.3s both;
 }
 
 .hero-stats {
     display: flex;
-    justify-content: center;
-    gap: 3rem;
-    margin-top: 4rem;
+    gap: 2.5rem;
+    margin-top: 3rem;
     animation: fadeInUp 0.7s ease 0.4s both;
 }
 
-.hero-stat {
-    text-align: center;
-}
+.hero-stat { text-align: center; }
 
 .hero-stat-value {
-    font-size: 1.8rem;
+    font-size: 1.6rem;
     font-weight: 800;
     background: var(--gradient-primary);
     -webkit-background-clip: text;
@@ -260,33 +295,208 @@
 }
 
 .hero-stat-label {
-    font-size: 0.8rem;
+    font-size: 0.78rem;
     color: var(--text-muted);
     margin-top: 0.2rem;
 }
 
-@keyframes fadeInDown {
-    from {
-        transform: translateY(-20px);
-        opacity: 0;
-    }
+/* ---- Hero Showcase (right side fanned cards) ---- */
+.hero-showcase {
+    position: relative;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    min-height: 420px;
+    perspective: 1200px;
+    animation: fadeInRight 0.8s ease 0.3s both;
+}
 
-    to {
-        transform: translateY(0);
-        opacity: 1;
-    }
+@keyframes fadeInRight {
+    from { transform: translateX(40px); opacity: 0; }
+    to { transform: translateX(0); opacity: 1; }
+}
+
+.hero-showcase-glow {
+    position: absolute;
+    width: 380px;
+    height: 380px;
+    border-radius: 50%;
+    background: radial-gradient(circle, rgba(131, 28, 145, 0.45) 0%, rgba(213, 82, 163, 0.2) 40%, transparent 70%);
+    filter: blur(50px);
+    z-index: 0;
+    animation: glowPulse 4s ease-in-out infinite;
+}
+
+@keyframes glowPulse {
+    0%, 100% { transform: scale(1); opacity: 0.7; }
+    50% { transform: scale(1.15); opacity: 1; }
+}
+
+.hero-cards-fan {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    position: relative;
+    z-index: 1;
+    gap: 0;
+    width: 100%;
+    height: 400px;
+}
+
+/* Individual hero fan card */
+.hero-fan-card {
+    position: absolute;
+    width: clamp(140px, 16vw, 180px);
+    aspect-ratio: 3/4;
+    border-radius: 16px;
+    overflow: hidden;
+    background: linear-gradient(155deg, rgba(41, 26, 48, 0.98), rgba(29, 21, 38, 0.98));
+    border: 1px solid rgba(213, 82, 163, 0.3);
+    box-shadow: 0 15px 40px rgba(0, 0, 0, 0.4), 0 0 30px rgba(131, 28, 145, 0.2);
+    transition: transform 0.5s cubic-bezier(0.34, 1.56, 0.64, 1),
+                box-shadow 0.4s ease,
+                border-color 0.3s ease;
+    cursor: pointer;
+    transform-origin: center bottom;
+}
+
+.hero-fan-card:hover {
+    z-index: 10 !important;
+    transform: translateY(-30px) rotate(0deg) scale(1.1) !important;
+    border-color: rgba(255, 112, 191, 0.7);
+    box-shadow: 0 25px 60px rgba(131, 28, 145, 0.4), 0 0 50px rgba(213, 82, 163, 0.3);
+}
+
+.hero-fan-card img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    transition: transform 0.5s ease;
+}
+
+.hero-fan-card:hover img {
+    transform: scale(1.08);
+}
+
+/* Fanned positions: 5 cards arranged in arc */
+.hero-fan-card:nth-child(1) { transform: rotate(-16deg) translateX(-160px) translateY(30px); z-index: 1; }
+.hero-fan-card:nth-child(2) { transform: rotate(-8deg) translateX(-80px) translateY(5px); z-index: 2; }
+.hero-fan-card:nth-child(3) { transform: rotate(0deg) translateX(0) translateY(-10px); z-index: 3; }
+.hero-fan-card:nth-child(4) { transform: rotate(8deg) translateX(80px) translateY(5px); z-index: 2; }
+.hero-fan-card:nth-child(5) { transform: rotate(16deg) translateX(160px) translateY(30px); z-index: 1; }
+
+/* Card glow ring behind each card */
+.hero-fan-card::after {
+    content: '';
+    position: absolute;
+    inset: -2px;
+    border-radius: 18px;
+    background: linear-gradient(135deg, rgba(131, 28, 145, 0.4), rgba(255, 112, 191, 0.2), transparent);
+    z-index: -1;
+    opacity: 0;
+    transition: opacity 0.3s ease;
+}
+
+.hero-fan-card:hover::after {
+    opacity: 1;
+}
+
+/* ---- Hero bottom scrollable strip ---- */
+.hero-strip-wrap {
+    position: relative;
+    z-index: 2;
+    padding: 0 0 2rem;
+    margin-top: auto;
+    /* Fade edges */
+    -webkit-mask-image: linear-gradient(90deg, transparent 0%, black 8%, black 92%, transparent 100%);
+    mask-image: linear-gradient(90deg, transparent 0%, black 8%, black 92%, transparent 100%);
+}
+
+.hero-strip {
+    display: flex;
+    gap: 1.2rem;
+    overflow-x: auto;
+    overflow-y: hidden;
+    padding: 1rem 3rem 1.2rem;
+    scroll-snap-type: x mandatory;
+    scroll-behavior: smooth;
+    scrollbar-width: none;
+    cursor: grab;
+    overscroll-behavior-x: contain;
+}
+
+.hero-strip::-webkit-scrollbar { display: none; }
+.hero-strip.is-dragging { cursor: grabbing; scroll-behavior: auto; scroll-snap-type: none; user-select: none; }
+
+.hero-strip-card {
+    flex: 0 0 clamp(100px, 13vw, 150px);
+    aspect-ratio: 1;
+    border-radius: 14px;
+    overflow: hidden;
+    scroll-snap-align: start;
+    background: linear-gradient(155deg, rgba(41, 26, 48, 0.9), rgba(29, 21, 38, 0.95));
+    border: 1px solid rgba(213, 82, 163, 0.18);
+    box-shadow: 0 6px 20px rgba(0, 0, 0, 0.3), 0 0 15px rgba(131, 28, 145, 0.1);
+    transition: transform 0.35s ease, border-color 0.3s ease, box-shadow 0.3s ease;
+    cursor: pointer;
+    position: relative;
+}
+
+.hero-strip-card:hover {
+    transform: translateY(-6px) scale(1.05);
+    border-color: rgba(255, 112, 191, 0.5);
+    box-shadow: 0 12px 30px rgba(131, 28, 145, 0.3), 0 0 20px rgba(213, 82, 163, 0.2);
+}
+
+.hero-strip-card img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    transition: transform 0.4s ease;
+}
+
+.hero-strip-card:hover img {
+    transform: scale(1.1);
+}
+
+@keyframes fadeInDown {
+    from { transform: translateY(-20px); opacity: 0; }
+    to { transform: translateY(0); opacity: 1; }
 }
 
 @keyframes fadeInUp {
-    from {
-        transform: translateY(20px);
-        opacity: 0;
-    }
+    from { transform: translateY(20px); opacity: 0; }
+    to { transform: translateY(0); opacity: 1; }
+}
 
-    to {
-        transform: translateY(0);
-        opacity: 1;
+/* Responsive hero */
+@media (max-width: 900px) {
+    .hero-layout {
+        grid-template-columns: 1fr;
+        text-align: center;
     }
+    .hero-content { text-align: center; max-width: 100%; }
+    .hero-cta { justify-content: center; }
+    .hero-stats { justify-content: center; }
+    .hero-showcase { min-height: 320px; margin-top: 1rem; }
+    .hero-fan-card { width: clamp(110px, 22vw, 150px); }
+    .hero-fan-card:nth-child(1) { transform: rotate(-14deg) translateX(-120px) translateY(25px); }
+    .hero-fan-card:nth-child(2) { transform: rotate(-7deg) translateX(-60px) translateY(4px); }
+    .hero-fan-card:nth-child(3) { transform: rotate(0deg) translateX(0) translateY(-8px); }
+    .hero-fan-card:nth-child(4) { transform: rotate(7deg) translateX(60px) translateY(4px); }
+    .hero-fan-card:nth-child(5) { transform: rotate(14deg) translateX(120px) translateY(25px); }
+}
+
+@media (max-width: 600px) {
+    .hero-showcase { min-height: 260px; }
+    .hero-fan-card { width: clamp(90px, 25vw, 120px); }
+    .hero-fan-card:nth-child(1) { transform: rotate(-12deg) translateX(-90px) translateY(20px); }
+    .hero-fan-card:nth-child(2) { transform: rotate(-6deg) translateX(-45px) translateY(3px); }
+    .hero-fan-card:nth-child(3) { transform: rotate(0deg) translateX(0) translateY(-6px); }
+    .hero-fan-card:nth-child(4) { transform: rotate(6deg) translateX(45px) translateY(3px); }
+    .hero-fan-card:nth-child(5) { transform: rotate(12deg) translateX(90px) translateY(20px); }
+    .hero-stats { gap: 1.5rem; flex-wrap: wrap; }
+    .hero-strip-card { flex: 0 0 clamp(80px, 20vw, 110px); }
 }
 
 /* ---- Products Section ---- */
@@ -407,20 +617,24 @@
 .product-like-btn {
     position: absolute;
     top: 0.7rem;
-    left: 0.7rem;
+    right: 0.7rem;
+    left: auto;
     z-index: 2;
-    width: 40px;
-    height: 40px;
+    width: 26px;
+    height: 26px;
     display: grid;
     place-items: center;
-    border: 1px solid rgba(20, 20, 30, 0.08);
-    border-radius: 50%;
-    background: rgba(255, 255, 255, 0.94);
-    color: #777785;
+    padding: 0;
+    border: 0;
+    border-radius: 0;
+    background: transparent;
+    color: #fff;
     cursor: pointer;
     transition: var(--transition);
-    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.12);
+    box-shadow: none;
 }
+
+.product-like-btn .material-symbols-outlined { font-size: 20px; }
 
 .store-nav-icon{width:40px;height:40px;display:grid;place-items:center;color:var(--primary);text-decoration:none;border-radius:50%;transition:var(--transition)}
 .store-nav-icon:hover{background:rgba(85,64,245,.1);transform:translateY(-1px)}
@@ -435,7 +649,6 @@
 }
 
 body[dir="rtl"] .product-like-btn {
-    left: auto;
     right: 0.7rem;
 }
 
@@ -844,4 +1057,271 @@ body[dir="rtl"] .cart-sidebar {
         gap: 1rem;
         flex-wrap: wrap;
     }
+}
+
+/* Dark storefront surfaces using the PLAYORA palette. */
+.navbar, .navbar.scrolled { background: rgba(16, 11, 23, .97); border-color: var(--border-light); }
+.lang-toggle, .search-input, .search-box, .filter-btn, .sort-select,
+.product-card, .category-card, .store-section, .newsletter, .cart-panel,
+.cart-sidebar, .cart-item, .checkout-card, .order-summary, .form-card {
+    background-color: var(--bg-card); color: var(--text-primary); border-color: var(--border-light);
+}
+/* Hero background is now defined in the main .hero rule above. */
+.product-card:hover, .category-card:hover { background-color: var(--bg-card-hover); border-color: var(--primary-light); }
+
+/* Glowing, horizontally browsable product deck. */
+.products-section {
+    position: relative;
+    isolation: isolate;
+    overflow: hidden;
+    background: #100b17;
+}
+.products-section::before {
+    content: "";
+    position: absolute;
+    z-index: -1;
+    width: min(900px, 90vw);
+    height: 430px;
+    left: 50%;
+    top: 150px;
+    transform: translateX(-50%);
+    background: radial-gradient(ellipse, rgba(131, 28, 145, .3) 0%, rgba(70, 44, 125, .19) 42%, rgba(213, 82, 163, .09) 62%, transparent 76%);
+    filter: blur(35px);
+    pointer-events: none;
+}
+.products-carousel {
+    display: flex;
+    gap: 1.35rem;
+    overflow-x: auto;
+    overflow-y: hidden;
+    padding: 1.5rem 1rem 2.2rem;
+    scroll-snap-type: x mandatory;
+    scroll-behavior: smooth;
+    scrollbar-width: thin;
+    scrollbar-color: #831C91 rgba(255, 255, 255, .08);
+    cursor: grab;
+    overscroll-behavior-x: contain;
+}
+.products-carousel::-webkit-scrollbar { height: 8px; }
+.products-carousel::-webkit-scrollbar-track { background: rgba(255, 255, 255, .07); border-radius: 99px; }
+.products-carousel::-webkit-scrollbar-thumb { background: linear-gradient(90deg, #462C7D, #831C91, #D552A3); border-radius: 99px; }
+.products-carousel.is-dragging { cursor: grabbing; scroll-behavior: auto; scroll-snap-type: none; user-select: none; }
+.products-carousel .product-card {
+    flex: 0 0 clamp(230px, 27vw, 300px);
+    scroll-snap-align: start;
+    background: linear-gradient(155deg, rgba(41, 26, 48, .98), rgba(29, 21, 38, .98));
+    border: 1px solid rgba(213, 82, 163, .2);
+    box-shadow: 0 10px 34px rgba(70, 44, 125, .2), 0 0 26px rgba(131, 28, 145, .1);
+}
+.products-carousel .product-card:hover {
+    transform: translateY(-7px);
+    border-color: rgba(255, 112, 191, .72);
+    box-shadow: 0 18px 42px rgba(70, 44, 125, .34), 0 0 32px rgba(213, 82, 163, .2);
+}
+.products-carousel .product-card-img {
+    aspect-ratio: 3 / 4;
+    max-height: none;
+    display: block;
+    padding: 0;
+    isolation: isolate;
+    background: linear-gradient(145deg, #34215e, #20172d 58%, #16111f);
+}
+.products-carousel .product-card-img::before {
+    content: "";
+    position: absolute;
+    inset: 0;
+    z-index: 0;
+    pointer-events: none;
+    background: radial-gradient(circle at 50% 42%, rgba(181, 115, 255, .34), transparent 52%);
+}
+.products-carousel .product-card-img img {
+    position: relative;
+    z-index: 1;
+    display: block;
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    border-radius: 0;
+    filter: drop-shadow(0 12px 16px rgba(0, 0, 0, .3));
+    transition: transform .35s ease;
+}
+.products-carousel .product-card:hover .product-card-img img { transform: translateY(-3px) scale(1.015); }
+.products-carousel .product-card-out { z-index: 3; }
+.products-carousel .product-card-badge { background: rgba(70, 44, 125, .92); border-color: rgba(213, 82, 163, .45); color: #fff4fb; }
+.products-carousel .product-price { color: #FF70BF; }
+.products-carousel:focus-visible { outline: 2px solid #D552A3; outline-offset: 4px; }
+@media (max-width: 600px) {
+    .products-carousel { gap: 1rem; padding-inline: .35rem; }
+    .products-carousel .product-card { flex-basis: min(78vw, 290px); }
+}
+
+/* Straight, clean card layout for the product carousel. */
+.products-carousel { align-items: stretch; padding-block: 2rem 2.5rem; }
+.products-carousel .product-card {
+    flex-basis: clamp(230px, 24vw, 300px);
+    transition: transform .35s ease, border-color .3s ease, box-shadow .3s ease;
+}
+.products-carousel .product-card:hover {
+    z-index: 2;
+    transform: translateY(-8px) scale(1.02);
+}
+.products-carousel.is-dragging .product-card { transition: none; }
+@media (max-width: 600px) {
+    .products-carousel { padding-block: 1.5rem 2rem; }
+    .products-carousel .product-card { flex-basis: min(78vw, 290px); }
+}
+
+
+/* Landing page composition inspired by the reference: centered title, glowing fan, browseable cards. */
+.hero {
+    min-height: 100svh;
+    padding: 92px 0 8px;
+    background:
+        radial-gradient(ellipse 55% 38% at 50% 55%, rgba(131, 28, 145, .32), transparent 74%),
+        radial-gradient(ellipse 80% 70% at 50% 38%, rgba(70, 44, 125, .22), transparent 75%),
+        linear-gradient(180deg, #100b17 0%, #170e22 58%, #100b17 100%);
+}
+.hero-layout {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 0;
+    padding: 0;
+}
+.hero-content {
+    max-width: 850px;
+    text-align: center;
+}
+.hero-title {
+    max-width: 800px;
+    margin: 0 auto .65rem;
+    font-size: clamp(2.15rem, 5.2vw, 4.1rem);
+    line-height: 1.06;
+}
+.hero-desc {
+    max-width: 650px;
+    margin: 0 auto 1.1rem;
+    font-size: clamp(.9rem, 1.4vw, 1.05rem);
+}
+.hero-cta { justify-content: center; }
+.hero-cta .btn { padding: .8rem 1.65rem; }
+.hero-showcase {
+    width: min(760px, 100%);
+    min-height: clamp(240px, 32vh, 330px);
+    margin: -.15rem auto -.2rem;
+    animation: fadeInUp .8s ease .2s both;
+}
+.hero-showcase-glow {
+    width: min(450px, 65vw);
+    height: 260px;
+    background: radial-gradient(ellipse, rgba(213, 82, 163, .32) 0%, rgba(131, 28, 145, .26) 44%, rgba(70, 44, 125, .12) 64%, transparent 78%);
+}
+.hero-cards-fan { height: clamp(240px, 32vh, 330px); }
+.hero-fan-card {
+    width: clamp(125px, 15vw, 175px);
+    border-radius: 14px;
+    box-shadow: 0 18px 42px rgba(0, 0, 0, .48), 0 0 25px rgba(131, 28, 145, .24);
+}
+.hero-stats {
+    justify-content: center;
+    gap: clamp(2rem, 7vw, 5rem);
+    margin: 0 auto .8rem;
+}
+.hero-stat-value { font-size: 1.2rem; }
+.hero-stat-label { font-size: .68rem; }
+.hero-strip-wrap { padding-bottom: .8rem; }
+.hero-strip { justify-content: center; padding: .5rem 2rem .8rem; }
+.hero-strip-card { flex-basis: clamp(74px, 8vw, 100px); border-radius: 11px; }
+/* Keep the large hero fan as the homepage showcase; remove the extra mini product tiles. */
+.hero-strip-wrap { display: none; }
+.hero-particle { box-shadow: 0 0 12px currentColor; }
+@media (max-width: 900px) {
+    .hero { padding-top: 84px; }
+    .hero-showcase { min-height: 275px; }
+    .hero-cards-fan { height: 275px; }
+    .hero-stats { margin-top: 0; }
+}
+@media (max-width: 600px) {
+    .hero { min-height: 100svh; padding: 82px 0 6px; }
+    .hero-title { font-size: clamp(2rem, 10vw, 3rem); }
+    .hero-showcase { min-height: 235px; margin-top: .4rem; }
+    .hero-cards-fan { height: 235px; }
+    .hero-fan-card { width: clamp(82px, 24vw, 112px); }
+    .hero-stats { gap: 1.25rem; margin-bottom: .3rem; }
+    .hero-stat-value { font-size: 1rem; }
+    .hero-strip { justify-content: flex-start; }
+}
+
+/* Circular back-rotation controls. */
+.hero-fan-arrow {
+    position: absolute;
+    z-index: 8;
+    top: 70%;
+    width: 44px;
+    height: 44px;
+    display: grid;
+    place-items: center;
+    padding: 0;
+    border: 2px solid #159de8;
+    border-radius: 50%;
+    color: #32bdff;
+    background: rgba(12, 14, 29, .82);
+    box-shadow: 0 0 14px rgba(20, 166, 255, .22), inset 0 0 12px rgba(20, 166, 255, .08);
+    cursor: pointer;
+    transition: transform .2s ease, background .2s ease, box-shadow .2s ease;
+}
+.hero-fan-arrow .material-symbols-outlined { font-size: 27px; }
+.hero-fan-arrow:hover {
+    transform: scale(1.1);
+    color: white;
+    background: #087dbc;
+    box-shadow: 0 0 22px rgba(20, 166, 255, .5);
+}
+.hero-fan-arrow[hidden] { display: none; }
+.hero-fan-prev { left: 22%; }
+.hero-fan-next { right: 22%; }
+@media (max-width: 600px) {
+    .hero-fan-arrow { top: 70%; width: 36px; height: 36px; }
+    .hero-fan-arrow .material-symbols-outlined { font-size: 23px; }
+    .hero-fan-prev { left: 20%; }
+    .hero-fan-next { right: 20%; }
+}
+
+/* Make the hero fan rotate through products and spotlight its center card. */
+.hero-fan-card { transition: transform .42s cubic-bezier(.2,.75,.25,1), filter .42s ease, opacity .42s ease; }
+.hero-fan-card:nth-child(1) { transform: rotate(-16deg) translateX(-160px) translateY(30px) scale(.78); filter: brightness(.68); }
+.hero-fan-card:nth-child(2) { transform: rotate(-8deg) translateX(-80px) translateY(5px) scale(.9); filter: brightness(.84); }
+.hero-fan-card:nth-child(3) {
+    z-index: 6;
+    transform: rotate(0deg) translateX(0) translateY(-14px) scale(1.18);
+    filter: brightness(1.12) saturate(1.15);
+    border-color: rgba(255, 112, 191, .78);
+    box-shadow: 0 20px 48px rgba(0, 0, 0, .48), 0 0 34px rgba(213, 82, 163, .44);
+}
+.hero-fan-card:nth-child(4) { transform: rotate(8deg) translateX(80px) translateY(5px) scale(.9); filter: brightness(.84); }
+.hero-fan-card:nth-child(5) { transform: rotate(16deg) translateX(160px) translateY(30px) scale(.78); filter: brightness(.68); }
+.hero-cards-fan.is-shifting-next .hero-fan-card { animation: heroFanMoveLeft .36s ease-in both; }
+.hero-cards-fan.is-shifting-prev .hero-fan-card { animation: heroFanMoveRight .36s ease-in both; }
+@keyframes heroFanMoveLeft {
+    to { translate: -74px 14px; rotate: -9deg; scale: .88; opacity: .22; filter: blur(2px); }
+}
+@keyframes heroFanMoveRight {
+    to { translate: 74px 14px; rotate: 9deg; scale: .88; opacity: .22; filter: blur(2px); }
+}
+@media (max-width: 900px) {
+    .hero-fan-card:nth-child(1) { transform: rotate(-14deg) translateX(-120px) translateY(25px) scale(.78); }
+    .hero-fan-card:nth-child(2) { transform: rotate(-7deg) translateX(-60px) translateY(4px) scale(.9); }
+    .hero-fan-card:nth-child(3) { transform: rotate(0deg) translateX(0) translateY(-12px) scale(1.16); }
+    .hero-fan-card:nth-child(4) { transform: rotate(7deg) translateX(60px) translateY(4px) scale(.9); }
+    .hero-fan-card:nth-child(5) { transform: rotate(14deg) translateX(120px) translateY(25px) scale(.78); }
+}
+@media (max-width: 600px) {
+    .hero-fan-card:nth-child(1) { transform: rotate(-12deg) translateX(-90px) translateY(20px) scale(.76); }
+    .hero-fan-card:nth-child(2) { transform: rotate(-6deg) translateX(-45px) translateY(3px) scale(.88); }
+    .hero-fan-card:nth-child(3) { transform: rotate(0deg) translateX(0) translateY(-9px) scale(1.13); }
+    .hero-fan-card:nth-child(4) { transform: rotate(6deg) translateX(45px) translateY(3px) scale(.88); }
+    .hero-fan-card:nth-child(5) { transform: rotate(12deg) translateX(90px) translateY(20px) scale(.76); }
+}
+@media (prefers-reduced-motion: reduce) {
+    .hero-fan-card, .hero-cards-fan.is-shifting-next .hero-fan-card, .hero-cards-fan.is-shifting-prev .hero-fan-card { animation: none; transition: none; }
 }

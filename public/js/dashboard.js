@@ -116,7 +116,7 @@ async function showTab(tab) {
 
     document.getElementById('topbar-title').textContent =
         tab === 'products' ? t('Products Management', 'Gestion des produits') :
-        tab === 'orders'   ? t('Orders', 'Commandes') : 'PLAYORA';
+        tab === 'orders'   ? t('Orders', 'Commandes') : 'GloboTV';
 
     if (tab === 'products') await loadProductsTable();
     if (tab === 'orders') await loadOrdersTable();
@@ -233,6 +233,10 @@ async function openEditProduct(id) {
     document.getElementById('prod-name-en').value = product.name_en;
     document.getElementById('prod-desc-fr').value = product.description_fr || '';
     document.getElementById('prod-desc-en').value = product.description_en || '';
+    document.getElementById('prod-delivery-fr').value = product.delivery_info_fr || '';
+    document.getElementById('prod-delivery-en').value = product.delivery_info_en || '';
+    document.getElementById('prod-reviews-fr').value = product.reviews_fr || '';
+    document.getElementById('prod-reviews-en').value = product.reviews_en || '';
     document.getElementById('prod-price').value = product.price;
     document.getElementById('prod-stock').value = product.stock_quantity;
     document.getElementById('prod-category').value = product.category_id || '';
@@ -317,6 +321,10 @@ document.getElementById('product-form')?.addEventListener('submit', async (e) =>
     formData.append('name_en', document.getElementById('prod-name-en').value.trim());
     formData.append('description_fr', document.getElementById('prod-desc-fr').value.trim());
     formData.append('description_en', document.getElementById('prod-desc-en').value.trim());
+    formData.append('delivery_info_fr', document.getElementById('prod-delivery-fr').value.trim());
+    formData.append('delivery_info_en', document.getElementById('prod-delivery-en').value.trim());
+    formData.append('reviews_fr', document.getElementById('prod-reviews-fr').value.trim());
+    formData.append('reviews_en', document.getElementById('prod-reviews-en').value.trim());
     formData.append('price', document.getElementById('prod-price').value);
     const offers = [...document.querySelectorAll('.product-offer-row')].map(row => ({
         label_en: row.querySelector('.offer-label-en').value.trim(),

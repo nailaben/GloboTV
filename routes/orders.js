@@ -13,7 +13,7 @@ const generateOrderNumber = () => {
 
 // POST /api/orders - Create new order (public)
 router.post('/', async (req, res) => {
-    const { customer_name, customer_phone, customer_email, customer_address, notes, items } = req.body;
+    const { customer_name, customer_phone, customer_email, customer_address, notes, items, payment_provider } = req.body;
 
     if (!customer_name || !customer_phone || !customer_email || !customer_address || !items || items.length === 0) {
         return res.status(400).json({ success: false, message: 'All required fields must be provided' });
@@ -71,6 +71,18 @@ router.post('/', async (req, res) => {
         const total_amount = subtotal;
         const order_number = generateOrderNumber();
 
+        let paymentLink = null;
+        if (payment_provider === 'oneclick') {
+            const configuredUrl = process.env.ONECLICK_PAYMENT_URL;
+            let parsedUrl;
+            try { parsedUrl = new URL(configuredUrl); } catch { parsedUrl = null; }
+            if (parsedUrl?.origin !== 'https://pay.ocdz.link') {
+                await client.query('ROLLBACK');
+                return res.status(503).json({ success: false, message: 'A valid OneClick payment link is not configured yet.' });
+            }
+            paymentLink = parsedUrl.toString();
+        }
+
         // Create order
         let customerId = null;
         const bearer = req.headers.authorization?.split(' ')[1];
@@ -118,7 +130,8 @@ router.post('/', async (req, res) => {
                     quantity: i.quantity,
                     unit_price: i.unit_price,
                     subtotal: i.subtotal
-                }))
+                })),
+                payment_url: paymentLink
             }
         });
     } catch (err) {
