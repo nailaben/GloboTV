@@ -3,56 +3,44 @@ const bcrypt = require('bcryptjs');
 
 async function resetAdmin() {
     try {
-        const email = process.env.SELLER_EMAIL || 'admin@globotv.com';
         const username = (process.env.SELLER_USERNAME || 'charaf_ben').trim().toLowerCase();
         const password = process.env.SELLER_PASSWORD || 'admin123';
         const salt = await bcrypt.genSalt(10);
         const hash = await bcrypt.hash(password, salt);
 
-        // The schema seeds charaf_ben without an email. Find the admin by either
-        // configured identifier so repeated startup does not try to insert the
-        // same case-insensitive unique username again.
+        // Sellers are identified by username; the sellers table has no email
+        // column. Updating by username makes this safe on repeated startups.
         const check = await pool.query(
-            `SELECT id, email, username
+            `SELECT id, username
              FROM sellers
              WHERE LOWER(TRIM(username)) = LOWER(TRIM($1))
-                OR LOWER(TRIM(email)) = LOWER(TRIM($2))
-             ORDER BY CASE
-                 WHEN LOWER(TRIM(email)) = LOWER(TRIM($2)) THEN 0
-                 ELSE 1
-             END
              LIMIT 1`,
-            [username, email]
+            [username]
         );
         if (check.rows.length > 0) {
             const existingSeller = check.rows[0];
-            // Do not overwrite another seller's username if the configured
-            // admin email and username belong to different accounts.
-            const usernameIsTakenByOther = await pool.query(
-                `SELECT id FROM sellers
-                 WHERE LOWER(TRIM(username)) = LOWER(TRIM($1)) AND id <> $2`,
-                [username, existingSeller.id]
-            );
-            if (usernameIsTakenByOther.rows.length > 0) {
-                throw new Error(`Configured admin username '${username}' belongs to a different seller`);
-            }
             await pool.query(
-                'UPDATE sellers SET password_hash = $1, username = $2, email = COALESCE(email, $3), name = $4 WHERE id = $5',
-                [hash, username, email, 'GloboTV Admin', existingSeller.id]
+                'UPDATE sellers SET password_hash = $1, name = $2 WHERE id = $3',
+                [hash, 'GloboTV Admin', existingSeller.id]
             );
-            console.log(`Updated password for existing admin seller: ${email}`);
+            console.log(`Updated password for existing admin seller: ${username}`);
         } else {
-            await pool.query('INSERT INTO sellers (name, email, username, password_hash) VALUES ($1, $2, $3, $4)', [
+            await pool.query('INSERT INTO sellers (name, username, password_hash) VALUES ($1, $2, $3)', [
                 'GloboTV Admin',
-                email,
                 username,
                 hash
             ]);
-            console.log(`Created new seller: ${email}`);
+            console.log(`Created new admin seller: ${username}`);
         }
 
-        // Test verification
-        const verify = await pool.query('SELECT password_hash FROM sellers WHERE email = $1', [email]);
+        // Verify using the same username used to create or update the admin.
+        const verify = await pool.query(
+            'SELECT password_hash FROM sellers WHERE LOWER(TRIM(username)) = LOWER(TRIM($1))',
+            [username]
+        );
+        if (verify.rows.length === 0) {
+            throw new Error(`Admin seller '${username}' was not found after reset`);
+        }
         const match = await bcrypt.compare(password, verify.rows[0].password_hash);
         console.log(`Verification test with '${password}':`, match ? 'SUCCESS' : 'FAILED');
 
