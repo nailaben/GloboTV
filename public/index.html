@@ -34,7 +34,10 @@
             <div class="navbar-actions">
                 <select class="language-select" aria-label="Choose language"><option value="en">English</option><option value="fr">Français</option></select>
                 <a class="product-nav-icon" href="/favorites.html" aria-label="Favorites" title="Favorites"><span class="material-symbols-outlined">favorite</span></a>
-                <a class="product-nav-link account-link" href="/auth.html" data-i18n="sign_in">Sign in</a>
+                <a class="product-nav-link account-link" href="/auth.html" aria-label="Sign in" title="Sign in">
+                    <span class="material-symbols-outlined account-link-icon" aria-hidden="true">person</span>
+                    <span class="account-link-label" data-i18n="sign_in">Sign in</span>
+                </a>
                 <button class="product-nav-icon product-nav-cart" id="cart-btn" aria-label="Shopping cart">
                     <span class="material-symbols-outlined">shopping_cart</span>
                     <span class="cart-count" id="cart-count" data-cart-count hidden>0</span>

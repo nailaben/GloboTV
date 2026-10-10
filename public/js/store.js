@@ -179,9 +179,9 @@ async function updateCustomerNav() {
 
         localStorage.setItem('playora_customer', JSON.stringify(result.customer));
         accountLink.href = '/account.html';
-        accountLink.dataset.i18n = 'my_account';
         accountLink.setAttribute('aria-label', tr('my_account'));
-        accountLink.textContent = tr('my_account');
+        accountLink.title = tr('my_account');
+        accountLink.querySelector('.account-link-label').textContent = tr('my_account');
     } catch {
         localStorage.removeItem('playora_customer_token');
         localStorage.removeItem('playora_customer');
