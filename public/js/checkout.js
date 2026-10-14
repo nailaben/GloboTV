@@ -36,7 +36,7 @@ const checkoutI18n = {
         confirm_whatsapp: 'I can access this WhatsApp',
         confirmed: 'Confirmed',
         verify_notice: 'Please confirm you can access both destinations. This checkout does not send verification codes.',
-        verify_contact_error: 'Enter your phone number and delivery address, then confirm both contact methods.',
+        verify_contact_error: 'Enter your phone number, then confirm both contact methods.',
         account_required: 'Sign in or create an account before continuing.',
         continue_to_payment: 'Continue to payment',
         back_to_verify: 'Back to Verify',
@@ -59,7 +59,6 @@ const checkoutI18n = {
         full_name: 'Full Name',
         phone: 'Phone Number',
         email: 'Email Address',
-        address: 'Delivery Address',
         notes: 'Notes (Optional)',
         place_order: 'Continue to payment',
         subtotal: 'Subtotal',
@@ -74,7 +73,6 @@ const checkoutI18n = {
         name_placeholder: 'Enter your full name',
         phone_placeholder: 'e.g. 0555123456',
         email_placeholder: 'example@email.com',
-        address_placeholder: 'City, District, Street, Building',
         notes_placeholder: 'Any additional notes for your order',
         qty_label: 'Qty',
         generic_error: 'An error occurred. Please try again.',
@@ -94,7 +92,7 @@ const checkoutI18n = {
         confirm_whatsapp: 'Je peux accéder à ce WhatsApp',
         confirmed: 'Confirmé',
         verify_notice: 'Confirmez que vous pouvez accéder aux deux moyens de contact. Aucun code de vérification ne sera envoyé par cette page.',
-        verify_contact_error: 'Saisissez votre téléphone et votre adresse, puis confirmez les deux moyens de contact.',
+        verify_contact_error: 'Saisissez votre numéro de téléphone, puis confirmez les deux moyens de contact.',
         account_required: 'Connectez-vous ou créez un compte pour continuer.',
         continue_to_payment: 'Continuer vers le paiement',
         back_to_verify: 'Retour à la vérification',
@@ -117,7 +115,6 @@ const checkoutI18n = {
         full_name: 'Nom complet',
         phone: 'Téléphone',
         email: 'Adresse e-mail',
-        address: 'Adresse de livraison',
         notes: 'Remarques (facultatif)',
         place_order: 'Continuer vers le paiement',
         subtotal: 'Sous-total',
@@ -132,7 +129,6 @@ const checkoutI18n = {
         name_placeholder: 'Saisissez votre nom complet',
         phone_placeholder: 'Ex. : 0555123456',
         email_placeholder: 'exemple@email.com',
-        address_placeholder: 'Ville, quartier, rue, numéro',
         notes_placeholder: 'Remarques supplémentaires',
         qty_label: 'Qté',
         generic_error: 'Une erreur est survenue. Réessayez.',
@@ -209,14 +205,12 @@ function setupCheckoutSteps() {
     continuePaymentButton.addEventListener('click', () => {
         const customer = JSON.parse(localStorage.getItem('playora_customer') || 'null') || {};
         const phone = formatInternationalPhone().replace(/\s/g, '');
-        const address = document.getElementById('verify-address').value.trim();
         const phoneDigits = phone.replace(/\D/g, '').length;
-        if (!customer.email || !customer.name || phoneDigits < 7 || phoneDigits > 15 || address.length < 5 || !emailContactConfirmed || !whatsappContactConfirmed) {
+        if (!customer.email || !customer.name || phoneDigits < 7 || phoneDigits > 15 || !emailContactConfirmed || !whatsappContactConfirmed) {
             showToast(ctr('verify_contact_error'), 'error');
             return;
         }
         customer.phone = phone;
-        customer.address = address;
         localStorage.setItem('playora_customer', JSON.stringify(customer));
         renderPaymentSummary();
         showStep(4);
@@ -244,8 +238,6 @@ function renderVerificationPanel() {
             phoneInput.value = savedPhone;
         }
     }
-    const addressInput = document.getElementById('verify-address');
-    if (!addressInput.value) addressInput.value = customer.address || '';
     document.getElementById('verify-email-value').textContent = customer.email || '—';
     document.getElementById('verify-phone-value').textContent = formatInternationalPhone();
 }
@@ -354,7 +346,6 @@ function renderCheckoutAccount() {
                             <div class="checkout-account-row"><span class="checkout-account-label">Full name</span><span class="checkout-account-value">${escapeHtml(customer.name || '—')}</span></div>
                             <div class="checkout-account-row"><span class="checkout-account-label">Email</span><span class="checkout-account-value">${escapeHtml(customer.email || '—')}</span></div>
                             <div class="checkout-account-row"><span class="checkout-account-label">Phone</span><span class="checkout-account-value">${escapeHtml(customer.phone || '—')}</span></div>
-                            <div class="checkout-account-row"><span class="checkout-account-label">Address</span><span class="checkout-account-value">${escapeHtml(customer.address || '—')}</span></div>
                         </div>
                     </div>
                 </div>
@@ -492,18 +483,16 @@ function setupForm() {
 
         const customer = JSON.parse(localStorage.getItem('playora_customer') || 'null') || {};
         const phone = formatInternationalPhone().replace(/\s/g, '');
-        const address = document.getElementById('verify-address').value.trim();
         const orderData = {
             customer_name: customer.name || '',
             customer_phone: phone,
             customer_email: customer.email || '',
-            customer_address: address,
             notes: '',
             payment_provider: document.querySelector('[name="checkout-payment-method"]:checked')?.value || 'oneclick',
             items: cart.map(item => ({ product_id: item.product_id, offer_id: item.offer_id, quantity: item.quantity }))
         };
 
-        if (!orderData.customer_name || !orderData.customer_phone || !orderData.customer_email || !orderData.customer_address) {
+        if (!orderData.customer_name || !orderData.customer_phone || !orderData.customer_email) {
             renderCheckoutAccount();
             return;
         }

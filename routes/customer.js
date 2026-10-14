@@ -100,12 +100,12 @@ async function finishOAuth(req, res) {
 
         const email = String(profile.email).trim().toLowerCase();
         const name = String(profile.name || email.split('@')[0]).trim().slice(0, 150);
-        let result = await pool.query('SELECT id, name, email, phone, address FROM customers WHERE lower(email) = $1', [email]);
+        let result = await pool.query('SELECT id, name, email, phone FROM customers WHERE lower(email) = $1', [email]);
         let customer = result.rows[0];
         if (!customer) {
             const generatedPassword = await bcrypt.hash(crypto.randomBytes(48).toString('hex'), 10);
             result = await pool.query(
-                'INSERT INTO customers (name, email, password_hash) VALUES ($1, $2, $3) RETURNING id, name, email, phone, address',
+                'INSERT INTO customers (name, email, password_hash) VALUES ($1, $2, $3) RETURNING id, name, email, phone',
                 [name, email, generatedPassword]
             );
             customer = result.rows[0];
@@ -131,7 +131,7 @@ router.post('/register', async (req, res) => {
     try {
         const passwordHash = await bcrypt.hash(password, 10);
         const result = await pool.query(
-            'INSERT INTO customers (name, email, password_hash) VALUES ($1, $2, $3) RETURNING id, name, email, phone, address',
+            'INSERT INTO customers (name, email, password_hash) VALUES ($1, $2, $3) RETURNING id, name, email, phone',
             [name, email, passwordHash]
         );
         const customer = result.rows[0];
@@ -152,7 +152,7 @@ router.post('/login', async (req, res) => {
         if (!customer || !(await bcrypt.compare(password, customer.password_hash))) {
             return res.status(401).json({ success: false, message: 'Email or password is incorrect.' });
         }
-        const safeCustomer = { id: customer.id, name: customer.name, email: customer.email, phone: customer.phone, address: customer.address };
+        const safeCustomer = { id: customer.id, name: customer.name, email: customer.email, phone: customer.phone };
         res.json({ success: true, token: createToken(safeCustomer), customer: safeCustomer });
     } catch (err) {
         console.error('Customer login error:', err);
@@ -162,7 +162,7 @@ router.post('/login', async (req, res) => {
 
 router.get('/me', customerAuth, async (req, res) => {
     try {
-        const result = await pool.query('SELECT id, name, email, phone, address, created_at FROM customers WHERE id = $1', [req.customer.id]);
+        const result = await pool.query('SELECT id, name, email, phone, created_at FROM customers WHERE id = $1', [req.customer.id]);
         if (!result.rows[0]) return res.status(404).json({ success: false, message: 'Account not found.' });
         res.json({ success: true, customer: result.rows[0] });
     } catch (err) {
@@ -175,18 +175,16 @@ router.put('/me', customerAuth, async (req, res) => {
     const name = String(req.body.name || '').trim();
     const email = String(req.body.email || '').trim().toLowerCase();
     const phone = String(req.body.phone || '').trim();
-    const address = String(req.body.address || '').trim();
 
     if (name.length < 2 || name.length > 150 || !/^\S+@\S+\.\S+$/.test(email) ||
-        !/^[\d+()\-\s]{7,30}$/.test(phone) || phone.replace(/\D/g, '').length < 7 ||
-        address.length < 5 || address.length > 1000) {
-        return res.status(400).json({ success: false, message: 'Enter a valid name, email, phone number, and address.' });
+        !/^[\d+()\-\s]{7,30}$/.test(phone) || phone.replace(/\D/g, '').length < 7 || phone.replace(/\D/g, '').length > 15) {
+        return res.status(400).json({ success: false, message: 'Enter a valid name, email, and international phone number.' });
     }
 
     try {
         const result = await pool.query(
-            'UPDATE customers SET name = $1, email = $2, phone = $3, address = $4 WHERE id = $5 RETURNING id, name, email, phone, address, created_at',
-            [name, email, phone, address, req.customer.id]
+            'UPDATE customers SET name = $1, email = $2, phone = $3 WHERE id = $4 RETURNING id, name, email, phone, created_at',
+            [name, email, phone, req.customer.id]
         );
         if (!result.rows[0]) return res.status(404).json({ success: false, message: 'Account not found.' });
         res.json({ success: true, customer: result.rows[0] });

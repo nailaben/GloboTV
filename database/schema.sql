@@ -208,8 +208,6 @@ CREATE TABLE IF NOT EXISTS customers (
 
     phone VARCHAR(30),
 
-    address TEXT,
-
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
@@ -233,8 +231,6 @@ CREATE TABLE IF NOT EXISTS orders (
     customer_phone VARCHAR(20) NOT NULL,
 
     customer_email VARCHAR(255) NOT NULL,
-
-    customer_address TEXT NOT NULL,
 
     customer_id INTEGER
         REFERENCES customers(id)

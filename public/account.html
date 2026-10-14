@@ -8,7 +8,7 @@
     <link rel="stylesheet" href="/css/auth.css">
     <link rel="stylesheet" href="/css/customer-pages.css">
 </head>
-<body>
+<body class="account-page">
     <main class="customer-page">
         <header class="customer-top">
             <a href="/">GloboTV</a>
@@ -22,45 +22,46 @@
             </nav>
         </header>
         <section class="account-card">
-            <div class="account-heading">
-                <div class="account-avatar" id="avatar">G</div>
-                <div>
-                    <h1 data-en="My account" data-fr="Mon compte">My account</h1>
-                    <p id="customer-name"></p>
-                    <p id="customer-email"></p>
+            <aside class="account-sidebar">
+                <div class="account-identity">
+                    <div class="account-avatar" id="avatar">G</div>
+                    <div class="account-identity-copy">
+                        <strong id="customer-name"></strong>
+                        <span id="customer-email"></span>
+                    </div>
                 </div>
-            </div>
-            <section class="account-section">
-                <h2 data-en="Personal information" data-fr="Informations personnelles">Personal information</h2>
-                <form id="customer-profile-form" class="customer-profile-form">
-                    <div class="customer-profile-grid">
-                        <label class="customer-profile-field">
-                            <span data-en="Full name" data-fr="Nom complet">Full name</span>
-                            <input id="profile-name" name="name" autocomplete="name" minlength="2" required>
-                        </label>
-                        <label class="customer-profile-field customer-profile-field-wide">
-                            <span data-en="Email" data-fr="E-mail">Email</span>
-                            <input id="profile-email" name="email" type="email" autocomplete="email" required>
-                        </label>
-                        <label class="customer-profile-field customer-profile-field-wide">
-                            <span data-en="Address" data-fr="Adresse">Address</span>
-                            <input id="profile-address" name="address" autocomplete="street-address" required>
-                        </label>
-                        <label class="customer-profile-field">
-                            <span data-en="Phone number" data-fr="Numéro de téléphone">Phone number</span>
-                            <input id="profile-phone" name="phone" type="tel" autocomplete="tel" required>
-                        </label>
-                    </div>
-                    <p id="profile-message" class="profile-message" role="status" hidden></p>
-                    <div class="customer-profile-actions">
-                        <button class="profile-discard" id="discard-profile" type="button" data-en="Discard changes" data-fr="Annuler les modifications">Discard changes</button>
-                        <button class="profile-save" id="save-profile" type="submit" data-en="Save changes" data-fr="Enregistrer les modifications">Save changes</button>
-                    </div>
-                </form>
-            </section>
-            <section class="account-section">
-                <h2 data-en="My orders" data-fr="Mes commandes">My orders</h2>
-                <div id="orders" class="orders-list"></div>
+            </aside>
+            <section class="account-main" id="profile-settings">
+                <section class="account-section">
+                    <form id="customer-profile-form" class="customer-profile-form">
+                        <div class="customer-profile-grid">
+                            <label class="customer-profile-field">
+                                <span data-en="First name" data-fr="Prénom">First name</span>
+                                <input id="profile-first-name" autocomplete="given-name" minlength="1" required>
+                            </label>
+                            <label class="customer-profile-field">
+                                <span data-en="Last name" data-fr="Nom">Last name</span>
+                                <input id="profile-last-name" autocomplete="family-name" minlength="1" required>
+                            </label>
+                            <label class="customer-profile-field customer-profile-field-wide">
+                                <span data-en="Email" data-fr="E-mail">Email</span>
+                                <input id="profile-email" name="email" type="email" autocomplete="email" required>
+                            </label>
+                            <label class="customer-profile-field customer-profile-field-wide">
+                                <span data-en="Phone number" data-fr="Numéro de téléphone">Phone number</span>
+                                <span class="customer-phone-input">
+                                    <select id="profile-country-code" name="country_code" autocomplete="tel-country-code" aria-label="Country calling code" required></select>
+                                    <input id="profile-phone" name="phone" type="tel" autocomplete="tel-national" data-en-placeholder="Phone number" data-fr-placeholder="Numéro de téléphone" required>
+                                </span>
+                            </label>
+                        </div>
+                        <p id="profile-message" class="profile-message" role="status" hidden></p>
+                        <div class="customer-profile-actions">
+                            <button class="profile-discard" id="discard-profile" type="button" data-en="Discard changes" data-fr="Annuler les modifications">Discard changes</button>
+                            <button class="profile-save" id="save-profile" type="submit" data-en="Save changes" data-fr="Enregistrer les modifications">Save changes</button>
+                        </div>
+                    </form>
+                </section>
             </section>
         </section>
     </main>

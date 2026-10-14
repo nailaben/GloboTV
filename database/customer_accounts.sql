@@ -5,9 +5,12 @@ CREATE TABLE IF NOT EXISTS customers (
     email VARCHAR(255) NOT NULL UNIQUE,
     password_hash VARCHAR(255) NOT NULL,
     phone VARCHAR(30),
-    address TEXT,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
+
+-- Remove address data and fields from existing customer/order records.
+ALTER TABLE customers DROP COLUMN IF EXISTS address;
+ALTER TABLE orders DROP COLUMN IF EXISTS customer_address;
 
 CREATE UNIQUE INDEX IF NOT EXISTS customers_email_lower_unique ON customers (lower(email));
 

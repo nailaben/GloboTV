@@ -13,9 +13,9 @@ const generateOrderNumber = () => {
 
 // POST /api/orders - Create new order (public)
 router.post('/', async (req, res) => {
-    const { customer_name, customer_phone, customer_email, customer_address, notes, items, payment_provider } = req.body;
+    const { customer_name, customer_phone, customer_email, notes, items, payment_provider } = req.body;
 
-    if (!customer_name || !customer_phone || !customer_email || !customer_address || !items || items.length === 0) {
+    if (!customer_name || !customer_phone || !customer_email || !items || items.length === 0) {
         return res.status(400).json({ success: false, message: 'All required fields must be provided' });
     }
 
@@ -94,10 +94,10 @@ router.post('/', async (req, res) => {
         }
 
         const orderResult = await client.query(`
-            INSERT INTO orders (order_number, customer_name, customer_phone, customer_email, customer_address, customer_id, notes, subtotal, total_amount, currency, status)
-            VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, 'EUR', 'pending')
+            INSERT INTO orders (order_number, customer_name, customer_phone, customer_email, customer_id, notes, subtotal, total_amount, currency, status)
+            VALUES ($1, $2, $3, $4, $5, $6, $7, $8, 'EUR', 'pending')
             RETURNING *
-        `, [order_number, customer_name, customer_phone, customer_email, customer_address, customerId, notes || '', subtotal, total_amount]);
+        `, [order_number, customer_name, customer_phone, customer_email, customerId, notes || '', subtotal, total_amount]);
 
         const order = orderResult.rows[0];
 
