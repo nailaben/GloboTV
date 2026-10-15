@@ -89,7 +89,14 @@ async function finishOAuth(req, res) {
             body: tokenParams
         });
         const tokenData = await tokenResponse.json();
-        if (!tokenResponse.ok || !tokenData.access_token) throw new Error('OAuth token exchange failed');
+        if (!tokenResponse.ok || !tokenData.access_token) {
+            console.error('Google OAuth token exchange rejected:', {
+                status: tokenResponse.status,
+                error: tokenData.error || 'missing_access_token',
+                description: tokenData.error_description || ''
+            });
+            throw new Error(`OAuth token exchange failed (${tokenData.error || tokenResponse.status})`);
+        }
 
         const profileUrl = 'https://openidconnect.googleapis.com/v1/userinfo';
         const profileResponse = await fetch(profileUrl, { headers: { Authorization: `Bearer ${tokenData.access_token}` } });
