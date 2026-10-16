@@ -13,6 +13,10 @@ const customerRouter = require('./routes/customer');
 const app = express();
 const PORT = process.env.PORT || 3000;
 
+// Render terminates HTTPS at its proxy. Trust its forwarded protocol/host so
+// OAuth redirect URLs and secure-cookie handling reflect the public request.
+app.set('trust proxy', 1);
+
 // Middleware
 app.use(cors());
 app.use(express.json());
