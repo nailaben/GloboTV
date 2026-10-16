@@ -354,7 +354,7 @@ document.getElementById('product-form')?.addEventListener('submit', async (e) =>
 
     const imageFile = document.getElementById('prod-image').files[0];
     if (imageFile) {
-        const allowedImageTypes = ['image/jpeg', 'image/png', 'image/gif', 'image/webp'];
+        const allowedImageTypes = ['image/jpeg', 'image/png', 'image/gif', 'image/webp', 'image/avif'];
         if (imageFile.size > 5 * 1024 * 1024) {
             showToast(t('Image must be 5 MB or smaller.', 'L’image ne doit pas dépasser 5 Mo.'), 'error');
             btn.disabled = false;
@@ -362,7 +362,7 @@ document.getElementById('product-form')?.addEventListener('submit', async (e) =>
             return;
         }
         if (!allowedImageTypes.includes(imageFile.type)) {
-            showToast(t('Choose a JPG, PNG, GIF, or WebP image.', 'Choisissez une image JPG, PNG, GIF ou WebP.'), 'error');
+            showToast(t('Choose a JPG, PNG, GIF, WebP, or AVIF image.', 'Choisissez une image JPG, PNG, GIF, WebP ou AVIF.'), 'error');
             btn.disabled = false;
             btn.textContent = t('Save', 'Enregistrer');
             return;

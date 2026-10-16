@@ -6,6 +6,15 @@ const fs = require('fs');
 const { pool } = require('../config/db');
 const authMiddleware = require('../middleware/auth');
 
+const imageExtensionsByMime = {
+    'image/jpeg': '.jpg',
+    'image/png': '.png',
+    'image/gif': '.gif',
+    'image/webp': '.webp',
+    'image/avif': '.avif'
+};
+const allowedImageExtensions = new Set(['.jpg', '.jpeg', '.jfif', '.png', '.gif', '.webp', '.avif']);
+
 // Multer config for image uploads
 const storage = multer.diskStorage({
     destination: (req, file, cb) => {
@@ -15,7 +24,11 @@ const storage = multer.diskStorage({
     },
     filename: (req, file, cb) => {
         const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1E9);
-        cb(null, uniqueSuffix + path.extname(file.originalname));
+        const originalExtension = path.extname(file.originalname).toLowerCase();
+        const extension = allowedImageExtensions.has(originalExtension)
+            ? (originalExtension === '.jfif' ? '.jpg' : originalExtension)
+            : (imageExtensionsByMime[file.mimetype] || '.jpg');
+        cb(null, uniqueSuffix + extension);
     }
 });
 
@@ -23,11 +36,15 @@ const upload = multer({
     storage,
     limits: { fileSize: 5 * 1024 * 1024 },
     fileFilter: (req, file, cb) => {
-        const allowed = /jpeg|jpg|png|gif|webp/;
-        const ext = allowed.test(path.extname(file.originalname).toLowerCase());
-        const mime = allowed.test(file.mimetype);
-        if (ext && mime) cb(null, true);
-        else cb(new Error('Only image files are allowed'));
+        const extension = path.extname(file.originalname).toLowerCase();
+        const knownMimeType = Object.hasOwn(imageExtensionsByMime, file.mimetype);
+        // Browser MIME metadata can be missing or generic, so accept a supported
+        // extension in that case and rely on recognized image MIME types otherwise.
+        if ((knownMimeType && (!extension || extension === '.bin' || allowedImageExtensions.has(extension))) ||
+            ((!file.mimetype || file.mimetype === 'application/octet-stream') && allowedImageExtensions.has(extension))) {
+            return cb(null, true);
+        }
+        return cb(new Error('Only JPG, PNG, GIF, WebP, and AVIF images are allowed.'));
     }
 });
 
