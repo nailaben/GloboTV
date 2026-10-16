@@ -31,6 +31,16 @@ const upload = multer({
     }
 });
 
+function uploadProductImage(req, res, next) {
+    upload.single('image')(req, res, error => {
+        if (!error) return next();
+        if (error instanceof multer.MulterError && error.code === 'LIMIT_FILE_SIZE') {
+            return res.status(413).json({ success: false, message: 'Image must be 5 MB or smaller.' });
+        }
+        return res.status(400).json({ success: false, message: error.message || 'Could not upload image.' });
+    });
+}
+
 // GET /api/products - Get all active products (public)
 router.get('/', async (req, res) => {
     try {
@@ -130,8 +140,13 @@ router.get('/:id', async (req, res) => {
 });
 
 // POST /api/products - Add new product (seller only)
-router.post('/', authMiddleware, upload.single('image'), async (req, res) => {
+router.post('/', authMiddleware, uploadProductImage, async (req, res) => {
     const { name_fr, name_en, description_fr, description_en, delivery_info_fr, delivery_info_en, reviews_fr, reviews_en, price, category_id, stock_quantity } = req.body;
+    const stockQuantity = stock_quantity === undefined || stock_quantity === '' ? 0 : Number(stock_quantity);
+
+    if (!Number.isSafeInteger(stockQuantity) || stockQuantity < 0) {
+        return res.status(400).json({ success: false, message: 'Stock quantity must be a whole number of 0 or more.' });
+    }
 
     const offers = parseOffers(req.body.offers_json);
     if (!name_fr || !name_en || !price || !offers || !offers.length) {
@@ -148,7 +163,7 @@ router.post('/', authMiddleware, upload.single('image'), async (req, res) => {
             INSERT INTO products (seller_id, name_ar, name_en, name_fr, description_ar, description_en, description_fr, delivery_info_en, delivery_info_fr, reviews_en, reviews_fr, price, category_id, stock_quantity, image_url)
             VALUES ($1, $2, $3, $4, '', $5, $6, $7, $8, $9, $10, $11, $12, $13, $14)
             RETURNING *
-        `, [req.seller.id, name_fr, name_en, name_fr, description_en || '', description_fr || '', delivery_info_en || '', delivery_info_fr || '', reviews_en || '', reviews_fr || '', price, category_id || null, stock_quantity || 0, image_url]);
+        `, [req.seller.id, name_fr, name_en, name_fr, description_en || '', description_fr || '', delivery_info_en || '', delivery_info_fr || '', reviews_en || '', reviews_fr || '', price, category_id || null, stockQuantity, image_url]);
 
         await replaceOffers(result.rows[0].id, offers);
 
@@ -160,8 +175,12 @@ router.post('/', authMiddleware, upload.single('image'), async (req, res) => {
 });
 
 // PUT /api/products/:id - Update product (seller only)
-router.put('/:id', authMiddleware, upload.single('image'), async (req, res) => {
+router.put('/:id', authMiddleware, uploadProductImage, async (req, res) => {
     const { name_fr, name_en, description_fr, description_en, delivery_info_fr, delivery_info_en, reviews_fr, reviews_en, price, category_id, stock_quantity, is_active } = req.body;
+    const stockQuantity = stock_quantity === undefined ? undefined : Number(stock_quantity);
+    if (stockQuantity !== undefined && (!Number.isSafeInteger(stockQuantity) || stockQuantity < 0)) {
+        return res.status(400).json({ success: false, message: 'Stock quantity must be a whole number of 0 or more.' });
+    }
 
     try {
         let image_url = req.body.image_url;
@@ -183,7 +202,7 @@ router.put('/:id', authMiddleware, upload.single('image'), async (req, res) => {
         if (reviews_en !== undefined) { updateFields.push(`reviews_en = $${idx++}`); values.push(reviews_en); }
         if (price !== undefined) { updateFields.push(`price = $${idx++}`); values.push(price); }
         if (category_id !== undefined) { updateFields.push(`category_id = $${idx++}`); values.push(category_id); }
-        if (stock_quantity !== undefined) { updateFields.push(`stock_quantity = $${idx++}`); values.push(stock_quantity); }
+        if (stockQuantity !== undefined) { updateFields.push(`stock_quantity = $${idx++}`); values.push(stockQuantity); }
         if (is_active !== undefined) { updateFields.push(`is_active = $${idx++}`); values.push(is_active); }
         if (image_url !== undefined) { updateFields.push(`image_url = $${idx++}`); values.push(image_url); }
 

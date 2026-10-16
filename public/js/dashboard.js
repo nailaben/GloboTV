@@ -316,6 +316,16 @@ document.getElementById('product-form')?.addEventListener('submit', async (e) =>
     btn.disabled = true;
     btn.innerHTML = `<span class="spinner" style="width:18px;height:18px;border-width:2px"></span>`;
 
+    const stockInput = document.getElementById('prod-stock');
+    const stockQuantity = Number(stockInput.value);
+    if (!Number.isSafeInteger(stockQuantity) || stockQuantity < 0) {
+        showToast(t('Enter a whole stock quantity of 0 or more.', 'Saisissez un stock entier supérieur ou égal à 0.'), 'error');
+        btn.disabled = false;
+        btn.textContent = t('Save', 'Enregistrer');
+        stockInput.focus();
+        return;
+    }
+
     const formData = new FormData();
     formData.append('name_fr', document.getElementById('prod-name-fr').value.trim());
     formData.append('name_en', document.getElementById('prod-name-en').value.trim());
@@ -338,12 +348,27 @@ document.getElementById('product-form')?.addEventListener('submit', async (e) =>
         return;
     }
     formData.append('offers_json', JSON.stringify(offers));
-    formData.append('stock_quantity', document.getElementById('prod-stock').value);
+    formData.append('stock_quantity', String(stockQuantity));
     formData.append('category_id', document.getElementById('prod-category').value);
     formData.append('is_active', document.getElementById('prod-active').checked);
 
     const imageFile = document.getElementById('prod-image').files[0];
-    if (imageFile) formData.append('image', imageFile);
+    if (imageFile) {
+        const allowedImageTypes = ['image/jpeg', 'image/png', 'image/gif', 'image/webp'];
+        if (imageFile.size > 5 * 1024 * 1024) {
+            showToast(t('Image must be 5 MB or smaller.', 'L’image ne doit pas dépasser 5 Mo.'), 'error');
+            btn.disabled = false;
+            btn.textContent = t('Save', 'Enregistrer');
+            return;
+        }
+        if (!allowedImageTypes.includes(imageFile.type)) {
+            showToast(t('Choose a JPG, PNG, GIF, or WebP image.', 'Choisissez une image JPG, PNG, GIF ou WebP.'), 'error');
+            btn.disabled = false;
+            btn.textContent = t('Save', 'Enregistrer');
+            return;
+        }
+        formData.append('image', imageFile);
+    }
 
     const imageUrl = document.getElementById('prod-image-url').value.trim();
     if (imageUrl && !imageFile) formData.append('image_url', imageUrl);
