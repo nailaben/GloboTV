@@ -31,6 +31,11 @@
                     <span data-en="Password" data-fr="Mot de passe">Password</span>
                     <span class="auth-input"><span class="material-symbols-outlined">lock</span><input id="password" type="password" autocomplete="current-password" placeholder="At least 8 characters" minlength="8" required><button type="button" id="toggle-password" class="password-toggle" aria-label="Show password"><span class="material-symbols-outlined">visibility</span></button></span>
                 </label>
+                <label id="verification-field" class="auth-field" hidden>
+                    <span id="verification-label">Email verification code</span>
+                    <span class="auth-input"><span class="material-symbols-outlined">pin</span><input id="verification-code" inputmode="numeric" autocomplete="one-time-code" maxlength="6" pattern="[0-9]{6}" placeholder="6-digit code"></span>
+                </label>
+                <button type="button" id="resend-verification" class="auth-switch" hidden>Resend code</button>
                 <div id="auth-error" class="auth-error" role="alert" hidden></div>
                 <button id="submit-auth" class="auth-submit" type="submit">Sign in</button>
             </form>

@@ -23,6 +23,45 @@ function createToken(customer) {
     return jwt.sign({ id: customer.id, email: customer.email, type: 'customer' }, process.env.JWT_SECRET, { expiresIn: '30d' });
 }
 
+async function ensureVerificationTable() {
+    await pool.query(`CREATE TABLE IF NOT EXISTS customer_email_verifications (
+        email VARCHAR(255) PRIMARY KEY,
+        name VARCHAR(150) NOT NULL,
+        password_hash VARCHAR(255) NOT NULL,
+        code_hash CHAR(64) NOT NULL,
+        expires_at TIMESTAMP NOT NULL,
+        attempts INTEGER NOT NULL DEFAULT 0,
+        created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+    )`);
+}
+
+function verificationCodeHash(email, code) {
+    return crypto.createHash('sha256').update(`${email}:${code}:${process.env.JWT_SECRET}`).digest('hex');
+}
+
+async function sendVerificationCode(email, code) {
+    const apiKey = process.env.RESEND_API_KEY;
+    const from = process.env.EMAIL_FROM;
+    if (!apiKey || !from) throw new Error('Email verification is not configured.');
+
+    const response = await fetch('https://api.resend.com/emails', {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${apiKey}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+            from,
+            to: [email],
+            subject: 'Your GloboTV verification code',
+            text: `Your GloboTV verification code is ${code}. It expires in 15 minutes.`,
+            html: `<p>Your GloboTV verification code is:</p><p style="font-size:28px;font-weight:bold;letter-spacing:6px">${code}</p><p>This code expires in 15 minutes.</p>`
+        })
+    });
+    if (!response.ok) {
+        const providerError = await response.json().catch(() => ({}));
+        console.error('Email verification delivery failed:', response.status, providerError.message || providerError.name || 'provider_error');
+        throw new Error('Could not send the verification email. Check the email service settings and try again.');
+    }
+}
+
 function oauthRedirectUri(req) {
     const baseUrl = (process.env.PUBLIC_BASE_URL || `${req.protocol}://${req.get('host')}`).replace(/\/$/, '');
     return `${baseUrl}/api/customer/google/callback`;
@@ -136,17 +175,90 @@ router.post('/register', async (req, res) => {
         return res.status(400).json({ success: false, message: 'Enter a name, valid email, and password with at least 8 characters.' });
     }
     try {
+        if (!process.env.JWT_SECRET) return res.status(500).json({ success: false, message: 'Account security is not configured.' });
+        await ensureVerificationTable();
+        const existing = await pool.query('SELECT 1 FROM customers WHERE lower(email) = $1', [email]);
+        if (existing.rows.length) return res.status(409).json({ success: false, message: 'An account with this email already exists.' });
+
         const passwordHash = await bcrypt.hash(password, 10);
-        const result = await pool.query(
-            'INSERT INTO customers (name, email, password_hash) VALUES ($1, $2, $3) RETURNING id, name, email, phone',
-            [name, email, passwordHash]
+        const code = String(crypto.randomInt(0, 1000000)).padStart(6, '0');
+        await pool.query(
+            `INSERT INTO customer_email_verifications (email, name, password_hash, code_hash, expires_at, attempts)
+             VALUES ($1, $2, $3, $4, NOW() + INTERVAL '15 minutes', 0)
+             ON CONFLICT (email) DO UPDATE SET name = EXCLUDED.name, password_hash = EXCLUDED.password_hash,
+                 code_hash = EXCLUDED.code_hash, expires_at = EXCLUDED.expires_at, attempts = 0, created_at = NOW()`,
+            [email, name, passwordHash, verificationCodeHash(email, code)]
         );
-        const customer = result.rows[0];
-        res.status(201).json({ success: true, token: createToken(customer), customer });
+        await sendVerificationCode(email, code);
+        res.status(200).json({ success: true, verificationRequired: true, email });
     } catch (err) {
         if (err.code === '23505') return res.status(409).json({ success: false, message: 'An account with this email already exists.' });
         console.error('Customer registration error:', err);
-        res.status(500).json({ success: false, message: 'Could not create account.' });
+        const emailDeliveryError = /email/i.test(err.message);
+        res.status(emailDeliveryError ? 503 : 500).json({ success: false, message: emailDeliveryError ? err.message : 'Could not create account.' });
+    }
+});
+
+router.post('/verify-email', async (req, res) => {
+    const email = String(req.body.email || '').trim().toLowerCase();
+    const code = String(req.body.code || '').trim();
+    if (!/^\S+@\S+\.\S+$/.test(email) || !/^\d{6}$/.test(code)) {
+        return res.status(400).json({ success: false, message: 'Enter the email address and 6-digit code.' });
+    }
+    try {
+        await ensureVerificationTable();
+        const result = await pool.query('SELECT * FROM customer_email_verifications WHERE email = $1', [email]);
+        const pending = result.rows[0];
+        if (!pending) return res.status(400).json({ success: false, message: 'No pending verification found. Please create your account again.' });
+        if (new Date(pending.expires_at) <= new Date()) {
+            await pool.query('DELETE FROM customer_email_verifications WHERE email = $1', [email]);
+            return res.status(400).json({ success: false, message: 'The code expired. Please create your account again.' });
+        }
+        if (pending.attempts >= 5) return res.status(429).json({ success: false, message: 'Too many incorrect codes. Please create your account again.' });
+
+        const expected = Buffer.from(pending.code_hash, 'hex');
+        const supplied = Buffer.from(verificationCodeHash(email, code), 'hex');
+        if (!crypto.timingSafeEqual(expected, supplied)) {
+            await pool.query('UPDATE customer_email_verifications SET attempts = attempts + 1 WHERE email = $1', [email]);
+            return res.status(400).json({ success: false, message: 'That verification code is incorrect.' });
+        }
+
+        const inserted = await pool.query(
+            'INSERT INTO customers (name, email, password_hash) VALUES ($1, $2, $3) RETURNING id, name, email, phone',
+            [pending.name, email, pending.password_hash]
+        );
+        await pool.query('DELETE FROM customer_email_verifications WHERE email = $1', [email]);
+        const customer = inserted.rows[0];
+        return res.status(201).json({ success: true, token: createToken(customer), customer });
+    } catch (err) {
+        if (err.code === '23505') return res.status(409).json({ success: false, message: 'An account with this email already exists.' });
+        console.error('Customer email verification error:', err);
+        return res.status(500).json({ success: false, message: 'Could not verify the email address.' });
+    }
+});
+
+router.post('/resend-verification', async (req, res) => {
+    const email = String(req.body.email || '').trim().toLowerCase();
+    if (!/^\S+@\S+\.\S+$/.test(email)) return res.status(400).json({ success: false, message: 'Enter a valid email address.' });
+    try {
+        await ensureVerificationTable();
+        const result = await pool.query(
+            `SELECT email FROM customer_email_verifications
+             WHERE email = $1 AND created_at <= NOW() - INTERVAL '60 seconds'`,
+            [email]
+        );
+        if (!result.rows[0]) return res.status(429).json({ success: false, message: 'Wait one minute before requesting another code.' });
+        const code = String(crypto.randomInt(0, 1000000)).padStart(6, '0');
+        await pool.query(
+            `UPDATE customer_email_verifications SET code_hash = $2, expires_at = NOW() + INTERVAL '15 minutes',
+             attempts = 0, created_at = NOW() WHERE email = $1`,
+            [email, verificationCodeHash(email, code)]
+        );
+        await sendVerificationCode(email, code);
+        return res.json({ success: true, message: 'A new verification code was sent.' });
+    } catch (err) {
+        console.error('Resend customer verification code error:', err);
+        return res.status(500).json({ success: false, message: 'Could not resend the verification code.' });
     }
 });
 

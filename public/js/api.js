@@ -73,6 +73,16 @@ const api = {
         return res.json();
     },
 
+    verifyCustomerEmail: async (email, code) => {
+        const res = await fetch(`${API_BASE}/customer/verify-email`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ email, code }) });
+        return res.json();
+    },
+
+    resendCustomerVerification: async (email) => {
+        const res = await fetch(`${API_BASE}/customer/resend-verification`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ email }) });
+        return res.json();
+    },
+
     customerLogin: async (data) => {
         const res = await fetch(`${API_BASE}/customer/login`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(data) });
         return res.json();

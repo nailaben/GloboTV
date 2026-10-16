@@ -400,6 +400,11 @@ function renderCheckoutAccount() {
                         <button type="button" class="checkout-password-toggle" aria-label="Show password" data-toggle-password>👁</button>
                     </div>
                 </div>
+                <div class="checkout-field" id="checkout-verification-field" hidden>
+                    <label for="checkout-verification-code">Email verification code</label>
+                    <input id="checkout-verification-code" class="checkout-input" inputmode="numeric" autocomplete="one-time-code" maxlength="6" pattern="[0-9]{6}" placeholder="6-digit code">
+                    <button type="button" id="checkout-resend-verification" class="checkout-verify-action">Resend code</button>
+                </div>
                 <div id="checkout-auth-error" class="auth-error" hidden></div>
                 <button type="submit" class="btn btn-primary btn-lg checkout-auth-submit">Log in</button>
             </form>
@@ -408,8 +413,10 @@ function renderCheckoutAccount() {
 
     const toggleButtons = panel.querySelectorAll('[data-auth-mode]');
     const nameField = panel.querySelector('#checkout-name-field');
+    const verificationField = panel.querySelector('#checkout-verification-field');
     const submitButton = panel.querySelector('[type="submit"]');
     const form = panel.querySelector('#checkout-auth-form');
+    let pendingVerificationEmail = '';
 
     const syncAuthMode = (mode) => {
         authMode = mode;
@@ -429,15 +436,29 @@ function renderCheckoutAccount() {
         passwordInput.type = passwordInput.type === 'password' ? 'text' : 'password';
     });
 
+    panel.querySelector('#checkout-resend-verification').addEventListener('click', async () => {
+        const errorBox = panel.querySelector('#checkout-auth-error');
+        try {
+            const result = await api.resendCustomerVerification(pendingVerificationEmail);
+            if (!result.success) throw new Error(result.message || 'Could not resend the code.');
+            errorBox.textContent = result.message;
+            errorBox.hidden = false;
+        } catch (error) {
+            errorBox.textContent = error.message || 'Could not resend the code.';
+            errorBox.hidden = false;
+        }
+    });
+
     form.addEventListener('submit', async (event) => {
         event.preventDefault();
         const email = panel.querySelector('#checkout-email').value.trim();
         const password = panel.querySelector('#checkout-password').value;
         const name = panel.querySelector('#checkout-name')?.value.trim() || '';
+        const codeInput = panel.querySelector('#checkout-verification-code');
         const errorBox = panel.querySelector('#checkout-auth-error');
         const submit = panel.querySelector('[type="submit"]');
 
-        if (!email || !password || (authMode === 'register' && name.length < 2)) {
+        if (!pendingVerificationEmail && (!email || !password || (authMode === 'register' && name.length < 2))) {
             errorBox.textContent = 'Please fill in all required fields.';
             errorBox.hidden = false;
             return;
@@ -448,14 +469,35 @@ function renderCheckoutAccount() {
         errorBox.hidden = true;
 
         try {
-            const result = authMode === 'register'
-                ? await api.customerRegister({ name, email, password })
-                : await api.customerLogin({ email, password });
+            const result = pendingVerificationEmail
+                ? await api.verifyCustomerEmail(pendingVerificationEmail, codeInput.value.trim())
+                : (authMode === 'register'
+                    ? await api.customerRegister({ name, email, password })
+                    : await api.customerLogin({ email, password }));
 
             if (!result.success) {
                 throw new Error(result.message || 'Could not sign in.');
             }
 
+            if (result.verificationRequired) {
+                pendingVerificationEmail = result.email;
+                panel.querySelector('#checkout-email').value = result.email;
+                panel.querySelector('#checkout-email').readOnly = true;
+                panel.querySelector('#checkout-password').closest('.checkout-field').hidden = true;
+                nameField.hidden = true;
+                verificationField.hidden = false;
+                toggleButtons.forEach(button => { button.hidden = true; });
+                panel.querySelector('.checkout-google-button').hidden = true;
+                panel.querySelector('.checkout-divider').hidden = true;
+                codeInput.required = true;
+                submit.textContent = 'Verify and create account';
+                errorBox.textContent = 'A verification code was sent to your email address.';
+                errorBox.hidden = false;
+                submit.disabled = false;
+                return;
+            }
+
+            pendingVerificationEmail = '';
             localStorage.setItem('playora_customer_token', result.token);
             localStorage.setItem('playora_customer', JSON.stringify(result.customer));
             renderCheckoutAccount();
