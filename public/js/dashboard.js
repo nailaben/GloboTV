@@ -137,7 +137,10 @@ async function loadProductsTable(search = '') {
         res = await api.getSellerProducts();
     } catch (error) {
         console.error('Load seller products error:', error);
-        tbody.innerHTML = `<tr><td colspan="7"><div class="empty-state"><p>${t('Could not load products. Refresh and try again.', 'Impossible de charger les produits. Actualisez la page.')}</p></div></td></tr>`;
+        const timedOut = error.name === 'AbortError';
+        tbody.innerHTML = `<tr><td colspan="7"><div class="empty-state"><p>${timedOut
+            ? t('Loading took too long. Check your connection and try again.', 'Le chargement a pris trop de temps. Vérifiez votre connexion et réessayez.')
+            : t('Could not load products. Check your connection and try again.', 'Impossible de charger les produits. Vérifiez votre connexion et réessayez.')}</p><button class="btn btn-secondary" type="button" onclick="loadProductsTable()">${t('Try again', 'Réessayer')}</button></div></td></tr>`;
         return;
     }
     if (!res.success) {
@@ -423,8 +426,21 @@ async function loadOrdersTable() {
     const tbody = document.getElementById('orders-tbody');
     tbody.innerHTML = `<tr><td colspan="7" style="text-align:center;padding:2rem"><div class="spinner" style="margin:0 auto"></div></td></tr>`;
 
-    const res = await api.getOrders({ status: currentOrderFilter });
-    if (!res.success) return;
+    let res;
+    try {
+        res = await api.getOrders({ status: currentOrderFilter });
+    } catch (error) {
+        console.error('Load orders error:', error);
+        const message = error.name === 'AbortError'
+            ? t('Loading took too long. Check your connection and try again.', 'Le chargement a pris trop de temps. Vérifiez votre connexion et réessayez.')
+            : t('Could not load orders. Check your connection and try again.', 'Impossible de charger les commandes. Vérifiez votre connexion et réessayez.');
+        tbody.innerHTML = `<tr><td colspan="7"><div class="empty-state"><p>${message}</p><button class="btn btn-secondary" type="button" onclick="loadOrdersTable()">${t('Try again', 'Réessayer')}</button></div></td></tr>`;
+        return;
+    }
+    if (!res.success) {
+        tbody.innerHTML = `<tr><td colspan="7"><div class="empty-state"><p>${res.message || t('Could not load orders.', 'Impossible de charger les commandes.')}</p><button class="btn btn-secondary" type="button" onclick="loadOrdersTable()">${t('Try again', 'Réessayer')}</button></div></td></tr>`;
+        return;
+    }
 
     const orders = res.orders;
 

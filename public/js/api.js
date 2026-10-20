@@ -4,6 +4,18 @@
 
 const API_BASE = '/api';
 
+// Bound API requests so dashboards can recover from a stalled server/database
+// instead of leaving their loading indicators on screen indefinitely.
+async function fetchApi(url, options = {}, timeoutMs = 15000) {
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), timeoutMs);
+    try {
+        return await fetch(url, { ...options, signal: controller.signal });
+    } finally {
+        clearTimeout(timeout);
+    }
+}
+
 const api = {
     // ---- Products ----
     getProducts: async (params = {}) => {
@@ -23,7 +35,7 @@ const api = {
     },
 
     getSellerProducts: async () => {
-        const res = await fetch(`${API_BASE}/products/seller/all`, {
+        const res = await fetchApi(`${API_BASE}/products/seller/all`, {
             headers: { 'Authorization': `Bearer ${getToken()}` }
         });
         return res.json();
@@ -112,7 +124,7 @@ const api = {
 
     getOrders: async (params = {}) => {
         const query = new URLSearchParams(params).toString();
-        const res = await fetch(`${API_BASE}/orders${query ? '?' + query : ''}`, {
+        const res = await fetchApi(`${API_BASE}/orders${query ? '?' + query : ''}`, {
             headers: { 'Authorization': `Bearer ${getToken()}` }
         });
         return res.json();
