@@ -3,6 +3,7 @@ const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
 const crypto = require('crypto');
 const { pool } = require('../config/db');
+const { generateOTP, sendOTPEmail } = require('../mailer');
 
 const router = express.Router();
 
@@ -111,39 +112,7 @@ async function sendCheckoutWhatsAppCode(phone, code) {
 }
 
 async function sendVerificationCode(email, code) {
-    const apiKey = process.env.MAILJET_API_KEY;
-    const secretKey = process.env.MAILJET_SECRET_KEY;
-    const from = process.env.EMAIL_FROM;
-    if (!apiKey || !secretKey || !from) throw new Error('Mailjet email verification is not configured.');
-
-    const senderMatch = String(from).trim().match(/^(.*?)\s*<([^<>]+)>$/);
-    const senderName = senderMatch ? senderMatch[1].trim().replace(/^['"]|['"]$/g, '') : 'GloboTV';
-    const senderEmail = senderMatch ? senderMatch[2].trim() : String(from).trim();
-    if (!/^\S+@\S+\.\S+$/.test(senderEmail)) throw new Error('The Mailjet sender address is invalid.');
-
-    const response = await fetch('https://api.mailjet.com/v3.1/send', {
-        method: 'POST',
-        headers: {
-            Authorization: `Basic ${Buffer.from(`${apiKey}:${secretKey}`).toString('base64')}`,
-            'Content-Type': 'application/json'
-        },
-        body: JSON.stringify({
-            Messages: [{
-                From: { Email: senderEmail, Name: senderName || 'GloboTV' },
-                To: [{ Email: email }],
-                Subject: 'Your GloboTV verification code',
-                TextPart: `Your GloboTV verification code is ${code}. It expires in 15 minutes.`,
-                HTMLPart: `<p>Your GloboTV verification code is:</p><p style="font-size:28px;font-weight:bold;letter-spacing:6px">${code}</p><p>This code expires in 15 minutes.</p>`
-            }]
-        })
-    });
-    const result = await response.json().catch(() => ({}));
-    const messageStatus = result.Messages?.[0]?.Status;
-    if (!response.ok || messageStatus !== 'success') {
-        const errorCode = result.Messages?.[0]?.Errors?.[0]?.ErrorCode || result.ErrorIdentifier || 'provider_error';
-        console.error('Mailjet verification delivery failed:', response.status, errorCode);
-        throw new Error('Could not send the verification email. Check the Mailjet API keys and verified sender address.');
-    }
+    await sendOTPEmail(email, code);
 }
 
 function oauthRedirectUri(req) {
@@ -269,8 +238,8 @@ router.post('/checkout/send-codes', customerAuth, async (req, res) => {
         if (!/^\S+@\S+\.\S+$/.test(email)) return res.status(400).json({ success: false, message: 'Add a valid email address to your account first.' });
 
         const id = crypto.randomUUID();
-        const emailCode = String(crypto.randomInt(0, 1000000)).padStart(6, '0');
-        const whatsappCode = String(crypto.randomInt(0, 1000000)).padStart(6, '0');
+        const emailCode = generateOTP();
+        const whatsappCode = generateOTP();
         client = await pool.connect();
         await client.query('BEGIN');
         await client.query('SELECT pg_advisory_xact_lock($1)', [Number(customer.id)]);
@@ -431,7 +400,7 @@ router.post('/register', async (req, res) => {
         if (existing.rows.length) return res.status(409).json({ success: false, message: 'An account with this email already exists.' });
 
         const passwordHash = await bcrypt.hash(password, 10);
-        const code = String(crypto.randomInt(0, 1000000)).padStart(6, '0');
+        const code = generateOTP();
         await pool.query(
             `INSERT INTO customer_email_verifications (email, name, password_hash, code_hash, expires_at, attempts)
              VALUES ($1, $2, $3, $4, NOW() + INTERVAL '15 minutes', 0)
@@ -498,7 +467,7 @@ router.post('/resend-verification', async (req, res) => {
             [email]
         );
         if (!result.rows[0]) return res.status(429).json({ success: false, message: 'Wait one minute before requesting another code.' });
-        const code = String(crypto.randomInt(0, 1000000)).padStart(6, '0');
+        const code = generateOTP();
         await pool.query(
             `UPDATE customer_email_verifications SET code_hash = $2, expires_at = NOW() + INTERVAL '15 minutes',
              attempts = 0, created_at = NOW() WHERE email = $1`,
