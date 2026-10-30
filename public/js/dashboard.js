@@ -13,8 +13,9 @@ document.addEventListener('DOMContentLoaded', async () => {
         applyDashboardTranslations();
         await showTab(currentTab);
     });
-    await loadStats();
-    await showTab('products');
+    // A slow stats query must never prevent the products table from loading.
+    showTab('products');
+    loadStats();
 });
 
 // ---- Auth ----
@@ -67,7 +68,10 @@ function setupLangToggle() {
 // ---- Stats ----
 async function loadStats() {
     try {
-        const res = await api.getStats();
+        const res = await Promise.race([
+            api.getStats(),
+            new Promise((_, reject) => setTimeout(() => reject(new Error('Stats request timed out')), 8000))
+        ]);
         if (res.success) {
             const { totalProducts, totalOrders, totalRevenue, pendingOrders } = res.stats;
             animateCount('stat-products', totalProducts);

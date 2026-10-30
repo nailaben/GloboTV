@@ -10,7 +10,10 @@ async function fetchApi(url, options = {}, timeoutMs = 15000) {
     const controller = new AbortController();
     const timeout = setTimeout(() => controller.abort(), timeoutMs);
     try {
-        return await fetch(url, { ...options, signal: controller.signal });
+        const response = await fetch(url, { ...options, signal: controller.signal });
+        // Keep the deadline active while reading the body too: a server may
+        // send headers and then stall before completing its JSON response.
+        return await response.json();
     } finally {
         clearTimeout(timeout);
     }
@@ -35,10 +38,9 @@ const api = {
     },
 
     getSellerProducts: async () => {
-        const res = await fetchApi(`${API_BASE}/products/seller/all`, {
+        return fetchApi(`${API_BASE}/products/seller/all`, {
             headers: { 'Authorization': `Bearer ${getToken()}` }
-        });
-        return res.json();
+        }, 8000);
     },
 
     addProduct: async (formData) => {
@@ -124,10 +126,9 @@ const api = {
 
     getOrders: async (params = {}) => {
         const query = new URLSearchParams(params).toString();
-        const res = await fetchApi(`${API_BASE}/orders${query ? '?' + query : ''}`, {
+        return fetchApi(`${API_BASE}/orders${query ? '?' + query : ''}`, {
             headers: { 'Authorization': `Bearer ${getToken()}` }
         });
-        return res.json();
     },
 
     getOrder: async (id) => {
@@ -160,10 +161,9 @@ const api = {
     },
 
     getStats: async () => {
-        const res = await fetch(`${API_BASE}/seller/stats`, {
+        return fetchApi(`${API_BASE}/seller/stats`, {
             headers: { 'Authorization': `Bearer ${getToken()}` }
         });
-        return res.json();
     }
 };
 
