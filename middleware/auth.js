@@ -11,6 +11,9 @@ const authMiddleware = (req, res, next) => {
 
     try {
         const decoded = jwt.verify(token, process.env.JWT_SECRET);
+        if (decoded.role !== 'seller' || !decoded.id) {
+            return res.status(403).json({ success: false, message: 'Seller access required' });
+        }
         req.seller = decoded;
         next();
     } catch (err) {

@@ -3,6 +3,7 @@ const path = require('path');
 const { pool } = require('../config/db');
 
 async function initDB() {
+    let client;
     try {
         console.log('Connecting to PostgreSQL...');
         // DATABASE_URL is the source of truth on hosted deployments. Derive the
@@ -13,15 +14,19 @@ async function initDB() {
             dbUser = decodeURIComponent(new URL(databaseUrl).username);
         }
         dbUser = dbUser || 'marketplace_user';
-        await pool.query(`CREATE SCHEMA IF NOT EXISTS "${dbUser}";`);
-        await pool.query(`SET search_path TO "${dbUser}", public;`);
+        const schemaName = dbUser.replace(/"/g, '""');
+        client = await pool.connect();
+        await client.query(`CREATE SCHEMA IF NOT EXISTS "${schemaName}";`);
+        await client.query(`SET search_path TO "${schemaName}", public;`);
         const schema = fs.readFileSync(path.join(__dirname, 'schema.sql'), 'utf-8');
-        await pool.query(schema);
+        await client.query(schema);
         console.log('Database initialized successfully with schema and sample data!');
-        process.exit(0);
     } catch (err) {
         console.error('Database initialization failed:', err.message);
-        process.exit(1);
+        process.exitCode = 1;
+    } finally {
+        client?.release();
+        await pool.end();
     }
 }
 

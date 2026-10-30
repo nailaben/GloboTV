@@ -4,7 +4,10 @@ const bcrypt = require('bcryptjs');
 async function resetAdmin() {
     try {
         const username = (process.env.SELLER_USERNAME || 'charaf_ben').trim().toLowerCase();
-        const password = process.env.SELLER_PASSWORD || 'admin123';
+        const password = process.env.SELLER_PASSWORD;
+        if (!password || password.length < 12 || password === 'admin123') {
+            throw new Error('Set SELLER_PASSWORD to a unique value of at least 12 characters before resetting the seller account.');
+        }
         const salt = await bcrypt.genSalt(10);
         const hash = await bcrypt.hash(password, salt);
 
@@ -42,7 +45,8 @@ async function resetAdmin() {
             throw new Error(`Admin seller '${username}' was not found after reset`);
         }
         const match = await bcrypt.compare(password, verify.rows[0].password_hash);
-        console.log(`Verification test with '${password}':`, match ? 'SUCCESS' : 'FAILED');
+        if (!match) throw new Error('Seller password verification failed after reset.');
+        console.log('Seller credentials verified.');
 
         await pool.end();
     } catch (err) {

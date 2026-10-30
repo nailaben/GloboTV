@@ -15,12 +15,13 @@ const generateOrderNumber = () => {
 router.post('/', async (req, res) => {
     const { customer_name, customer_phone, customer_email, notes, items, payment_provider } = req.body;
 
-    if (!customer_name || !customer_phone || !customer_email || !items || items.length === 0) {
+    if (!customer_name || !customer_phone || !customer_email || !Array.isArray(items) || items.length === 0) {
         return res.status(400).json({ success: false, message: 'All required fields must be provided' });
     }
 
-    const client = await pool.connect();
+    let client;
     try {
+        client = await pool.connect();
         await client.query('BEGIN');
 
         // Validate products and calculate total
@@ -34,7 +35,7 @@ router.post('/', async (req, res) => {
                 return res.status(400).json({ success: false, message: 'Each item must have a valid quantity' });
             }
             const productResult = await client.query(
-                'SELECT * FROM products WHERE id = $1 AND is_active = true',
+                'SELECT * FROM products WHERE id = $1 AND is_active = true FOR UPDATE',
                 [item.product_id]
             );
 
@@ -58,6 +59,13 @@ router.post('/', async (req, res) => {
             const offer = offerResult.rows[0];
             const itemSubtotal = Number(offer.price_eur) * quantity;
             subtotal += itemSubtotal;
+
+            // Reserve stock while the product row is locked. This also handles
+            // duplicate product lines in one cart and concurrent checkouts.
+            await client.query(
+                'UPDATE products SET stock_quantity = stock_quantity - $1 WHERE id = $2',
+                [quantity, product.id]
+            );
 
             validatedItems.push({
                 product,
@@ -108,11 +116,6 @@ router.post('/', async (req, res) => {
                 VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
             `, [order.id, item.product.id, item.product.name_ar, item.product.name_en, item.product.name_fr || item.product.name_en, item.offer.id, item.offer.label_en, item.offer.label_fr, item.quantity, item.unit_price, item.subtotal]);
 
-            // Reduce stock
-            await client.query(
-                'UPDATE products SET stock_quantity = stock_quantity - $1 WHERE id = $2',
-                [item.quantity, item.product.id]
-            );
         }
 
         await client.query('COMMIT');
@@ -135,11 +138,11 @@ router.post('/', async (req, res) => {
             }
         });
     } catch (err) {
-        await client.query('ROLLBACK');
+        if (client) await client.query('ROLLBACK').catch(() => {});
         console.error('Create order error:', err);
         res.status(500).json({ success: false, message: 'Server error' });
     } finally {
-        client.release();
+        client?.release();
     }
 });
 
@@ -149,10 +152,17 @@ router.get('/', authMiddleware, async (req, res) => {
         const { status, page = 1, limit = 20 } = req.query;
         const offset = (page - 1) * limit;
 
-        let query = `SELECT o.*, 
-            (SELECT COUNT(*) FROM order_items WHERE order_id = o.id) as items_count
-            FROM orders o WHERE 1=1`;
-        const params = [];
+        let query = `SELECT o.*,
+            (SELECT COUNT(*) FROM order_items oi
+             JOIN products p ON p.id = oi.product_id
+             WHERE oi.order_id = o.id AND p.seller_id = $1) as items_count
+            FROM orders o
+            WHERE EXISTS (
+                SELECT 1 FROM order_items oi
+                JOIN products p ON p.id = oi.product_id
+                WHERE oi.order_id = o.id AND p.seller_id = $1
+            )`;
+        const params = [req.seller.id];
 
         if (status && status !== 'all') {
             params.push(status);
@@ -164,10 +174,18 @@ router.get('/', authMiddleware, async (req, res) => {
 
         const result = await pool.query(query, params);
 
-        const countResult = await pool.query(
-            `SELECT COUNT(*) FROM orders ${status && status !== 'all' ? 'WHERE status = $1' : ''}`,
-            status && status !== 'all' ? [status] : []
-        );
+        const countParams = [req.seller.id];
+        let countQuery = `SELECT COUNT(*) FROM orders o
+            WHERE EXISTS (
+                SELECT 1 FROM order_items oi
+                JOIN products p ON p.id = oi.product_id
+                WHERE oi.order_id = o.id AND p.seller_id = $1
+            )`;
+        if (status && status !== 'all') {
+            countParams.push(status);
+            countQuery += ` AND o.status = $2`;
+        }
+        const countResult = await pool.query(countQuery, countParams);
 
         res.json({
             success: true,
@@ -185,7 +203,14 @@ router.get('/', authMiddleware, async (req, res) => {
 // GET /api/orders/:id - Get single order with items (seller only)
 router.get('/:id', authMiddleware, async (req, res) => {
     try {
-        const orderResult = await pool.query('SELECT * FROM orders WHERE id = $1', [req.params.id]);
+        const orderResult = await pool.query(`
+            SELECT o.* FROM orders o
+            WHERE o.id = $1 AND EXISTS (
+                SELECT 1 FROM order_items oi
+                JOIN products p ON p.id = oi.product_id
+                WHERE oi.order_id = o.id AND p.seller_id = $2
+            )
+        `, [req.params.id, req.seller.id]);
 
         if (orderResult.rows.length === 0) {
             return res.status(404).json({ success: false, message: 'Order not found' });
@@ -193,9 +218,9 @@ router.get('/:id', authMiddleware, async (req, res) => {
 
         const itemsResult = await pool.query(`
             SELECT oi.*, p.image_url FROM order_items oi
-            LEFT JOIN products p ON oi.product_id = p.id
-            WHERE oi.order_id = $1
-        `, [req.params.id]);
+            JOIN products p ON oi.product_id = p.id
+            WHERE oi.order_id = $1 AND p.seller_id = $2
+        `, [req.params.id, req.seller.id]);
 
         res.json({
             success: true,
@@ -219,8 +244,13 @@ router.patch('/:id/status', authMiddleware, async (req, res) => {
 
     try {
         const result = await pool.query(
-            'UPDATE orders SET status = $1 WHERE id = $2 RETURNING *',
-            [status, req.params.id]
+            `UPDATE orders o SET status = $1
+             WHERE o.id = $2 AND EXISTS (
+                SELECT 1 FROM order_items oi
+                JOIN products p ON p.id = oi.product_id
+                WHERE oi.order_id = o.id AND p.seller_id = $3
+             ) RETURNING o.*`,
+            [status, req.params.id, req.seller.id]
         );
 
         if (result.rows.length === 0) {

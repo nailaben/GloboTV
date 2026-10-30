@@ -414,33 +414,7 @@ WHERE NOT EXISTS (
 
 
 -- =============================================
--- 12. DEFAULT ADMIN SELLER
--- =============================================
-
--- Username:
--- charaf_ben
---
--- Password:
--- admin123
-
-INSERT INTO sellers (
-    name,
-    username,
-    password_hash
-)
-SELECT
-    'PLAYORA Admin',
-    'charaf_ben',
-    '$2a$10$LP4IPBr.AI/wi6YYfFFvne0ks8eS4iptKZll7oy5zn/31ChhxhI0S'
-WHERE NOT EXISTS (
-    SELECT 1
-    FROM sellers
-    WHERE LOWER(TRIM(username)) = 'charaf_ben'
-);
-
-
--- =============================================
--- 13. CHECK DATABASE
+-- 12. CHECK DATABASE
 -- =============================================
 
 SELECT
