@@ -2,12 +2,15 @@
 
 تحتاج هذه الميزة إلى إعداد البريد وWhatsApp Cloud API قبل نشر النسخة.
 
-## 1. إعداد البريد
+## 1. إعداد البريد عبر Mailjet
 
-في **Render → خدمة GloboTV → Environment** أضف:
-
-- `RESEND_API_KEY`: مفتاح API من Resend.
-- `EMAIL_FROM`: عنوان إرسال تابع لنطاق تمت إضافته والتحقق منه في Resend، مثل `GloboTV <auth@example.com>`.
+1. أنشئ حساب Mailjet وافتح **Account Settings → Senders & Domains**.
+2. اختر **Add a sender address**، وأدخل بريدًا تملكه ويمكنك فتحه، ثم أكّد رابط التحقق الذي يصلك. يمكن التحقق من عنوان مُرسل منفرد دون امتلاك نطاق؛ توثيق نطاقك يظل أفضل لوصول الرسائل إلى صندوق الوارد.
+3. من **Account Settings → API Key Management** انسخ المفتاحين العام والخاص.
+4. في **Render → خدمة GloboTV → Environment** أضف:
+   - `MAILJET_API_KEY`: المفتاح العام.
+   - `MAILJET_SECRET_KEY`: المفتاح الخاص؛ خزّنه سرًا في Render ولا تضعه في Git.
+   - `EMAIL_FROM`: نفس المُرسل الذي تحقق في Mailjet، مثل `GloboTV <your-verified-email@example.com>`.
 
 ## 2. إعداد WhatsApp Cloud API
 

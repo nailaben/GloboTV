@@ -102,25 +102,38 @@ async function sendCheckoutWhatsAppCode(phone, code) {
 }
 
 async function sendVerificationCode(email, code) {
-    const apiKey = process.env.RESEND_API_KEY;
+    const apiKey = process.env.MAILJET_API_KEY;
+    const secretKey = process.env.MAILJET_SECRET_KEY;
     const from = process.env.EMAIL_FROM;
-    if (!apiKey || !from) throw new Error('Email verification is not configured.');
+    if (!apiKey || !secretKey || !from) throw new Error('Mailjet email verification is not configured.');
 
-    const response = await fetch('https://api.resend.com/emails', {
+    const senderMatch = String(from).trim().match(/^(.*?)\s*<([^<>]+)>$/);
+    const senderName = senderMatch ? senderMatch[1].trim().replace(/^['"]|['"]$/g, '') : 'GloboTV';
+    const senderEmail = senderMatch ? senderMatch[2].trim() : String(from).trim();
+    if (!/^\S+@\S+\.\S+$/.test(senderEmail)) throw new Error('The Mailjet sender address is invalid.');
+
+    const response = await fetch('https://api.mailjet.com/v3.1/send', {
         method: 'POST',
-        headers: { Authorization: `Bearer ${apiKey}`, 'Content-Type': 'application/json' },
+        headers: {
+            Authorization: `Basic ${Buffer.from(`${apiKey}:${secretKey}`).toString('base64')}`,
+            'Content-Type': 'application/json'
+        },
         body: JSON.stringify({
-            from,
-            to: [email],
-            subject: 'Your GloboTV verification code',
-            text: `Your GloboTV verification code is ${code}. It expires in 15 minutes.`,
-            html: `<p>Your GloboTV verification code is:</p><p style="font-size:28px;font-weight:bold;letter-spacing:6px">${code}</p><p>This code expires in 15 minutes.</p>`
+            Messages: [{
+                From: { Email: senderEmail, Name: senderName || 'GloboTV' },
+                To: [{ Email: email }],
+                Subject: 'Your GloboTV verification code',
+                TextPart: `Your GloboTV verification code is ${code}. It expires in 15 minutes.`,
+                HTMLPart: `<p>Your GloboTV verification code is:</p><p style="font-size:28px;font-weight:bold;letter-spacing:6px">${code}</p><p>This code expires in 15 minutes.</p>`
+            }]
         })
     });
-    if (!response.ok) {
-        const providerError = await response.json().catch(() => ({}));
-        console.error('Email verification delivery failed:', response.status, providerError.message || providerError.name || 'provider_error');
-        throw new Error('Could not send the verification email. Check the email service settings and try again.');
+    const result = await response.json().catch(() => ({}));
+    const messageStatus = result.Messages?.[0]?.Status;
+    if (!response.ok || messageStatus !== 'success') {
+        const errorCode = result.Messages?.[0]?.Errors?.[0]?.ErrorCode || result.ErrorIdentifier || 'provider_error';
+        console.error('Mailjet verification delivery failed:', response.status, errorCode);
+        throw new Error('Could not send the verification email. Check the Mailjet API keys and verified sender address.');
     }
 }
 
