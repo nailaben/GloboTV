@@ -35,8 +35,70 @@ async function ensureVerificationTable() {
     )`);
 }
 
+async function ensureCheckoutVerificationTable() {
+    await pool.query(`CREATE TABLE IF NOT EXISTS customer_checkout_verifications (
+        id UUID PRIMARY KEY,
+        customer_id INTEGER NOT NULL UNIQUE REFERENCES customers(id) ON DELETE CASCADE,
+        email VARCHAR(255) NOT NULL,
+        phone VARCHAR(16) NOT NULL,
+        email_code_hash CHAR(64) NOT NULL,
+        whatsapp_code_hash CHAR(64) NOT NULL,
+        expires_at TIMESTAMPTZ NOT NULL,
+        attempts INTEGER NOT NULL DEFAULT 0,
+        last_sent_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+        verified_at TIMESTAMPTZ,
+        consumed_at TIMESTAMPTZ,
+        created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+    )`);
+}
+
 function verificationCodeHash(email, code) {
     return crypto.createHash('sha256').update(`${email}:${code}:${process.env.JWT_SECRET}`).digest('hex');
+}
+
+function checkoutCodeHash(customerId, channel, code, verificationId) {
+    return crypto.createHash('sha256')
+        .update(`${customerId}:${channel}:${code}:${verificationId}:${process.env.JWT_SECRET}`)
+        .digest('hex');
+}
+
+function hashesMatch(expectedHex, suppliedHex) {
+    const expected = Buffer.from(expectedHex || '', 'hex');
+    const supplied = Buffer.from(suppliedHex || '', 'hex');
+    return expected.length === supplied.length && expected.length > 0 && crypto.timingSafeEqual(expected, supplied);
+}
+
+async function sendCheckoutWhatsAppCode(phone, code) {
+    const { WHATSAPP_PHONE_NUMBER_ID, WHATSAPP_ACCESS_TOKEN, WHATSAPP_TEMPLATE_NAME, WHATSAPP_API_VERSION } = process.env;
+    const languageCode = process.env.WHATSAPP_TEMPLATE_LANGUAGE || 'en_US';
+    if (!WHATSAPP_PHONE_NUMBER_ID || !WHATSAPP_ACCESS_TOKEN || !WHATSAPP_TEMPLATE_NAME || !WHATSAPP_API_VERSION) {
+        throw new Error('WhatsApp verification is not configured.');
+    }
+    if (!/^v\d+\.\d+$/.test(WHATSAPP_API_VERSION)) throw new Error('WhatsApp API version is invalid.');
+
+    const response = await fetch(`https://graph.facebook.com/${WHATSAPP_API_VERSION}/${WHATSAPP_PHONE_NUMBER_ID}/messages`, {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${WHATSAPP_ACCESS_TOKEN}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+            messaging_product: 'whatsapp',
+            to: phone.slice(1),
+            type: 'template',
+            template: {
+                name: WHATSAPP_TEMPLATE_NAME,
+                language: { code: languageCode },
+                components: [
+                    { type: 'body', parameters: [{ type: 'text', text: code }] },
+                    // Meta represents the OTP copy-code button as a URL subtype in send payloads.
+                    { type: 'button', sub_type: 'url', index: '0', parameters: [{ type: 'text', text: code }] }
+                ]
+            }
+        })
+    });
+    if (!response.ok) {
+        const providerError = await response.json().catch(() => ({}));
+        console.error('WhatsApp verification delivery failed:', response.status, providerError.error?.code || 'provider_error');
+        throw new Error('Could not send the WhatsApp verification code. Check the WhatsApp template and service settings.');
+    }
 }
 
 async function sendVerificationCode(email, code) {
@@ -166,6 +228,137 @@ async function finishOAuth(req, res) {
 
 router.get('/google', startOAuth);
 router.get('/google/callback', finishOAuth);
+
+router.post('/checkout/send-codes', customerAuth, async (req, res) => {
+    const phone = String(req.body.phone || '').trim();
+    if (!/^\+[1-9]\d{7,14}$/.test(phone)) {
+        return res.status(400).json({ success: false, message: 'Enter a valid international phone number including its country code.' });
+    }
+    if (!process.env.JWT_SECRET) return res.status(503).json({ success: false, message: 'Account security is not configured.' });
+
+    let client;
+    let email;
+    try {
+        await ensureCheckoutVerificationTable();
+        const customerResult = await pool.query('SELECT id, email FROM customers WHERE id = $1', [req.customer.id]);
+        const customer = customerResult.rows[0];
+        if (!customer) return res.status(404).json({ success: false, message: 'Account not found. Please sign in again.' });
+        email = String(customer.email).trim().toLowerCase();
+        if (!/^\S+@\S+\.\S+$/.test(email)) return res.status(400).json({ success: false, message: 'Add a valid email address to your account first.' });
+
+        const id = crypto.randomUUID();
+        const emailCode = String(crypto.randomInt(0, 1000000)).padStart(6, '0');
+        const whatsappCode = String(crypto.randomInt(0, 1000000)).padStart(6, '0');
+        client = await pool.connect();
+        await client.query('BEGIN');
+        await client.query('SELECT pg_advisory_xact_lock($1)', [Number(customer.id)]);
+        const previous = await client.query(
+            'SELECT last_sent_at FROM customer_checkout_verifications WHERE customer_id = $1 FOR UPDATE',
+            [customer.id]
+        );
+        if (previous.rows[0] && new Date(previous.rows[0].last_sent_at).getTime() > Date.now() - 60_000) {
+            await client.query('ROLLBACK');
+            return res.status(429).json({ success: false, message: 'Wait one minute before requesting new codes.' });
+        }
+        await client.query(
+            `INSERT INTO customer_checkout_verifications
+                (id, customer_id, email, phone, email_code_hash, whatsapp_code_hash, expires_at, attempts, last_sent_at, verified_at, consumed_at, created_at)
+             VALUES ($1, $2, $3, $4, $5, $6, NOW() + INTERVAL '15 minutes', 0, NOW(), NULL, NULL, NOW())
+             ON CONFLICT (customer_id) DO UPDATE SET id = EXCLUDED.id, email = EXCLUDED.email, phone = EXCLUDED.phone,
+                email_code_hash = EXCLUDED.email_code_hash, whatsapp_code_hash = EXCLUDED.whatsapp_code_hash,
+                expires_at = EXCLUDED.expires_at, attempts = 0, last_sent_at = NOW(), verified_at = NULL,
+                consumed_at = NULL, created_at = NOW()`,
+            [id, customer.id, email, phone, checkoutCodeHash(customer.id, 'email', emailCode, id), checkoutCodeHash(customer.id, 'whatsapp', whatsappCode, id)]
+        );
+        await client.query('COMMIT');
+        client.release();
+        client = null;
+
+        const deliveries = await Promise.allSettled([
+            sendVerificationCode(email, emailCode),
+            sendCheckoutWhatsAppCode(phone, whatsappCode)
+        ]);
+        if (deliveries.some(result => result.status === 'rejected')) {
+            await pool.query('DELETE FROM customer_checkout_verifications WHERE id = $1', [id]);
+            const failed = deliveries.find(result => result.status === 'rejected');
+            const error = failed.reason;
+            const notConfigured = /not configured|version is invalid/i.test(error.message || '');
+            return res.status(notConfigured ? 503 : 502).json({ success: false, message: error.message || 'Could not send both verification codes. Check the email and WhatsApp service settings.' });
+        }
+        return res.json({ success: true, message: 'Verification codes sent. They expire in 15 minutes.', expiresIn: 900 });
+    } catch (err) {
+        if (client) await client.query('ROLLBACK').catch(() => {});
+        console.error('Checkout verification send error:', err.message);
+        const serviceError = /email verification|WhatsApp verification|Could not send/i.test(err.message || '');
+        return res.status(serviceError ? 503 : 500).json({ success: false, message: serviceError ? err.message : 'Could not send verification codes.' });
+    } finally {
+        client?.release();
+    }
+});
+
+router.post('/checkout/verify-codes', customerAuth, async (req, res) => {
+    const phone = String(req.body.phone || '').trim();
+    const emailCode = String(req.body.emailCode || '').trim();
+    const whatsappCode = String(req.body.whatsappCode || '').trim();
+    if (!/^\+[1-9]\d{7,14}$/.test(phone) || !/^\d{6}$/.test(emailCode) || !/^\d{6}$/.test(whatsappCode)) {
+        return res.status(400).json({ success: false, message: 'Enter the phone number and both 6-digit verification codes.' });
+    }
+    if (!process.env.JWT_SECRET) return res.status(503).json({ success: false, message: 'Account security is not configured.' });
+
+    let client;
+    try {
+        await ensureCheckoutVerificationTable();
+        client = await pool.connect();
+        await client.query('BEGIN');
+        const result = await client.query(
+            `SELECT v.*, c.email AS current_email FROM customer_checkout_verifications v
+             JOIN customers c ON c.id = v.customer_id WHERE v.customer_id = $1 FOR UPDATE OF v`,
+            [req.customer.id]
+        );
+        const pending = result.rows[0];
+        if (!pending || pending.phone !== phone || pending.email !== String(pending.current_email).toLowerCase()) {
+            await client.query('ROLLBACK');
+            return res.status(400).json({ success: false, message: 'No matching verification request. Request new codes and try again.' });
+        }
+        if (pending.consumed_at || pending.verified_at) {
+            await client.query('ROLLBACK');
+            return res.status(400).json({ success: false, message: 'These codes have already been used. Request new codes to continue.' });
+        }
+        if (new Date(pending.expires_at) <= new Date()) {
+            await client.query('DELETE FROM customer_checkout_verifications WHERE customer_id = $1', [req.customer.id]);
+            await client.query('COMMIT');
+            return res.status(400).json({ success: false, message: 'The codes expired. Request new codes.' });
+        }
+        if (pending.attempts >= 5) {
+            await client.query('ROLLBACK');
+            return res.status(429).json({ success: false, message: 'Too many incorrect attempts. Request new codes after one minute.' });
+        }
+        const emailMatches = hashesMatch(pending.email_code_hash, checkoutCodeHash(req.customer.id, 'email', emailCode, pending.id));
+        const whatsappMatches = hashesMatch(pending.whatsapp_code_hash, checkoutCodeHash(req.customer.id, 'whatsapp', whatsappCode, pending.id));
+        if (!emailMatches || !whatsappMatches) {
+            await client.query('UPDATE customer_checkout_verifications SET attempts = attempts + 1 WHERE customer_id = $1', [req.customer.id]);
+            await client.query('COMMIT');
+            return res.status(400).json({ success: false, message: 'One or both verification codes are incorrect.' });
+        }
+
+        await client.query('UPDATE customer_checkout_verifications SET verified_at = NOW() WHERE customer_id = $1', [req.customer.id]);
+        await client.query('COMMIT');
+        const token = jwt.sign({
+            type: 'checkout_verification',
+            id: req.customer.id,
+            email: pending.email,
+            phone,
+            verificationId: pending.id
+        }, process.env.JWT_SECRET, { expiresIn: '15m' });
+        return res.json({ success: true, token, message: 'Email and WhatsApp verified.' });
+    } catch (err) {
+        if (client) await client.query('ROLLBACK').catch(() => {});
+        console.error('Checkout code verification error:', err.message);
+        return res.status(500).json({ success: false, message: 'Could not verify the codes.' });
+    } finally {
+        client?.release();
+    }
+});
 
 router.post('/register', async (req, res) => {
     const name = String(req.body.name || '').trim();

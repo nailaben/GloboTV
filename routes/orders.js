@@ -13,16 +13,46 @@ const generateOrderNumber = () => {
 
 // POST /api/orders - Create new order (public)
 router.post('/', async (req, res) => {
-    const { customer_name, customer_phone, customer_email, notes, items, payment_provider } = req.body;
+    const { customer_name, customer_phone, customer_email, notes, items, payment_provider, checkoutVerificationToken } = req.body;
 
     if (!customer_name || !customer_phone || !customer_email || !Array.isArray(items) || items.length === 0) {
         return res.status(400).json({ success: false, message: 'All required fields must be provided' });
+    }
+
+    let customerSession;
+    let checkoutVerification;
+    try {
+        const bearer = req.headers.authorization?.split(' ')[1];
+        customerSession = jwt.verify(bearer || '', process.env.JWT_SECRET);
+        checkoutVerification = jwt.verify(String(checkoutVerificationToken || ''), process.env.JWT_SECRET);
+        const normalizedPhone = String(customer_phone).replace(/\s/g, '');
+        if (customerSession.type !== 'customer' || checkoutVerification.type !== 'checkout_verification' ||
+            String(customerSession.id) !== String(checkoutVerification.id) ||
+            String(customer_email).trim().toLowerCase() !== String(checkoutVerification.email).toLowerCase() ||
+            normalizedPhone !== checkoutVerification.phone || !checkoutVerification.verificationId) {
+            throw new Error('Checkout verification does not match the order.');
+        }
+    } catch {
+        return res.status(403).json({ success: false, message: 'Verify your email and WhatsApp before placing the order.' });
     }
 
     let client;
     try {
         client = await pool.connect();
         await client.query('BEGIN');
+
+        const verification = await client.query(
+            `SELECT id FROM customer_checkout_verifications
+             WHERE id = $1 AND customer_id = $2 AND email = $3 AND phone = $4
+                AND verified_at IS NOT NULL AND consumed_at IS NULL AND expires_at > NOW()
+             FOR UPDATE`,
+            [checkoutVerification.verificationId, customerSession.id, checkoutVerification.email, checkoutVerification.phone]
+        );
+        if (!verification.rows[0]) {
+            await client.query('ROLLBACK');
+            return res.status(403).json({ success: false, message: 'Your verification expired or was already used. Verify both contacts again.' });
+        }
+        await client.query('UPDATE customer_checkout_verifications SET consumed_at = NOW() WHERE id = $1', [checkoutVerification.verificationId]);
 
         // Validate products and calculate total
         let subtotal = 0;
@@ -92,14 +122,7 @@ router.post('/', async (req, res) => {
         }
 
         // Create order
-        let customerId = null;
-        const bearer = req.headers.authorization?.split(' ')[1];
-        if (bearer) {
-            try {
-                const decoded = jwt.verify(bearer, process.env.JWT_SECRET);
-                if (decoded.type === 'customer') customerId = decoded.id;
-            } catch { /* Guest checkout remains available if the token is invalid or expired. */ }
-        }
+        const customerId = customerSession.id;
 
         const orderResult = await client.query(`
             INSERT INTO orders (order_number, customer_name, customer_phone, customer_email, customer_id, notes, subtotal, total_amount, currency, status)

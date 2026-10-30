@@ -16,8 +16,8 @@ document.addEventListener('DOMContentLoaded', () => {
         renderOrderSummary();
         renderPaymentSummary();
         renderCheckoutAccount();
-        if (emailContactConfirmed) document.getElementById('confirm-email-btn').textContent = ctr('confirmed');
-        if (whatsappContactConfirmed) document.getElementById('confirm-whatsapp-btn').textContent = ctr('confirmed');
+        document.getElementById('verify-notice').textContent = ctr(checkoutVerificationToken ? 'contacts_verified_notice' : checkoutCodesSent ? 'codes_sent_notice' : 'verify_notice');
+        updateCheckoutVerificationActions();
     });
 });
 
@@ -32,11 +32,17 @@ const checkoutI18n = {
         verify_subtitle: 'Confirm the contact details where your codes will be delivered.',
         email_verification: 'Email verification',
         whatsapp_verification: 'WhatsApp verification',
-        confirm_email: 'I can access this email',
-        confirm_whatsapp: 'I can access this WhatsApp',
-        confirmed: 'Confirmed',
-        verify_notice: 'Please confirm you can access both destinations. This checkout does not send verification codes.',
-        verify_contact_error: 'Enter your phone number, then confirm both contact methods.',
+        send_codes: 'Send verification codes',
+        resend_codes: 'Resend codes',
+        resend_in: 'Resend in {seconds}s',
+        email_code: 'Email code',
+        whatsapp_code: 'WhatsApp code',
+        code_placeholder: '6-digit code',
+        verify_continue: 'Verify and continue',
+        verify_notice: "We'll send a code to each contact. Enter both codes to continue.",
+        codes_sent_notice: 'Codes sent. Check your email and WhatsApp, then enter both codes below. They expire in 15 minutes.',
+        contacts_verified_notice: 'Your email and WhatsApp are verified.',
+        verify_contact_error: 'Enter a valid phone number and both 6-digit codes.',
         account_required: 'Sign in or create an account before continuing.',
         continue_to_payment: 'Continue to payment',
         back_to_verify: 'Back to Verify',
@@ -88,11 +94,17 @@ const checkoutI18n = {
         verify_subtitle: 'Confirmez les coordonnées où vos codes seront envoyés.',
         email_verification: 'Vérification de l’e-mail',
         whatsapp_verification: 'Vérification WhatsApp',
-        confirm_email: 'Je peux accéder à cet e-mail',
-        confirm_whatsapp: 'Je peux accéder à ce WhatsApp',
-        confirmed: 'Confirmé',
-        verify_notice: 'Confirmez que vous pouvez accéder aux deux moyens de contact. Aucun code de vérification ne sera envoyé par cette page.',
-        verify_contact_error: 'Saisissez votre numéro de téléphone, puis confirmez les deux moyens de contact.',
+        send_codes: 'Envoyer les codes de vérification',
+        resend_codes: 'Renvoyer les codes',
+        resend_in: 'Renvoyer dans {seconds}s',
+        email_code: 'Code e-mail',
+        whatsapp_code: 'Code WhatsApp',
+        code_placeholder: 'Code à 6 chiffres',
+        verify_continue: 'Vérifier et continuer',
+        verify_notice: 'Nous enverrons un code à chaque contact. Saisissez les deux codes pour continuer.',
+        codes_sent_notice: 'Codes envoyés. Consultez votre e-mail et WhatsApp, puis saisissez les deux codes. Ils expirent dans 15 minutes.',
+        contacts_verified_notice: 'Votre e-mail et WhatsApp sont vérifiés.',
+        verify_contact_error: 'Saisissez un numéro valide et les deux codes à 6 chiffres.',
         account_required: 'Connectez-vous ou créez un compte pour continuer.',
         continue_to_payment: 'Continuer vers le paiement',
         back_to_verify: 'Retour à la vérification',
@@ -202,25 +214,63 @@ function setupCheckoutSteps() {
         renderVerificationPanel();
         showStep(3);
     });
-    continuePaymentButton.addEventListener('click', () => {
+    continuePaymentButton.addEventListener('click', async () => {
+        if (checkoutVerificationToken) {
+            renderPaymentSummary();
+            showStep(4);
+            return;
+        }
         const customer = JSON.parse(localStorage.getItem('playora_customer') || 'null') || {};
         const phone = formatInternationalPhone().replace(/\s/g, '');
-        const phoneDigits = phone.replace(/\D/g, '').length;
-        if (!customer.email || !customer.name || phoneDigits < 7 || phoneDigits > 15 || !emailContactConfirmed || !whatsappContactConfirmed) {
+        const emailCode = document.getElementById('email-verification-code').value.trim();
+        const whatsappCode = document.getElementById('whatsapp-verification-code').value.trim();
+        if (!customer.email || !customer.name || !/^\+[1-9]\d{7,14}$/.test(phone) || !/^\d{6}$/.test(emailCode) || !/^\d{6}$/.test(whatsappCode)) {
             showToast(ctr('verify_contact_error'), 'error');
             return;
         }
-        customer.phone = phone;
-        localStorage.setItem('playora_customer', JSON.stringify(customer));
-        renderPaymentSummary();
-        showStep(4);
+        continuePaymentButton.disabled = true;
+        try {
+            const result = await api.verifyCheckoutCodes(phone, emailCode, whatsappCode);
+            if (!result.success || !result.token) throw new Error(result.message || ctr('generic_error'));
+            checkoutVerificationToken = result.token;
+            customer.phone = phone;
+            localStorage.setItem('playora_customer', JSON.stringify(customer));
+            document.getElementById('verify-email-card').classList.add('is-verified');
+            document.getElementById('verify-whatsapp-card').classList.add('is-verified');
+            document.querySelector('#verify-email-card .checkout-verify-icon').textContent = 'check_circle';
+            document.querySelector('#verify-whatsapp-card .checkout-verify-icon').textContent = 'check_circle';
+            document.getElementById('verify-notice').textContent = ctr('contacts_verified_notice');
+            renderPaymentSummary();
+            showStep(4);
+        } catch (error) {
+            showToast(error.message || ctr('generic_error'), 'error');
+        } finally {
+            continuePaymentButton.disabled = false;
+        }
     });
     window.checkoutGoToStep = showStep;
     showStep(1);
 }
 
-let emailContactConfirmed = false;
-let whatsappContactConfirmed = false;
+let checkoutCodesSent = false;
+let checkoutVerificationToken = null;
+let checkoutResendUntil = 0;
+let checkoutResendTimer = null;
+
+function updateCheckoutVerificationActions() {
+    const sendButton = document.getElementById('send-checkout-codes-btn');
+    if (!sendButton) return;
+    if (!checkoutCodesSent) {
+        sendButton.textContent = ctr('send_codes');
+        sendButton.disabled = false;
+        return;
+    }
+    const seconds = Math.max(0, Math.ceil((checkoutResendUntil - Date.now()) / 1000));
+    sendButton.textContent = seconds
+        ? ctr('resend_in').replace('{seconds}', String(seconds))
+        : ctr('resend_codes');
+    sendButton.disabled = seconds > 0;
+}
 
 function renderVerificationPanel() {
     const customer = JSON.parse(localStorage.getItem('playora_customer') || 'null') || {};
@@ -250,41 +300,61 @@ function formatInternationalPhone() {
 }
 
 function setupContactConfirmation() {
-    const emailButton = document.getElementById('confirm-email-btn');
-    const whatsappButton = document.getElementById('confirm-whatsapp-btn');
+    const sendButton = document.getElementById('send-checkout-codes-btn');
     const phoneInput = document.getElementById('verify-phone');
     const countrySelect = document.getElementById('verify-country-code');
-
-    const setConfirmed = (cardId, button, confirmed) => {
-        document.getElementById(cardId).classList.toggle('is-verified', confirmed);
-        button.textContent = confirmed ? ctr('confirmed') : ctr(cardId === 'verify-email-card' ? 'confirm_email' : 'confirm_whatsapp');
-        const icon = document.querySelector(`#${cardId} .checkout-verify-icon`);
-        icon.textContent = confirmed ? 'check_circle' : (cardId === 'verify-email-card' ? 'mail' : 'chat');
-    };
-
-    emailButton.addEventListener('click', () => {
-        const email = JSON.parse(localStorage.getItem('playora_customer') || 'null')?.email;
-        if (!email) return;
-        emailContactConfirmed = !emailContactConfirmed;
-        setConfirmed('verify-email-card', emailButton, emailContactConfirmed);
-    });
-    whatsappButton.addEventListener('click', () => {
-        if (!phoneInput.value.replace(/\D/g, '')) {
+    sendButton.addEventListener('click', async () => {
+        if (!localStorage.getItem('playora_customer_token')) {
+            showToast(ctr('account_required'), 'error');
+            return;
+        }
+        const phone = formatInternationalPhone().replace(/\s/g, '');
+        if (!/^\+[1-9]\d{7,14}$/.test(phone)) {
+            showToast(ctr('verify_contact_error'), 'error');
             phoneInput.focus();
             return;
         }
-        whatsappContactConfirmed = !whatsappContactConfirmed;
-        setConfirmed('verify-whatsapp-card', whatsappButton, whatsappContactConfirmed);
-    });
-    const updatePhoneConfirmation = () => {
-        document.getElementById('verify-phone-value').textContent = formatInternationalPhone();
-        if (whatsappContactConfirmed) {
-            whatsappContactConfirmed = false;
-            setConfirmed('verify-whatsapp-card', whatsappButton, false);
+        sendButton.disabled = true;
+        try {
+            const result = await api.sendCheckoutVerificationCodes(phone);
+            if (!result.success) throw new Error(result.message || ctr('generic_error'));
+            checkoutCodesSent = true;
+            checkoutVerificationToken = null;
+            checkoutResendUntil = Date.now() + 60_000;
+            document.getElementById('checkout-code-fields').hidden = false;
+            document.getElementById('continue-payment-btn').hidden = false;
+            document.getElementById('email-verification-code').value = '';
+            document.getElementById('whatsapp-verification-code').value = '';
+            document.getElementById('verify-notice').textContent = ctr('codes_sent_notice');
+            showToast(result.message || ctr('codes_sent_notice'), 'success');
+            if (checkoutResendTimer) clearInterval(checkoutResendTimer);
+            checkoutResendTimer = setInterval(() => {
+                updateCheckoutVerificationActions();
+                if (Date.now() >= checkoutResendUntil) clearInterval(checkoutResendTimer);
+            }, 1000);
+        } catch (error) {
+            showToast(error.message || ctr('generic_error'), 'error');
+        } finally {
+            updateCheckoutVerificationActions();
         }
+    });
+    const resetPhoneVerification = () => {
+        document.getElementById('verify-phone-value').textContent = formatInternationalPhone();
+        checkoutCodesSent = false;
+        checkoutVerificationToken = null;
+        checkoutResendUntil = 0;
+        if (checkoutResendTimer) clearInterval(checkoutResendTimer);
+        document.getElementById('checkout-code-fields').hidden = true;
+        document.getElementById('continue-payment-btn').hidden = true;
+        document.getElementById('verify-email-card').classList.remove('is-verified');
+        document.getElementById('verify-whatsapp-card').classList.remove('is-verified');
+        document.querySelector('#verify-email-card .checkout-verify-icon').textContent = 'mail';
+        document.querySelector('#verify-whatsapp-card .checkout-verify-icon').textContent = 'chat';
+        document.getElementById('verify-notice').textContent = ctr('verify_notice');
+        updateCheckoutVerificationActions();
     };
-    phoneInput.addEventListener('input', updatePhoneConfirmation);
-    countrySelect.addEventListener('change', updatePhoneConfirmation);
+    phoneInput.addEventListener('input', resetPhoneVerification);
+    countrySelect.addEventListener('change', resetPhoneVerification);
 }
 
 function renderOrderSummary() {
@@ -529,6 +599,7 @@ function setupForm() {
             customer_name: customer.name || '',
             customer_phone: phone,
             customer_email: customer.email || '',
+            checkoutVerificationToken: checkoutVerificationToken || '',
             notes: '',
             payment_provider: document.querySelector('[name="checkout-payment-method"]:checked')?.value || 'oneclick',
             items: cart.map(item => ({ product_id: item.product_id, offer_id: item.offer_id, quantity: item.quantity }))
@@ -544,6 +615,7 @@ function setupForm() {
         try {
             const res = await api.createOrder(orderData);
             if (res.success) {
+                checkoutVerificationToken = null;
                 sessionStorage.setItem('last_order', JSON.stringify(res.order));
                 if (res.order.payment_url) {
                     window.location.assign(res.order.payment_url);

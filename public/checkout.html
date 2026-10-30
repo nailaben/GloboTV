@@ -359,12 +359,16 @@
         .checkout-verify-copy { flex: 1; min-width: 0; }
         .checkout-verify-copy strong { display: block; }
         .checkout-verify-copy small { display: block; margin-top: .3rem; color: var(--text-muted); overflow-wrap: anywhere; }
-        .checkout-verify-action { border: 0; background: transparent; color: var(--primary-light); font: inherit; font-size: .82rem; font-weight: 700; cursor: pointer; }
         .checkout-verify-card.is-verified { border-color: rgba(34,197,94,.55); }
         .checkout-verify-card.is-verified .checkout-verify-icon { color: #22c55e; background: rgba(34,197,94,.12); }
-        .checkout-verify-card.is-verified .checkout-verify-action { color: #22c55e; }
         .checkout-verify-notice { padding: .9rem 1rem; border: 1px solid rgba(34,197,94,.4); border-radius: var(--radius-md); color: var(--text-secondary); background: rgba(34,197,94,.08); }
         .checkout-phone-input { display: grid; grid-template-columns: minmax(145px, .7fr) minmax(0, 1.3fr); gap: .65rem; }
+        .checkout-code-grid { display: grid; grid-template-columns: 1fr 1fr; gap: .75rem; }
+        .checkout-code-grid[hidden] { display: none; }
+        .checkout-code-grid .form-group { margin: 0; }
+        .checkout-code-grid input { letter-spacing: .3em; font-weight: 700; }
+        #continue-payment-btn[hidden] { display: none; }
+        @media (max-width: 560px) { .checkout-code-grid { grid-template-columns: 1fr; } }
         .checkout-country-select { min-width: 0; }
         .checkout-payment-panel { display: grid; gap: 1rem; }
         .checkout-payment-heading h1 { margin: 0 0 .45rem; font-size: 2.1rem; }
@@ -582,7 +586,6 @@
                                     <strong data-co-i18n="email_verification">Email verification</strong>
                                     <small id="verify-email-value"></small>
                                 </div>
-                                <button type="button" class="checkout-verify-action" id="confirm-email-btn" data-co-i18n="confirm_email">Confirm email</button>
                             </div>
                             <div class="checkout-verify-card" id="verify-whatsapp-card">
                                 <span class="checkout-verify-icon material-symbols-outlined" aria-hidden="true">chat</span>
@@ -590,7 +593,6 @@
                                     <strong data-co-i18n="whatsapp_verification">WhatsApp verification</strong>
                                     <small id="verify-phone-value"></small>
                                 </div>
-                                <button type="button" class="checkout-verify-action" id="confirm-whatsapp-btn" data-co-i18n="confirm_whatsapp">Confirm WhatsApp</button>
                             </div>
                             <div class="form-group">
                                 <label class="form-label" for="verify-country-code" data-co-i18n="phone">Phone Number</label>
@@ -634,9 +636,20 @@
                                     <input class="form-input" id="verify-phone" type="tel" autocomplete="tel-national" data-co-placeholder="phone_placeholder" placeholder="e.g. 0555123456">
                                 </div>
                             </div>
-                            <div id="verify-notice" class="checkout-verify-notice" data-co-i18n="verify_notice">We use these contact details to deliver your codes after payment.</div>
-                            <button type="button" class="btn btn-primary btn-lg w-full" id="continue-payment-btn">
-                                <span data-co-i18n="continue_to_payment">Continue to payment</span>
+                            <div id="verify-notice" class="checkout-verify-notice" data-co-i18n="verify_notice">We'll send a code to each contact. Enter both codes to continue.</div>
+                            <button type="button" class="btn btn-primary btn-lg w-full" id="send-checkout-codes-btn" data-co-i18n="send_codes">Send verification codes</button>
+                            <div class="checkout-code-grid" id="checkout-code-fields" hidden>
+                                <div class="form-group">
+                                    <label class="form-label" for="email-verification-code" data-co-i18n="email_code">Email code</label>
+                                    <input class="form-input" id="email-verification-code" type="text" inputmode="numeric" autocomplete="one-time-code" maxlength="6" pattern="[0-9]{6}" data-co-placeholder="code_placeholder" placeholder="6-digit code">
+                                </div>
+                                <div class="form-group">
+                                    <label class="form-label" for="whatsapp-verification-code" data-co-i18n="whatsapp_code">WhatsApp code</label>
+                                    <input class="form-input" id="whatsapp-verification-code" type="text" inputmode="numeric" autocomplete="one-time-code" maxlength="6" pattern="[0-9]{6}" data-co-placeholder="code_placeholder" placeholder="6-digit code">
+                                </div>
+                            </div>
+                            <button type="button" class="btn btn-primary btn-lg w-full" id="continue-payment-btn" hidden>
+                                <span data-co-i18n="verify_continue">Verify and continue</span>
                             </button>
                         </div>
                     </section>

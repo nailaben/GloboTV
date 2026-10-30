@@ -84,6 +84,30 @@ const api = {
         return res.json();
     },
 
+    sendCheckoutVerificationCodes: async (phone) => {
+        const res = await fetch(`${API_BASE}/customer/checkout/send-codes`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${localStorage.getItem('playora_customer_token') || ''}`
+            },
+            body: JSON.stringify({ phone })
+        });
+        return res.json();
+    },
+
+    verifyCheckoutCodes: async (phone, emailCode, whatsappCode) => {
+        const res = await fetch(`${API_BASE}/customer/checkout/verify-codes`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${localStorage.getItem('playora_customer_token') || ''}`
+            },
+            body: JSON.stringify({ phone, emailCode, whatsappCode })
+        });
+        return res.json();
+    },
+
     customerRegister: async (data) => {
         const res = await fetch(`${API_BASE}/customer/register`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(data) });
         return res.json();
