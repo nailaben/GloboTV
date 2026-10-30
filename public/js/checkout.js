@@ -229,7 +229,6 @@ function setupCheckoutSteps() {
         paymentStep.hidden = activeStep !== 4;
         verificationSummary.hidden = activeStep !== 3;
         checkoutGrid.classList.toggle('is-verifying', activeStep === 3);
-        document.body.classList.toggle('checkout-verification-mode', activeStep === 3);
         steps.forEach((step, index) => {
             const stepNumber = index + 1;
             const number = step.querySelector('.checkout-step-number');
