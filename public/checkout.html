@@ -639,11 +639,11 @@
                             <div id="verify-notice" class="checkout-verify-notice" data-co-i18n="verify_notice">We'll send a code to each contact. Enter both codes to continue.</div>
                             <button type="button" class="btn btn-primary btn-lg w-full" id="send-checkout-codes-btn" data-co-i18n="send_codes">Send verification codes</button>
                             <div class="checkout-code-grid" id="checkout-code-fields" hidden>
-                                <div class="form-group">
+                                <div class="form-group" id="email-code-field">
                                     <label class="form-label" for="email-verification-code" data-co-i18n="email_code">Email code</label>
                                     <input class="form-input" id="email-verification-code" type="text" inputmode="numeric" autocomplete="one-time-code" maxlength="6" pattern="[0-9]{6}" data-co-placeholder="code_placeholder" placeholder="6-digit code">
                                 </div>
-                                <div class="form-group">
+                                <div class="form-group" id="whatsapp-code-field">
                                     <label class="form-label" for="whatsapp-verification-code" data-co-i18n="whatsapp_code">WhatsApp code</label>
                                     <input class="form-input" id="whatsapp-verification-code" type="text" inputmode="numeric" autocomplete="one-time-code" maxlength="6" pattern="[0-9]{6}" data-co-placeholder="code_placeholder" placeholder="6-digit code">
                                 </div>

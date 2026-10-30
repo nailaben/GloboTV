@@ -16,7 +16,7 @@ document.addEventListener('DOMContentLoaded', () => {
         renderOrderSummary();
         renderPaymentSummary();
         renderCheckoutAccount();
-        document.getElementById('verify-notice').textContent = ctr(checkoutVerificationToken ? 'contacts_verified_notice' : checkoutCodesSent ? 'codes_sent_notice' : 'verify_notice');
+        document.getElementById('verify-notice').textContent = ctr(checkoutVerificationToken ? 'contacts_verified_notice' : checkoutNoticeKey);
         updateCheckoutVerificationActions();
     });
 });
@@ -41,8 +41,12 @@ const checkoutI18n = {
         verify_continue: 'Verify and continue',
         verify_notice: "We'll send a code to each contact. Enter both codes to continue.",
         codes_sent_notice: 'Codes sent. Check your email and WhatsApp, then enter both codes below. They expire in 15 minutes.',
+        email_only_sent_notice: 'Email code sent. Enter it below. WhatsApp delivery is not configured yet, so payment will remain locked until WhatsApp is verified.',
+        whatsapp_only_sent_notice: 'WhatsApp code sent. Enter it below. Email delivery is not configured yet, so payment will remain locked until email is verified.',
+        email_verified_waiting_whatsapp: 'Email verified. WhatsApp verification is still required before payment.',
+        whatsapp_verified_waiting_email: 'WhatsApp verified. Email verification is still required before payment.',
         contacts_verified_notice: 'Your email and WhatsApp are verified.',
-        verify_contact_error: 'Enter a valid phone number and both 6-digit codes.',
+        verify_contact_error: 'Enter a valid phone number and the 6-digit code for each contact that received one.',
         account_required: 'Sign in or create an account before continuing.',
         continue_to_payment: 'Continue to payment',
         back_to_verify: 'Back to Verify',
@@ -103,8 +107,12 @@ const checkoutI18n = {
         verify_continue: 'Vérifier et continuer',
         verify_notice: 'Nous enverrons un code à chaque contact. Saisissez les deux codes pour continuer.',
         codes_sent_notice: 'Codes envoyés. Consultez votre e-mail et WhatsApp, puis saisissez les deux codes. Ils expirent dans 15 minutes.',
+        email_only_sent_notice: 'Code e-mail envoyé. Saisissez-le ci-dessous. WhatsApp n’est pas encore configuré ; le paiement restera bloqué jusqu’à la vérification WhatsApp.',
+        whatsapp_only_sent_notice: 'Code WhatsApp envoyé. Saisissez-le ci-dessous. L’e-mail n’est pas configuré ; le paiement restera bloqué jusqu’à la vérification de l’e-mail.',
+        email_verified_waiting_whatsapp: 'E-mail vérifié. La vérification WhatsApp reste nécessaire avant le paiement.',
+        whatsapp_verified_waiting_email: 'WhatsApp vérifié. La vérification de l’e-mail reste nécessaire avant le paiement.',
         contacts_verified_notice: 'Votre e-mail et WhatsApp sont vérifiés.',
-        verify_contact_error: 'Saisissez un numéro valide et les deux codes à 6 chiffres.',
+        verify_contact_error: 'Saisissez un numéro valide et chaque code à 6 chiffres reçu.',
         account_required: 'Connectez-vous ou créez un compte pour continuer.',
         continue_to_payment: 'Continuer vers le paiement',
         back_to_verify: 'Retour à la vérification',
@@ -224,21 +232,35 @@ function setupCheckoutSteps() {
         const phone = formatInternationalPhone().replace(/\s/g, '');
         const emailCode = document.getElementById('email-verification-code').value.trim();
         const whatsappCode = document.getElementById('whatsapp-verification-code').value.trim();
-        if (!customer.email || !customer.name || !/^\+[1-9]\d{7,14}$/.test(phone) || !/^\d{6}$/.test(emailCode) || !/^\d{6}$/.test(whatsappCode)) {
+        const emailCodeRequired = checkoutEmailSent && !checkoutEmailVerified;
+        const whatsappCodeRequired = checkoutWhatsAppSent && !checkoutWhatsAppVerified;
+        if (!customer.email || !customer.name || !/^\+[1-9]\d{7,14}$/.test(phone) ||
+            (emailCodeRequired && !/^\d{6}$/.test(emailCode)) || (whatsappCodeRequired && !/^\d{6}$/.test(whatsappCode)) ||
+            (!emailCodeRequired && !whatsappCodeRequired)) {
             showToast(ctr('verify_contact_error'), 'error');
             return;
         }
         continuePaymentButton.disabled = true;
         try {
             const result = await api.verifyCheckoutCodes(phone, emailCode, whatsappCode);
-            if (!result.success || !result.token) throw new Error(result.message || ctr('generic_error'));
+            if (!result.success) throw new Error(result.message || ctr('generic_error'));
+            checkoutEmailVerified = Boolean(result.emailVerified);
+            checkoutWhatsAppVerified = Boolean(result.whatsappVerified);
+            updateCheckoutVerifiedIndicators();
+            if (!result.token) {
+                document.getElementById('email-verification-code').value = '';
+                document.getElementById('whatsapp-verification-code').value = '';
+                continuePaymentButton.hidden = (checkoutEmailVerified || !checkoutEmailSent) &&
+                    (checkoutWhatsAppVerified || !checkoutWhatsAppSent);
+                const noticeKey = checkoutEmailVerified ? 'email_verified_waiting_whatsapp' : 'whatsapp_verified_waiting_email';
+                checkoutNoticeKey = noticeKey;
+                document.getElementById('verify-notice').textContent = ctr(noticeKey);
+                showToast(ctr(noticeKey), 'success');
+                return;
+            }
             checkoutVerificationToken = result.token;
             customer.phone = phone;
             localStorage.setItem('playora_customer', JSON.stringify(customer));
-            document.getElementById('verify-email-card').classList.add('is-verified');
-            document.getElementById('verify-whatsapp-card').classList.add('is-verified');
-            document.querySelector('#verify-email-card .checkout-verify-icon').textContent = 'check_circle';
-            document.querySelector('#verify-whatsapp-card .checkout-verify-icon').textContent = 'check_circle';
             document.getElementById('verify-notice').textContent = ctr('contacts_verified_notice');
             renderPaymentSummary();
             showStep(4);
@@ -253,7 +275,12 @@ function setupCheckoutSteps() {
 }
 
 let checkoutCodesSent = false;
+let checkoutEmailSent = false;
+let checkoutWhatsAppSent = false;
+let checkoutEmailVerified = false;
+let checkoutWhatsAppVerified = false;
 let checkoutVerificationToken = null;
+let checkoutNoticeKey = 'verify_notice';
 let checkoutResendUntil = 0;
 let checkoutResendTimer = null;
 
@@ -319,14 +346,24 @@ function setupContactConfirmation() {
             const result = await api.sendCheckoutVerificationCodes(phone);
             if (!result.success) throw new Error(result.message || ctr('generic_error'));
             checkoutCodesSent = true;
+            checkoutEmailSent = Boolean(result.emailSent);
+            checkoutWhatsAppSent = Boolean(result.whatsappSent);
+            checkoutEmailVerified = false;
+            checkoutWhatsAppVerified = false;
             checkoutVerificationToken = null;
             checkoutResendUntil = Date.now() + 60_000;
             document.getElementById('checkout-code-fields').hidden = false;
+            document.getElementById('email-code-field').hidden = !checkoutEmailSent;
+            document.getElementById('whatsapp-code-field').hidden = !checkoutWhatsAppSent;
             document.getElementById('continue-payment-btn').hidden = false;
             document.getElementById('email-verification-code').value = '';
             document.getElementById('whatsapp-verification-code').value = '';
-            document.getElementById('verify-notice').textContent = ctr('codes_sent_notice');
-            showToast(result.message || ctr('codes_sent_notice'), 'success');
+            const noticeKey = checkoutEmailSent && checkoutWhatsAppSent
+                ? 'codes_sent_notice'
+                : checkoutEmailSent ? 'email_only_sent_notice' : 'whatsapp_only_sent_notice';
+            checkoutNoticeKey = noticeKey;
+            document.getElementById('verify-notice').textContent = ctr(noticeKey);
+            showToast(ctr(noticeKey), 'success');
             if (checkoutResendTimer) clearInterval(checkoutResendTimer);
             checkoutResendTimer = setInterval(() => {
                 updateCheckoutVerificationActions();
@@ -341,10 +378,17 @@ function setupContactConfirmation() {
     const resetPhoneVerification = () => {
         document.getElementById('verify-phone-value').textContent = formatInternationalPhone();
         checkoutCodesSent = false;
+        checkoutEmailSent = false;
+        checkoutWhatsAppSent = false;
+        checkoutEmailVerified = false;
+        checkoutWhatsAppVerified = false;
         checkoutVerificationToken = null;
+        checkoutNoticeKey = 'verify_notice';
         checkoutResendUntil = 0;
         if (checkoutResendTimer) clearInterval(checkoutResendTimer);
         document.getElementById('checkout-code-fields').hidden = true;
+        document.getElementById('email-code-field').hidden = false;
+        document.getElementById('whatsapp-code-field').hidden = false;
         document.getElementById('continue-payment-btn').hidden = true;
         document.getElementById('verify-email-card').classList.remove('is-verified');
         document.getElementById('verify-whatsapp-card').classList.remove('is-verified');
@@ -355,6 +399,15 @@ function setupContactConfirmation() {
     };
     phoneInput.addEventListener('input', resetPhoneVerification);
     countrySelect.addEventListener('change', resetPhoneVerification);
+}
+
+function updateCheckoutVerifiedIndicators() {
+    const emailCard = document.getElementById('verify-email-card');
+    const whatsappCard = document.getElementById('verify-whatsapp-card');
+    emailCard.classList.toggle('is-verified', checkoutEmailVerified);
+    whatsappCard.classList.toggle('is-verified', checkoutWhatsAppVerified);
+    document.querySelector('#verify-email-card .checkout-verify-icon').textContent = checkoutEmailVerified ? 'check_circle' : 'mail';
+    document.querySelector('#verify-whatsapp-card .checkout-verify-icon').textContent = checkoutWhatsAppVerified ? 'check_circle' : 'chat';
 }
 
 function renderOrderSummary() {
