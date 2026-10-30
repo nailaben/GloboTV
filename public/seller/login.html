@@ -328,8 +328,8 @@
     <script src="/js/api.js"></script>
     <script>
         const loginTranslations = {
-            en: { title: 'Welcome back', subtitle: 'Sign in to continue to your seller account', username: 'Username', usernamePlaceholder: 'Enter your username', password: 'Password', passwordPlaceholder: 'Enter your password', signIn: 'Sign in', footer: 'Looking for great deals?', visitStore: 'Visit the store', showPassword: 'Show password', hidePassword: 'Hide password', required: 'Enter your username and password to continue.', incorrect: 'That username and password do not match a seller account.', connection: 'Could not connect to the server. Please try again.', signingIn: 'Signing in…' },
-            fr: { title: 'Heureux de vous revoir', subtitle: 'Connectez-vous à votre compte vendeur', username: 'Nom d’utilisateur', usernamePlaceholder: 'Saisissez votre nom d’utilisateur', password: 'Mot de passe', passwordPlaceholder: 'Saisissez votre mot de passe', signIn: 'Se connecter', footer: 'À la recherche de bonnes affaires ?', visitStore: 'Visiter la boutique', showPassword: 'Afficher le mot de passe', hidePassword: 'Masquer le mot de passe', required: 'Saisissez votre nom d’utilisateur et votre mot de passe.', incorrect: 'Nom d’utilisateur ou mot de passe incorrect.', connection: 'Connexion au serveur impossible. Réessayez.', signingIn: 'Connexion…' }
+            en: { title: 'Welcome back', subtitle: 'Sign in to continue to your seller account', username: 'Username', usernamePlaceholder: 'Enter your username', password: 'Password', passwordPlaceholder: 'Enter your password', signIn: 'Sign in', footer: 'Looking for great deals?', visitStore: 'Visit the store', showPassword: 'Show password', hidePassword: 'Hide password', required: 'Enter your username and password to continue.', incorrect: 'That username and password do not match a seller account.', connection: 'Could not connect to the server. Please try again.', sessionExpired: 'Your session expired. Sign in again to continue.', signingIn: 'Signing in…' },
+            fr: { title: 'Heureux de vous revoir', subtitle: 'Connectez-vous à votre compte vendeur', username: 'Nom d’utilisateur', usernamePlaceholder: 'Saisissez votre nom d’utilisateur', password: 'Mot de passe', passwordPlaceholder: 'Saisissez votre mot de passe', signIn: 'Se connecter', footer: 'À la recherche de bonnes affaires ?', visitStore: 'Visiter la boutique', showPassword: 'Afficher le mot de passe', hidePassword: 'Masquer le mot de passe', required: 'Saisissez votre nom d’utilisateur et votre mot de passe.', incorrect: 'Nom d’utilisateur ou mot de passe incorrect.', connection: 'Connexion au serveur impossible. Réessayez.', sessionExpired: 'Votre session a expiré. Reconnectez-vous pour continuer.', signingIn: 'Connexion…' }
         };
         let loginErrorKey = '';
         initLang();
@@ -342,6 +342,9 @@
         const loginError = document.getElementById('login-error');
         const errorMessage = document.getElementById('error-msg');
         const loginButton = document.getElementById('login-btn');
+        if (new URLSearchParams(window.location.search).get('reason') === 'session-expired') {
+            loginErrorKey = 'sessionExpired';
+        }
 
         function applyLoginLanguage() {
             const copy = loginTranslations[currentLang] || loginTranslations.en;

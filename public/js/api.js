@@ -13,7 +13,12 @@ async function fetchApi(url, options = {}, timeoutMs = 15000) {
         const response = await fetch(url, { ...options, signal: controller.signal });
         // Keep the deadline active while reading the body too: a server may
         // send headers and then stall before completing its JSON response.
-        return await response.json();
+        const data = await response.json();
+        if (response.status === 401 || response.status === 403) {
+            removeToken();
+            window.location.replace('/seller/login.html?reason=session-expired');
+        }
+        return data;
     } finally {
         clearTimeout(timeout);
     }
@@ -44,29 +49,26 @@ const api = {
     },
 
     addProduct: async (formData) => {
-        const res = await fetch(`${API_BASE}/products`, {
+        return fetchApi(`${API_BASE}/products`, {
             method: 'POST',
             headers: { 'Authorization': `Bearer ${getToken()}` },
             body: formData
         });
-        return res.json();
     },
 
     updateProduct: async (id, formData) => {
-        const res = await fetch(`${API_BASE}/products/${id}`, {
+        return fetchApi(`${API_BASE}/products/${id}`, {
             method: 'PUT',
             headers: { 'Authorization': `Bearer ${getToken()}` },
             body: formData
         });
-        return res.json();
     },
 
     deleteProduct: async (id) => {
-        const res = await fetch(`${API_BASE}/products/${id}`, {
+        return fetchApi(`${API_BASE}/products/${id}`, {
             method: 'DELETE',
             headers: { 'Authorization': `Bearer ${getToken()}` }
         });
-        return res.json();
     },
 
     // ---- Orders ----
@@ -132,14 +134,13 @@ const api = {
     },
 
     getOrder: async (id) => {
-        const res = await fetch(`${API_BASE}/orders/${id}`, {
+        return fetchApi(`${API_BASE}/orders/${id}`, {
             headers: { 'Authorization': `Bearer ${getToken()}` }
         });
-        return res.json();
     },
 
     updateOrderStatus: async (id, status) => {
-        const res = await fetch(`${API_BASE}/orders/${id}/status`, {
+        return fetchApi(`${API_BASE}/orders/${id}/status`, {
             method: 'PATCH',
             headers: {
                 'Content-Type': 'application/json',
@@ -147,7 +148,6 @@ const api = {
             },
             body: JSON.stringify({ status })
         });
-        return res.json();
     },
 
     // ---- Seller Auth ----
