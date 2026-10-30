@@ -135,6 +135,41 @@
             justify-content: center;
         }
 
+        .checkout-grid.is-verifying { grid-template-columns: minmax(0, 800px) minmax(280px, 400px); max-width: 1240px; margin: 0 auto; }
+        .checkout-verification-summary { position: sticky; top: 1rem; align-self: start; }
+        .checkout-verification-summary h2 { margin: 0 0 1.25rem; font-size: 1.15rem; }
+        .checkout-summary-row { display: flex; justify-content: space-between; gap: 1rem; padding: .75rem 0; color: var(--text-secondary); }
+        .checkout-summary-total { margin-top: .5rem; padding-top: 1rem; border-top: 1px solid var(--border-light); color: var(--text-primary); font-weight: 800; }
+        .checkout-summary-total strong { color: var(--primary-light); font-size: 1.3rem; }
+        .checkout-summary-note { margin: .8rem 0 1.25rem; color: var(--text-muted); line-height: 1.6; }
+        #continue-after-verification:disabled { opacity: .55; cursor: not-allowed; }
+        body.checkout-verification-mode { color: #191626; background: #f8f7fc; }
+        body.checkout-verification-mode .checkout-header,
+        body.checkout-verification-mode .checkout-steps { color: #66627e; background: #fff; border-color: #e7e4f0; }
+        body.checkout-verification-mode .checkout-steps { border-bottom: 2px solid #5948ff; }
+        body.checkout-verification-mode .checkout-step.is-active { color: #191626; }
+        body.checkout-verification-mode .checkout-step.is-complete { color: #5d5874; }
+        body.checkout-verification-mode .checkout-step-number { color: #89859e; background: #f3f2f8; border-color: #ddd9ea; }
+        body.checkout-verification-mode .checkout-step.is-active .checkout-step-number,
+        body.checkout-verification-mode .checkout-step.is-complete .checkout-step-number { color: #fff; background: #5948ff; border-color: #5948ff; }
+        body.checkout-verification-mode .checkout-content { background: repeating-linear-gradient(135deg, #faf9fd 0, #faf9fd 20px, #f5f4fa 20px, #f5f4fa 21px); }
+        body.checkout-verification-mode #verify-step-card,
+        body.checkout-verification-mode #verification-summary { color: #191626; background: #fff; border-color: #e7e4f0; box-shadow: 0 12px 32px rgba(31, 24, 70, .05); }
+        body.checkout-verification-mode .checkout-verify-heading p,
+        body.checkout-verification-mode .checkout-verify-copy small,
+        body.checkout-verification-mode .checkout-summary-note { color: #77738e; }
+        body.checkout-verification-mode .checkout-verify-card { background: #fff; border-color: #e6e3ed; }
+        body.checkout-verification-mode #verify-email-card { border-color: #6656ff; }
+        body.checkout-verification-mode .checkout-verify-card.is-verified { border-color: #22c55e; }
+        body.checkout-verification-mode .checkout-verify-icon { color: #fff; background: #5948ff; font-weight: 800; }
+        body.checkout-verification-mode .checkout-verify-card.is-verified .checkout-verify-icon { color: #fff; background: #22c55e; }
+        body.checkout-verification-mode .checkout-verify-state { color: #85819b; }
+        body.checkout-verification-mode .checkout-otp-inputs input,
+        body.checkout-verification-mode .checkout-phone-input .form-input { color: #191626; background: #f8f7fb; border-color: #d9d6e5; }
+        body.checkout-verification-mode .checkout-otp-inputs input:focus { border-color: #5948ff; box-shadow: 0 0 0 3px rgba(89,72,255,.12); }
+        body.checkout-verification-mode .checkout-verify-notice { color: #554f70; background: #f5f3ff; border-color: #e2defe; }
+        body.checkout-verification-mode .checkout-step-back { color: #5948ff; background: #f5f3ff; border-color: #dfdcfa; }
+
         .checkout-grid [hidden] { display: none !important; }
 
         .checkout-form-card,
@@ -361,14 +396,25 @@
         .checkout-verify-copy small { display: block; margin-top: .3rem; color: var(--text-muted); overflow-wrap: anywhere; }
         .checkout-verify-card.is-verified { border-color: rgba(34,197,94,.55); }
         .checkout-verify-card.is-verified .checkout-verify-icon { color: #22c55e; background: rgba(34,197,94,.12); }
-        .checkout-verify-notice { padding: .9rem 1rem; border: 1px solid rgba(34,197,94,.4); border-radius: var(--radius-md); color: var(--text-secondary); background: rgba(34,197,94,.08); }
+        .checkout-verify-notice { padding: .9rem 1rem; border: 1px solid rgba(124,58,237,.25); border-radius: var(--radius-md); color: var(--text-secondary); background: rgba(124,58,237,.07); }
         .checkout-phone-input { display: grid; grid-template-columns: minmax(145px, .7fr) minmax(0, 1.3fr); gap: .65rem; }
-        .checkout-code-grid { display: grid; grid-template-columns: 1fr 1fr; gap: .75rem; }
-        .checkout-code-grid[hidden] { display: none; }
-        .checkout-code-grid .form-group { margin: 0; }
-        .checkout-code-grid input { letter-spacing: .3em; font-weight: 700; }
-        #continue-payment-btn[hidden] { display: none; }
-        @media (max-width: 560px) { .checkout-code-grid { grid-template-columns: 1fr; } }
+        .checkout-verify-card { align-items: flex-start; flex-wrap: wrap; }
+        .checkout-verify-card .checkout-verify-copy { padding-top: .25rem; }
+        .checkout-verify-state { margin-left: auto; color: var(--text-muted); font-size: .85rem; font-weight: 700; }
+        .checkout-otp-panel { display: grid; gap: .9rem; flex: 0 0 100%; padding: .35rem 0 0 3rem; }
+        .checkout-otp-panel[hidden] { display: none; }
+        .checkout-otp-inputs { display: flex; gap: .55rem; }
+        .checkout-otp-inputs input { width: 3rem; height: 3.5rem; padding: 0; text-align: center; font-size: 1.25rem; font-weight: 800; }
+        .checkout-otp-actions { display: flex; align-items: center; gap: 1rem; flex-wrap: wrap; }
+        .checkout-otp-verify { min-width: 150px; }
+        .checkout-text-action { border: 0; padding: .45rem 0; color: var(--primary-light); background: transparent; font: inherit; cursor: pointer; }
+        .checkout-text-action:disabled { opacity: .55; cursor: not-allowed; }
+        #send-checkout-codes-btn[hidden], #continue-payment-btn[hidden] { display: none; }
+        @media (max-width: 560px) {
+            .checkout-otp-panel { padding-left: 0; }
+            .checkout-otp-inputs { gap: .35rem; }
+            .checkout-otp-inputs input { width: min(13vw, 3rem); height: 3.1rem; }
+        }
         .checkout-country-select { min-width: 0; }
         .checkout-payment-panel { display: grid; gap: 1rem; }
         .checkout-payment-heading h1 { margin: 0 0 .45rem; font-size: 2.1rem; }
@@ -385,6 +431,8 @@
         .checkout-payment-row.total strong { color: var(--primary-light); font-size: 1.15rem; }
 
         @media (max-width: 900px) {
+            .checkout-grid.is-verifying { grid-template-columns: 1fr; }
+            .checkout-verification-summary { position: static; }
             .checkout-grid {
                 grid-template-columns: 1fr;
             }
@@ -581,17 +629,46 @@
                                 <p data-co-i18n="verify_subtitle">Confirm the contact details where your codes will be delivered.</p>
                             </header>
                             <div class="checkout-verify-card" id="verify-email-card">
-                                <span class="checkout-verify-icon material-symbols-outlined" aria-hidden="true">mail</span>
+                                <span class="checkout-verify-icon" aria-hidden="true">1</span>
                                 <div class="checkout-verify-copy">
                                     <strong data-co-i18n="email_verification">Email verification</strong>
                                     <small id="verify-email-value"></small>
+                                    <small id="verify-email-status" data-co-i18n="email_waiting">Waiting to send a code</small>
+                                </div>
+                                <span class="checkout-verify-state" id="verify-email-required" data-co-i18n="required_state">Required</span>
+                                <div class="checkout-otp-panel" id="email-code-panel" hidden>
+                                    <div class="checkout-otp-inputs" data-otp-group="email" role="group" aria-label="Email verification code">
+                                        <input class="form-input" type="text" inputmode="numeric" autocomplete="one-time-code" maxlength="1" aria-label="Email code digit 1">
+                                        <input class="form-input" type="text" inputmode="numeric" maxlength="1" aria-label="Email code digit 2">
+                                        <input class="form-input" type="text" inputmode="numeric" maxlength="1" aria-label="Email code digit 3">
+                                        <input class="form-input" type="text" inputmode="numeric" maxlength="1" aria-label="Email code digit 4">
+                                        <input class="form-input" type="text" inputmode="numeric" maxlength="1" aria-label="Email code digit 5">
+                                        <input class="form-input" type="text" inputmode="numeric" maxlength="1" aria-label="Email code digit 6">
+                                    </div>
+                                    <div class="checkout-otp-actions">
+                                        <button type="button" class="btn btn-primary checkout-otp-verify" id="verify-email-code-btn" data-co-i18n="verify_email">Verify email</button>
+                                        <button type="button" class="checkout-text-action" id="send-checkout-codes-btn" data-co-i18n="resend_code" hidden>Resend code</button>
+                                    </div>
                                 </div>
                             </div>
                             <div class="checkout-verify-card" id="verify-whatsapp-card">
-                                <span class="checkout-verify-icon material-symbols-outlined" aria-hidden="true">chat</span>
+                                <span class="checkout-verify-icon" aria-hidden="true">2</span>
                                 <div class="checkout-verify-copy">
                                     <strong data-co-i18n="whatsapp_verification">WhatsApp verification</strong>
                                     <small id="verify-phone-value"></small>
+                                    <small id="verify-whatsapp-status" data-co-i18n="whatsapp_waiting">Verify your email first</small>
+                                </div>
+                                <span class="checkout-verify-state" id="verify-whatsapp-required" data-co-i18n="required_state">Required</span>
+                                <div class="checkout-otp-panel" id="whatsapp-code-panel" hidden>
+                                    <div class="checkout-otp-inputs" data-otp-group="whatsapp" role="group" aria-label="WhatsApp verification code">
+                                        <input class="form-input" type="text" inputmode="numeric" autocomplete="one-time-code" maxlength="1" aria-label="WhatsApp code digit 1">
+                                        <input class="form-input" type="text" inputmode="numeric" maxlength="1" aria-label="WhatsApp code digit 2">
+                                        <input class="form-input" type="text" inputmode="numeric" maxlength="1" aria-label="WhatsApp code digit 3">
+                                        <input class="form-input" type="text" inputmode="numeric" maxlength="1" aria-label="WhatsApp code digit 4">
+                                        <input class="form-input" type="text" inputmode="numeric" maxlength="1" aria-label="WhatsApp code digit 5">
+                                        <input class="form-input" type="text" inputmode="numeric" maxlength="1" aria-label="WhatsApp code digit 6">
+                                    </div>
+                                    <button type="button" class="btn btn-primary checkout-otp-verify" id="verify-whatsapp-code-btn" data-co-i18n="verify_whatsapp">Verify WhatsApp</button>
                                 </div>
                             </div>
                             <div class="form-group">
@@ -636,23 +713,23 @@
                                     <input class="form-input" id="verify-phone" type="tel" autocomplete="tel-national" data-co-placeholder="phone_placeholder" placeholder="e.g. 0555123456">
                                 </div>
                             </div>
-                            <div id="verify-notice" class="checkout-verify-notice" data-co-i18n="verify_notice">We'll send a code to each contact. Enter both codes to continue.</div>
-                            <button type="button" class="btn btn-primary btn-lg w-full" id="send-checkout-codes-btn" data-co-i18n="send_codes">Send verification codes</button>
-                            <div class="checkout-code-grid" id="checkout-code-fields" hidden>
-                                <div class="form-group" id="email-code-field">
-                                    <label class="form-label" for="email-verification-code" data-co-i18n="email_code">Email code</label>
-                                    <input class="form-input" id="email-verification-code" type="text" inputmode="numeric" autocomplete="one-time-code" maxlength="6" pattern="[0-9]{6}" data-co-placeholder="code_placeholder" placeholder="6-digit code">
-                                </div>
-                                <div class="form-group" id="whatsapp-code-field">
-                                    <label class="form-label" for="whatsapp-verification-code" data-co-i18n="whatsapp_code">WhatsApp code</label>
-                                    <input class="form-input" id="whatsapp-verification-code" type="text" inputmode="numeric" autocomplete="one-time-code" maxlength="6" pattern="[0-9]{6}" data-co-placeholder="code_placeholder" placeholder="6-digit code">
-                                </div>
-                            </div>
-                            <button type="button" class="btn btn-primary btn-lg w-full" id="continue-payment-btn" hidden>
-                                <span data-co-i18n="verify_continue">Verify and continue</span>
-                            </button>
+                            <div id="verify-notice" class="checkout-verify-notice" data-co-i18n="verify_notice">Two quick checks before payment. Verify your email first, then WhatsApp.</div>
                         </div>
                     </section>
+
+                    <aside class="checkout-form-card checkout-verification-summary" id="verification-summary" hidden>
+                        <h2 data-co-i18n="order_summary">Order Summary</h2>
+                        <div class="checkout-summary-row">
+                            <span id="verification-item-count">0 items</span>
+                            <span id="verification-subtotal">—</span>
+                        </div>
+                        <div class="checkout-summary-row checkout-summary-total">
+                            <span data-co-i18n="total">Total</span>
+                            <strong id="verification-total">—</strong>
+                        </div>
+                        <p class="checkout-summary-note" data-co-i18n="verification_summary_note">Verify your email and WhatsApp number to continue.</p>
+                        <button type="button" class="btn btn-primary btn-lg w-full" id="continue-after-verification" disabled data-co-i18n="continue_to_payment">Continue to payment</button>
+                    </aside>
 
                     <section class="checkout-form-card" id="payment-step-card" hidden>
                         <button type="button" class="btn btn-sm checkout-step-back" id="back-to-verify-btn" style="margin-bottom:1.25rem;">

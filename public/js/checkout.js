@@ -15,8 +15,9 @@ document.addEventListener('DOMContentLoaded', () => {
         applyCheckoutTranslations();
         renderOrderSummary();
         renderPaymentSummary();
+        renderVerificationSummary();
         renderCheckoutAccount();
-        document.getElementById('verify-notice').textContent = ctr(checkoutVerificationToken ? 'contacts_verified_notice' : checkoutNoticeKey);
+        updateCheckoutVerificationStatus();
         updateCheckoutVerificationActions();
     });
 });
@@ -32,6 +33,22 @@ const checkoutI18n = {
         verify_subtitle: 'Confirm the contact details where your codes will be delivered.',
         email_verification: 'Email verification',
         whatsapp_verification: 'WhatsApp verification',
+        email_waiting: 'A verification code will be sent to your email.',
+        email_code_sent: 'Code sent to {email}',
+        email_verified_status: 'Email code verified successfully.',
+        email_not_sent: 'Email code could not be sent. Check your email settings.',
+        whatsapp_waiting: 'Verify your email first',
+        whatsapp_code_sent: 'Code sent on WhatsApp to {phone}',
+        whatsapp_verified_status: 'WhatsApp code verified successfully.',
+        whatsapp_not_sent: 'WhatsApp verification is not configured yet.',
+        required_state: 'Required',
+        verified_state: 'Verified',
+        verify_email: 'Verify email',
+        verify_whatsapp: 'Verify WhatsApp',
+        resend_code: 'Resend code',
+        enter_six_digit_code: 'Enter the 6-digit code sent to this contact.',
+        verification_summary_note: 'Verify your email and WhatsApp number to continue.',
+        item_count: '{count} item(s)',
         send_codes: 'Send verification codes',
         resend_codes: 'Resend codes',
         resend_in: 'Resend in {seconds}s',
@@ -39,8 +56,8 @@ const checkoutI18n = {
         whatsapp_code: 'WhatsApp code',
         code_placeholder: '6-digit code',
         verify_continue: 'Verify and continue',
-        verify_notice: "We'll send a code to each contact. Enter both codes to continue.",
-        codes_sent_notice: 'Codes sent. Check your email and WhatsApp, then enter both codes below. They expire in 15 minutes.',
+        verify_notice: 'Two quick checks before payment. Verify your email first, then WhatsApp.',
+        codes_sent_notice: 'Codes sent. Verify your email first, then enter the WhatsApp code. They expire in 15 minutes.',
         email_only_sent_notice: 'Email code sent. Enter it below. WhatsApp delivery is not configured yet, so payment will remain locked until WhatsApp is verified.',
         whatsapp_only_sent_notice: 'WhatsApp code sent. Enter it below. Email delivery is not configured yet, so payment will remain locked until email is verified.',
         email_verified_waiting_whatsapp: 'Email verified. WhatsApp verification is still required before payment.',
@@ -98,6 +115,22 @@ const checkoutI18n = {
         verify_subtitle: 'Confirmez les coordonnées où vos codes seront envoyés.',
         email_verification: 'Vérification de l’e-mail',
         whatsapp_verification: 'Vérification WhatsApp',
+        email_waiting: 'Un code de vérification sera envoyé à votre adresse e-mail.',
+        email_code_sent: 'Code envoyé à {email}',
+        email_verified_status: 'Code e-mail vérifié.',
+        email_not_sent: 'Le code e-mail n’a pas pu être envoyé. Vérifiez vos paramètres e-mail.',
+        whatsapp_waiting: 'Vérifiez d’abord votre e-mail',
+        whatsapp_code_sent: 'Code WhatsApp envoyé au {phone}',
+        whatsapp_verified_status: 'Code WhatsApp vérifié.',
+        whatsapp_not_sent: 'La vérification WhatsApp n’est pas encore configurée.',
+        required_state: 'Requis',
+        verified_state: 'Vérifié',
+        verify_email: 'Vérifier l’e-mail',
+        verify_whatsapp: 'Vérifier WhatsApp',
+        resend_code: 'Renvoyer le code',
+        enter_six_digit_code: 'Saisissez le code à 6 chiffres envoyé à ce contact.',
+        verification_summary_note: 'Vérifiez votre e-mail et votre numéro WhatsApp pour continuer.',
+        item_count: '{count} article(s)',
         send_codes: 'Envoyer les codes de vérification',
         resend_codes: 'Renvoyer les codes',
         resend_in: 'Renvoyer dans {seconds}s',
@@ -105,8 +138,8 @@ const checkoutI18n = {
         whatsapp_code: 'Code WhatsApp',
         code_placeholder: 'Code à 6 chiffres',
         verify_continue: 'Vérifier et continuer',
-        verify_notice: 'Nous enverrons un code à chaque contact. Saisissez les deux codes pour continuer.',
-        codes_sent_notice: 'Codes envoyés. Consultez votre e-mail et WhatsApp, puis saisissez les deux codes. Ils expirent dans 15 minutes.',
+        verify_notice: 'Deux vérifications rapides avant le paiement. Vérifiez d’abord votre e-mail, puis WhatsApp.',
+        codes_sent_notice: 'Codes envoyés. Vérifiez d’abord votre e-mail, puis saisissez le code WhatsApp. Ils expirent dans 15 minutes.',
         email_only_sent_notice: 'Code e-mail envoyé. Saisissez-le ci-dessous. WhatsApp n’est pas encore configuré ; le paiement restera bloqué jusqu’à la vérification WhatsApp.',
         whatsapp_only_sent_notice: 'Code WhatsApp envoyé. Saisissez-le ci-dessous. L’e-mail n’est pas configuré ; le paiement restera bloqué jusqu’à la vérification de l’e-mail.',
         email_verified_waiting_whatsapp: 'E-mail vérifié. La vérification WhatsApp reste nécessaire avant le paiement.',
@@ -179,13 +212,14 @@ function setupCheckoutSteps() {
     const cartStep = document.getElementById('cart-step-content');
     const accountStep = document.getElementById('account-step-card');
     const verifyStep = document.getElementById('verify-step-card');
+    const verificationSummary = document.getElementById('verification-summary');
+    const checkoutGrid = document.querySelector('.checkout-grid');
     const paymentStep = document.getElementById('payment-step-card');
     const continueButton = document.getElementById('continue-account-btn');
     const continueVerifyButton = document.getElementById('continue-verify-btn');
     const backButton = document.getElementById('back-to-summary-btn');
     const backToAccountButton = document.getElementById('back-to-account-btn');
     const backToVerifyButton = document.getElementById('back-to-verify-btn');
-    const continuePaymentButton = document.getElementById('continue-payment-btn');
     const steps = [...document.querySelectorAll('.checkout-step')];
 
     const showStep = (activeStep) => {
@@ -193,6 +227,9 @@ function setupCheckoutSteps() {
         accountStep.hidden = activeStep !== 2;
         verifyStep.hidden = activeStep !== 3;
         paymentStep.hidden = activeStep !== 4;
+        verificationSummary.hidden = activeStep !== 3;
+        checkoutGrid.classList.toggle('is-verifying', activeStep === 3);
+        document.body.classList.toggle('checkout-verification-mode', activeStep === 3);
         steps.forEach((step, index) => {
             const stepNumber = index + 1;
             const number = step.querySelector('.checkout-step-number');
@@ -221,54 +258,15 @@ function setupCheckoutSteps() {
         }
         renderVerificationPanel();
         showStep(3);
+        renderVerificationSummary();
+        if (!checkoutCodesSent) requestCheckoutCodes();
     });
-    continuePaymentButton.addEventListener('click', async () => {
-        if (checkoutVerificationToken) {
-            renderPaymentSummary();
-            showStep(4);
-            return;
-        }
-        const customer = JSON.parse(localStorage.getItem('playora_customer') || 'null') || {};
-        const phone = formatInternationalPhone().replace(/\s/g, '');
-        const emailCode = document.getElementById('email-verification-code').value.trim();
-        const whatsappCode = document.getElementById('whatsapp-verification-code').value.trim();
-        const emailCodeRequired = checkoutEmailSent && !checkoutEmailVerified;
-        const whatsappCodeRequired = checkoutWhatsAppSent && !checkoutWhatsAppVerified;
-        if (!customer.email || !customer.name || !/^\+[1-9]\d{7,14}$/.test(phone) ||
-            (emailCodeRequired && !/^\d{6}$/.test(emailCode)) || (whatsappCodeRequired && !/^\d{6}$/.test(whatsappCode)) ||
-            (!emailCodeRequired && !whatsappCodeRequired)) {
-            showToast(ctr('verify_contact_error'), 'error');
-            return;
-        }
-        continuePaymentButton.disabled = true;
-        try {
-            const result = await api.verifyCheckoutCodes(phone, emailCode, whatsappCode);
-            if (!result.success) throw new Error(result.message || ctr('generic_error'));
-            checkoutEmailVerified = Boolean(result.emailVerified);
-            checkoutWhatsAppVerified = Boolean(result.whatsappVerified);
-            updateCheckoutVerifiedIndicators();
-            if (!result.token) {
-                document.getElementById('email-verification-code').value = '';
-                document.getElementById('whatsapp-verification-code').value = '';
-                continuePaymentButton.hidden = (checkoutEmailVerified || !checkoutEmailSent) &&
-                    (checkoutWhatsAppVerified || !checkoutWhatsAppSent);
-                const noticeKey = checkoutEmailVerified ? 'email_verified_waiting_whatsapp' : 'whatsapp_verified_waiting_email';
-                checkoutNoticeKey = noticeKey;
-                document.getElementById('verify-notice').textContent = ctr(noticeKey);
-                showToast(ctr(noticeKey), 'success');
-                return;
-            }
-            checkoutVerificationToken = result.token;
-            customer.phone = phone;
-            localStorage.setItem('playora_customer', JSON.stringify(customer));
-            document.getElementById('verify-notice').textContent = ctr('contacts_verified_notice');
-            renderPaymentSummary();
-            showStep(4);
-        } catch (error) {
-            showToast(error.message || ctr('generic_error'), 'error');
-        } finally {
-            continuePaymentButton.disabled = false;
-        }
+    document.getElementById('verify-email-code-btn').addEventListener('click', () => verifyCheckoutChannel('email'));
+    document.getElementById('verify-whatsapp-code-btn').addEventListener('click', () => verifyCheckoutChannel('whatsapp'));
+    document.getElementById('continue-after-verification').addEventListener('click', () => {
+        if (!checkoutVerificationToken) return;
+        renderPaymentSummary();
+        showStep(4);
     });
     window.checkoutGoToStep = showStep;
     showStep(1);
@@ -281,6 +279,7 @@ let checkoutEmailVerified = false;
 let checkoutWhatsAppVerified = false;
 let checkoutVerificationToken = null;
 let checkoutNoticeKey = 'verify_notice';
+let checkoutCanResend = false;
 let checkoutResendUntil = 0;
 let checkoutResendTimer = null;
 
@@ -288,14 +287,19 @@ function updateCheckoutVerificationActions() {
     const sendButton = document.getElementById('send-checkout-codes-btn');
     if (!sendButton) return;
     if (!checkoutCodesSent) {
-        sendButton.textContent = ctr('send_codes');
-        sendButton.disabled = false;
+        sendButton.hidden = !checkoutCanResend;
+        const seconds = Math.max(0, Math.ceil((checkoutResendUntil - Date.now()) / 1000));
+        sendButton.textContent = seconds
+            ? ctr('resend_in').replace('{seconds}', String(seconds))
+            : ctr('send_codes');
+        sendButton.disabled = seconds > 0;
         return;
     }
+    sendButton.hidden = checkoutEmailVerified && checkoutWhatsAppVerified;
     const seconds = Math.max(0, Math.ceil((checkoutResendUntil - Date.now()) / 1000));
     sendButton.textContent = seconds
         ? ctr('resend_in').replace('{seconds}', String(seconds))
-        : ctr('resend_codes');
+        : ctr('resend_code');
     sendButton.disabled = seconds > 0;
 }
 
@@ -330,75 +334,211 @@ function setupContactConfirmation() {
     const sendButton = document.getElementById('send-checkout-codes-btn');
     const phoneInput = document.getElementById('verify-phone');
     const countrySelect = document.getElementById('verify-country-code');
-    sendButton.addEventListener('click', async () => {
-        if (!localStorage.getItem('playora_customer_token')) {
-            showToast(ctr('account_required'), 'error');
-            return;
-        }
-        const phone = formatInternationalPhone().replace(/\s/g, '');
-        if (!/^\+[1-9]\d{7,14}$/.test(phone)) {
-            showToast(ctr('verify_contact_error'), 'error');
-            phoneInput.focus();
-            return;
-        }
-        sendButton.disabled = true;
-        try {
-            const result = await api.sendCheckoutVerificationCodes(phone);
-            if (!result.success) throw new Error(result.message || ctr('generic_error'));
-            checkoutCodesSent = true;
-            checkoutEmailSent = Boolean(result.emailSent);
-            checkoutWhatsAppSent = Boolean(result.whatsappSent);
-            checkoutEmailVerified = false;
-            checkoutWhatsAppVerified = false;
-            checkoutVerificationToken = null;
-            checkoutResendUntil = Date.now() + 60_000;
-            document.getElementById('checkout-code-fields').hidden = false;
-            document.getElementById('email-code-field').hidden = !checkoutEmailSent;
-            document.getElementById('whatsapp-code-field').hidden = !checkoutWhatsAppSent;
-            document.getElementById('continue-payment-btn').hidden = false;
-            document.getElementById('email-verification-code').value = '';
-            document.getElementById('whatsapp-verification-code').value = '';
-            const noticeKey = checkoutEmailSent && checkoutWhatsAppSent
-                ? 'codes_sent_notice'
-                : checkoutEmailSent ? 'email_only_sent_notice' : 'whatsapp_only_sent_notice';
-            checkoutNoticeKey = noticeKey;
-            document.getElementById('verify-notice').textContent = ctr(noticeKey);
-            showToast(ctr(noticeKey), 'success');
-            if (checkoutResendTimer) clearInterval(checkoutResendTimer);
-            checkoutResendTimer = setInterval(() => {
-                updateCheckoutVerificationActions();
-                if (Date.now() >= checkoutResendUntil) clearInterval(checkoutResendTimer);
-            }, 1000);
-        } catch (error) {
-            showToast(error.message || ctr('generic_error'), 'error');
-        } finally {
-            updateCheckoutVerificationActions();
-        }
-    });
+    sendButton.addEventListener('click', requestCheckoutCodes);
+    bindCheckoutOtpInputs();
     const resetPhoneVerification = () => {
         document.getElementById('verify-phone-value').textContent = formatInternationalPhone();
         checkoutCodesSent = false;
+        checkoutCanResend = true;
         checkoutEmailSent = false;
         checkoutWhatsAppSent = false;
         checkoutEmailVerified = false;
         checkoutWhatsAppVerified = false;
         checkoutVerificationToken = null;
         checkoutNoticeKey = 'verify_notice';
-        checkoutResendUntil = 0;
         if (checkoutResendTimer) clearInterval(checkoutResendTimer);
-        document.getElementById('checkout-code-fields').hidden = true;
-        document.getElementById('email-code-field').hidden = false;
-        document.getElementById('whatsapp-code-field').hidden = false;
-        document.getElementById('continue-payment-btn').hidden = true;
+        document.getElementById('email-code-panel').hidden = true;
+        document.getElementById('whatsapp-code-panel').hidden = !checkoutWhatsAppSent || checkoutEmailSent;
+        clearCheckoutOtp('email');
+        clearCheckoutOtp('whatsapp');
+        document.getElementById('verify-email-status').textContent = ctr('email_waiting');
+        document.getElementById('verify-whatsapp-status').textContent = ctr('whatsapp_waiting');
+        document.getElementById('continue-after-verification').disabled = true;
         document.getElementById('verify-email-card').classList.remove('is-verified');
         document.getElementById('verify-whatsapp-card').classList.remove('is-verified');
-        document.querySelector('#verify-email-card .checkout-verify-icon').textContent = 'mail';
-        document.querySelector('#verify-whatsapp-card .checkout-verify-icon').textContent = 'chat';
+        document.querySelector('#verify-email-card .checkout-verify-icon').textContent = '1';
+        document.querySelector('#verify-whatsapp-card .checkout-verify-icon').textContent = '2';
+        document.getElementById('verify-email-required').textContent = ctr('required_state');
+        document.getElementById('verify-whatsapp-required').textContent = ctr('required_state');
         document.getElementById('verify-notice').textContent = ctr('verify_notice');
         updateCheckoutVerificationActions();
+        if (checkoutResendUntil > Date.now()) startCheckoutResendTimer();
     };
     phoneInput.addEventListener('input', resetPhoneVerification);
     countrySelect.addEventListener('change', resetPhoneVerification);
+}
+
+async function requestCheckoutCodes() {
+    const sendButton = document.getElementById('send-checkout-codes-btn');
+    const phoneInput = document.getElementById('verify-phone');
+    if (!localStorage.getItem('playora_customer_token')) {
+        showToast(ctr('account_required'), 'error');
+        return;
+    }
+    const phone = formatInternationalPhone().replace(/\s/g, '');
+    if (!/^\+[1-9]\d{7,14}$/.test(phone)) {
+        showToast(ctr('verify_contact_error'), 'error');
+        phoneInput.focus();
+        return;
+    }
+    sendButton.disabled = true;
+    try {
+        const result = await api.sendCheckoutVerificationCodes(phone);
+        if (!result.success) throw new Error(result.message || ctr('generic_error'));
+        checkoutCodesSent = true;
+        checkoutCanResend = true;
+        checkoutEmailSent = Boolean(result.emailSent);
+        checkoutWhatsAppSent = Boolean(result.whatsappSent);
+        checkoutEmailVerified = false;
+        checkoutWhatsAppVerified = false;
+        checkoutVerificationToken = null;
+        checkoutResendUntil = Date.now() + 60_000;
+        clearCheckoutOtp('email');
+        clearCheckoutOtp('whatsapp');
+        document.getElementById('email-code-panel').hidden = !checkoutEmailSent;
+        document.getElementById('whatsapp-code-panel').hidden = !checkoutWhatsAppSent || checkoutEmailSent;
+        document.getElementById('verify-email-status').textContent = checkoutEmailSent
+            ? ctr('email_code_sent').replace('{email}', document.getElementById('verify-email-value').textContent)
+            : ctr('email_not_sent');
+        document.getElementById('verify-whatsapp-status').textContent = checkoutWhatsAppSent
+            ? ctr(checkoutEmailSent ? 'whatsapp_waiting' : 'whatsapp_code_sent').replace('{phone}', document.getElementById('verify-phone-value').textContent)
+            : ctr('whatsapp_not_sent');
+        document.getElementById('verify-email-required').textContent = ctr('required_state');
+        document.getElementById('verify-whatsapp-required').textContent = ctr('required_state');
+        const noticeKey = checkoutEmailSent && checkoutWhatsAppSent
+            ? 'codes_sent_notice'
+            : checkoutEmailSent ? 'email_only_sent_notice' : 'whatsapp_only_sent_notice';
+        checkoutNoticeKey = noticeKey;
+        document.getElementById('verify-notice').textContent = ctr(noticeKey);
+        showToast(ctr(noticeKey), checkoutEmailSent || checkoutWhatsAppSent ? 'success' : 'error');
+        document.querySelector(checkoutEmailSent ? '#email-code-panel input' : '#whatsapp-code-panel input')?.focus();
+        startCheckoutResendTimer();
+    } catch (error) {
+        checkoutCanResend = true;
+        showToast(error.message || ctr('generic_error'), 'error');
+    } finally {
+        updateCheckoutVerificationActions();
+    }
+}
+
+function startCheckoutResendTimer() {
+    if (checkoutResendTimer) clearInterval(checkoutResendTimer);
+    checkoutResendTimer = setInterval(() => {
+        updateCheckoutVerificationActions();
+        if (Date.now() >= checkoutResendUntil) {
+            clearInterval(checkoutResendTimer);
+            checkoutResendTimer = null;
+        }
+    }, 1000);
+}
+
+function bindCheckoutOtpInputs() {
+    document.querySelectorAll('.checkout-otp-inputs').forEach(group => {
+        const inputs = [...group.querySelectorAll('input')];
+        inputs.forEach((input, index) => {
+            input.addEventListener('input', () => {
+                const digits = input.value.replace(/\D/g, '');
+                input.value = digits.slice(-1);
+                if (digits.length > 1) {
+                    const values = digits.slice(0, inputs.length).split('');
+                    values.forEach((digit, offset) => { if (inputs[offset]) inputs[offset].value = digit; });
+                    inputs[Math.min(values.length, inputs.length) - 1]?.focus();
+                } else if (input.value && inputs[index + 1]) {
+                    inputs[index + 1].focus();
+                }
+            });
+            input.addEventListener('keydown', event => {
+                if (event.key === 'Backspace' && !input.value && inputs[index - 1]) inputs[index - 1].focus();
+                if (event.key === 'ArrowLeft' && inputs[index - 1]) inputs[index - 1].focus();
+                if (event.key === 'ArrowRight' && inputs[index + 1]) inputs[index + 1].focus();
+            });
+            input.addEventListener('paste', event => {
+                const pasted = event.clipboardData?.getData('text')?.replace(/\D/g, '').slice(0, inputs.length);
+                if (!pasted) return;
+                event.preventDefault();
+                pasted.split('').forEach((digit, offset) => { inputs[offset].value = digit; });
+                inputs[Math.min(pasted.length, inputs.length) - 1]?.focus();
+            });
+        });
+    });
+}
+
+function getCheckoutOtp(channel) {
+    return [...document.querySelectorAll(`[data-otp-group="${channel}"] input`)].map(input => input.value).join('');
+}
+
+function clearCheckoutOtp(channel) {
+    document.querySelectorAll(`[data-otp-group="${channel}"] input`).forEach(input => { input.value = ''; });
+}
+
+async function verifyCheckoutChannel(channel) {
+    const emailChannel = channel === 'email';
+    const code = getCheckoutOtp(channel);
+    const sent = emailChannel ? checkoutEmailSent : checkoutWhatsAppSent;
+    if (!sent || !/^\d{6}$/.test(code)) {
+        showToast(ctr('enter_six_digit_code'), 'error');
+        return;
+    }
+    const phone = formatInternationalPhone().replace(/\s/g, '');
+    if (!/^\+[1-9]\d{7,14}$/.test(phone)) {
+        showToast(ctr('verify_contact_error'), 'error');
+        return;
+    }
+    const button = document.getElementById(emailChannel ? 'verify-email-code-btn' : 'verify-whatsapp-code-btn');
+    button.disabled = true;
+    try {
+        const result = await api.verifyCheckoutCodes(phone, emailChannel ? code : '', emailChannel ? '' : code);
+        if (!result.success) throw new Error(result.message || ctr('generic_error'));
+        checkoutEmailVerified = Boolean(result.emailVerified);
+        checkoutWhatsAppVerified = Boolean(result.whatsappVerified);
+        updateCheckoutVerifiedIndicators();
+        clearCheckoutOtp(channel);
+        if (checkoutEmailVerified) {
+            document.getElementById('verify-email-status').textContent = ctr('email_verified_status');
+            document.getElementById('verify-email-required').textContent = ctr('verified_state');
+            document.getElementById('email-code-panel').hidden = true;
+        }
+        if (checkoutEmailVerified && checkoutWhatsAppSent) {
+            document.getElementById('verify-whatsapp-status').textContent = ctr('whatsapp_code_sent').replace('{phone}', document.getElementById('verify-phone-value').textContent);
+            document.getElementById('whatsapp-code-panel').hidden = false;
+            document.querySelector('#whatsapp-code-panel input')?.focus();
+        } else if (checkoutEmailVerified && !checkoutWhatsAppSent) {
+            document.getElementById('verify-whatsapp-status').textContent = ctr('whatsapp_not_sent');
+        }
+        if (checkoutWhatsAppVerified) {
+            document.getElementById('verify-whatsapp-status').textContent = ctr('whatsapp_verified_status');
+            document.getElementById('verify-whatsapp-required').textContent = ctr('verified_state');
+            document.getElementById('whatsapp-code-panel').hidden = true;
+        }
+        if (result.token) {
+            checkoutVerificationToken = result.token;
+            checkoutNoticeKey = 'contacts_verified_notice';
+            document.getElementById('verify-notice').textContent = ctr('contacts_verified_notice');
+            document.getElementById('continue-after-verification').disabled = false;
+            updateCheckoutVerificationActions();
+            showToast(ctr('contacts_verified_notice'), 'success');
+            return;
+        }
+        const noticeKey = checkoutEmailVerified ? 'email_verified_waiting_whatsapp' : 'whatsapp_verified_waiting_email';
+        checkoutNoticeKey = noticeKey;
+        document.getElementById('verify-notice').textContent = ctr(noticeKey);
+        showToast(ctr(noticeKey), 'success');
+        updateCheckoutVerificationActions();
+    } catch (error) {
+        showToast(error.message || ctr('generic_error'), 'error');
+    } finally {
+        button.disabled = false;
+    }
+}
+
+function renderVerificationSummary() {
+    const cart = getCart();
+    const count = cart.reduce((sum, item) => sum + Number(item.quantity || 0), 0);
+    const currency = cart[0]?.currency || 'EUR';
+    const total = new Intl.NumberFormat(currentLang === 'fr' ? 'fr-FR' : 'en-IE', { style: 'currency', currency }).format(getCartTotal());
+    document.getElementById('verification-item-count').textContent = ctr('item_count').replace('{count}', String(count));
+    document.getElementById('verification-subtotal').textContent = total;
+    document.getElementById('verification-total').textContent = total;
 }
 
 function updateCheckoutVerifiedIndicators() {
@@ -406,8 +546,32 @@ function updateCheckoutVerifiedIndicators() {
     const whatsappCard = document.getElementById('verify-whatsapp-card');
     emailCard.classList.toggle('is-verified', checkoutEmailVerified);
     whatsappCard.classList.toggle('is-verified', checkoutWhatsAppVerified);
-    document.querySelector('#verify-email-card .checkout-verify-icon').textContent = checkoutEmailVerified ? 'check_circle' : 'mail';
-    document.querySelector('#verify-whatsapp-card .checkout-verify-icon').textContent = checkoutWhatsAppVerified ? 'check_circle' : 'chat';
+    document.querySelector('#verify-email-card .checkout-verify-icon').textContent = checkoutEmailVerified ? '✓' : '1';
+    document.querySelector('#verify-whatsapp-card .checkout-verify-icon').textContent = checkoutWhatsAppVerified ? '✓' : '2';
+}
+
+function updateCheckoutVerificationStatus() {
+    const emailStatus = checkoutEmailVerified
+        ? ctr('email_verified_status')
+        : checkoutEmailSent
+            ? ctr('email_code_sent').replace('{email}', document.getElementById('verify-email-value').textContent)
+            : checkoutCodesSent ? ctr('email_not_sent') : ctr('email_waiting');
+    const whatsappStatus = checkoutWhatsAppVerified
+        ? ctr('whatsapp_verified_status')
+        : checkoutWhatsAppSent && (!checkoutEmailSent || checkoutEmailVerified)
+            ? ctr('whatsapp_code_sent').replace('{phone}', document.getElementById('verify-phone-value').textContent)
+            : checkoutCodesSent && !checkoutWhatsAppSent
+                ? ctr('whatsapp_not_sent')
+                : ctr('whatsapp_waiting');
+    document.getElementById('verify-email-status').textContent = emailStatus;
+    document.getElementById('verify-whatsapp-status').textContent = whatsappStatus;
+    document.getElementById('verify-email-required').textContent = ctr(checkoutEmailVerified ? 'verified_state' : 'required_state');
+    document.getElementById('verify-whatsapp-required').textContent = ctr(checkoutWhatsAppVerified ? 'verified_state' : 'required_state');
+    document.getElementById('email-code-panel').hidden = !checkoutEmailSent || checkoutEmailVerified;
+    document.getElementById('whatsapp-code-panel').hidden = !checkoutWhatsAppSent || checkoutWhatsAppVerified || (checkoutEmailSent && !checkoutEmailVerified);
+    document.getElementById('verify-notice').textContent = ctr(checkoutVerificationToken ? 'contacts_verified_notice' : checkoutNoticeKey);
+    document.getElementById('continue-after-verification').disabled = !checkoutVerificationToken;
+    updateCheckoutVerifiedIndicators();
 }
 
 function renderOrderSummary() {
