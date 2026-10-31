@@ -33,7 +33,7 @@ router.post('/', async (req, res) => {
             throw new Error('Checkout verification does not match the order.');
         }
     } catch {
-        return res.status(403).json({ success: false, message: 'Verify your email and WhatsApp before placing the order.' });
+        return res.status(403).json({ success: false, message: 'Verify your email before placing the order.' });
     }
 
     let client;
@@ -44,13 +44,13 @@ router.post('/', async (req, res) => {
         const verification = await client.query(
             `SELECT id FROM customer_checkout_verifications
              WHERE id = $1 AND customer_id = $2 AND email = $3 AND phone = $4
-                AND verified_at IS NOT NULL AND consumed_at IS NULL AND expires_at > NOW()
+                AND email_verified_at IS NOT NULL AND verified_at IS NOT NULL AND consumed_at IS NULL AND expires_at > NOW()
              FOR UPDATE`,
             [checkoutVerification.verificationId, customerSession.id, checkoutVerification.email, checkoutVerification.phone]
         );
         if (!verification.rows[0]) {
             await client.query('ROLLBACK');
-            return res.status(403).json({ success: false, message: 'Your verification expired or was already used. Verify both contacts again.' });
+            return res.status(403).json({ success: false, message: 'Your email verification expired or was already used. Verify your email again.' });
         }
         await client.query('UPDATE customer_checkout_verifications SET consumed_at = NOW() WHERE id = $1', [checkoutVerification.verificationId]);
 

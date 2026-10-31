@@ -17,6 +17,7 @@ document.addEventListener('DOMContentLoaded', () => {
         renderPaymentSummary();
         renderVerificationSummary();
         renderCheckoutAccount();
+        updatePhoneChoiceActions();
         updateCheckoutVerificationStatus();
         updateCheckoutVerificationActions();
     });
@@ -30,9 +31,9 @@ const checkoutI18n = {
         step_payment: 'Payment',
         continue_to_verify: 'Continue to verification',
         verify_title: 'Verify your account',
-        verify_subtitle: 'Confirm the contact details where your codes will be delivered.',
+        verify_subtitle: 'Verify your email before payment. WhatsApp verification is temporarily not required.',
         email_verification: 'Email verification',
-        whatsapp_verification: 'WhatsApp verification',
+        whatsapp_verification: 'Phone for this order',
         email_waiting: 'A verification code will be sent to your email.',
         email_code_sent: 'Code sent to {email}',
         email_verified_status: 'Email code verified successfully.',
@@ -40,30 +41,38 @@ const checkoutI18n = {
         whatsapp_waiting: 'Verify your email first',
         whatsapp_code_sent: 'Code sent on WhatsApp to {phone}',
         whatsapp_verified_status: 'WhatsApp code verified successfully.',
-        whatsapp_not_sent: 'WhatsApp verification is not configured yet.',
+        whatsapp_not_sent: 'WhatsApp verification is temporarily not required.',
+        whatsapp_not_required: 'WhatsApp verification is temporarily not required.',
         required_state: 'Required',
+        optional_state: 'Not required',
         verified_state: 'Verified',
         verify_email: 'Verify email',
         verify_whatsapp: 'Verify WhatsApp',
         resend_code: 'Resend code',
-        enter_six_digit_code: 'Enter the 6-digit code sent to this contact.',
-        verification_summary_note: 'Verify your email and WhatsApp number to continue.',
+        enter_six_digit_code: 'Enter the 6-digit code sent to your email.',
+        verification_summary_note: 'Verify your email and choose whether to keep or change your phone number.',
         item_count: '{count} item(s)',
-        send_codes: 'Send verification codes',
-        resend_codes: 'Resend codes',
+        send_codes: 'Send email code',
+        resend_codes: 'Resend email code',
         resend_in: 'Resend in {seconds}s',
         email_code: 'Email code',
         whatsapp_code: 'WhatsApp code',
         code_placeholder: '6-digit code',
         verify_continue: 'Verify and continue',
-        verify_notice: 'Two quick checks before payment. Verify your email first, then WhatsApp.',
-        codes_sent_notice: 'Codes sent. Verify your email first, then enter the WhatsApp code. They expire in 15 minutes.',
-        email_only_sent_notice: 'Email code sent. Enter it below. WhatsApp delivery is not configured yet, so payment will remain locked until WhatsApp is verified.',
+        verify_notice: 'Choose whether to keep or change your number. We will send a verification code by email only.',
+        codes_sent_notice: 'Email verification code sent. It expires in 15 minutes.',
+        email_only_sent_notice: 'Email code sent. Enter it below. WhatsApp verification is temporarily not required.',
         whatsapp_only_sent_notice: 'WhatsApp code sent. Enter it below. Email delivery is not configured yet, so payment will remain locked until email is verified.',
-        email_verified_waiting_whatsapp: 'Email verified. WhatsApp verification is still required before payment.',
+        email_verified_waiting_whatsapp: 'Email verified. You can continue to payment.',
         whatsapp_verified_waiting_email: 'WhatsApp verified. Email verification is still required before payment.',
-        contacts_verified_notice: 'Your email and WhatsApp are verified.',
-        verify_contact_error: 'Enter a valid phone number and the 6-digit code for each contact that received one.',
+        contacts_verified_notice: 'Your email is verified. WhatsApp verification is not required for now.',
+        verify_contact_error: 'Enter a valid phone number for this order.',
+        keep_phone: 'Keep this number',
+        change_phone: 'Change number',
+        use_phone: 'Use this number',
+        phone_choice_note: 'Choose the number to use for this order.',
+        phone_edit_note: 'Enter the new phone number, then choose “Use this number”.',
+        phone_selected_note: 'This number will be used for your order.',
         account_required: 'Sign in or create an account before continuing.',
         continue_to_payment: 'Continue to payment',
         back_to_verify: 'Back to Verify',
@@ -112,9 +121,9 @@ const checkoutI18n = {
         step_payment: 'Paiement',
         continue_to_verify: 'Continuer vers la vérification',
         verify_title: 'Vérifiez votre compte',
-        verify_subtitle: 'Confirmez les coordonnées où vos codes seront envoyés.',
+        verify_subtitle: 'Vérifiez votre e-mail avant le paiement. La vérification WhatsApp n’est pas requise pour le moment.',
         email_verification: 'Vérification de l’e-mail',
-        whatsapp_verification: 'Vérification WhatsApp',
+        whatsapp_verification: 'Téléphone pour cette commande',
         email_waiting: 'Un code de vérification sera envoyé à votre adresse e-mail.',
         email_code_sent: 'Code envoyé à {email}',
         email_verified_status: 'Code e-mail vérifié.',
@@ -122,30 +131,38 @@ const checkoutI18n = {
         whatsapp_waiting: 'Vérifiez d’abord votre e-mail',
         whatsapp_code_sent: 'Code WhatsApp envoyé au {phone}',
         whatsapp_verified_status: 'Code WhatsApp vérifié.',
-        whatsapp_not_sent: 'La vérification WhatsApp n’est pas encore configurée.',
+        whatsapp_not_sent: 'La vérification WhatsApp n’est pas requise pour le moment.',
+        whatsapp_not_required: 'La vérification WhatsApp n’est pas requise pour le moment.',
         required_state: 'Requis',
+        optional_state: 'Non requis',
         verified_state: 'Vérifié',
         verify_email: 'Vérifier l’e-mail',
         verify_whatsapp: 'Vérifier WhatsApp',
         resend_code: 'Renvoyer le code',
-        enter_six_digit_code: 'Saisissez le code à 6 chiffres envoyé à ce contact.',
-        verification_summary_note: 'Vérifiez votre e-mail et votre numéro WhatsApp pour continuer.',
+        enter_six_digit_code: 'Saisissez le code à 6 chiffres envoyé par e-mail.',
+        verification_summary_note: 'Vérifiez votre e-mail et choisissez de garder ou changer votre numéro.',
         item_count: '{count} article(s)',
-        send_codes: 'Envoyer les codes de vérification',
-        resend_codes: 'Renvoyer les codes',
+        send_codes: 'Envoyer le code e-mail',
+        resend_codes: 'Renvoyer le code e-mail',
         resend_in: 'Renvoyer dans {seconds}s',
         email_code: 'Code e-mail',
         whatsapp_code: 'Code WhatsApp',
         code_placeholder: 'Code à 6 chiffres',
         verify_continue: 'Vérifier et continuer',
-        verify_notice: 'Deux vérifications rapides avant le paiement. Vérifiez d’abord votre e-mail, puis WhatsApp.',
-        codes_sent_notice: 'Codes envoyés. Vérifiez d’abord votre e-mail, puis saisissez le code WhatsApp. Ils expirent dans 15 minutes.',
-        email_only_sent_notice: 'Code e-mail envoyé. Saisissez-le ci-dessous. WhatsApp n’est pas encore configuré ; le paiement restera bloqué jusqu’à la vérification WhatsApp.',
+        verify_notice: 'Choisissez de garder ou changer votre numéro. Nous enverrons le code de vérification par e-mail uniquement.',
+        codes_sent_notice: 'Code de vérification envoyé par e-mail. Il expire dans 15 minutes.',
+        email_only_sent_notice: 'Code e-mail envoyé. Saisissez-le ci-dessous. La vérification WhatsApp n’est pas requise pour le moment.',
         whatsapp_only_sent_notice: 'Code WhatsApp envoyé. Saisissez-le ci-dessous. L’e-mail n’est pas configuré ; le paiement restera bloqué jusqu’à la vérification de l’e-mail.',
-        email_verified_waiting_whatsapp: 'E-mail vérifié. La vérification WhatsApp reste nécessaire avant le paiement.',
+        email_verified_waiting_whatsapp: 'E-mail vérifié. Vous pouvez continuer vers le paiement.',
         whatsapp_verified_waiting_email: 'WhatsApp vérifié. La vérification de l’e-mail reste nécessaire avant le paiement.',
-        contacts_verified_notice: 'Votre e-mail et WhatsApp sont vérifiés.',
-        verify_contact_error: 'Saisissez un numéro valide et chaque code à 6 chiffres reçu.',
+        contacts_verified_notice: 'Votre e-mail est vérifié. WhatsApp n’est pas requis pour le moment.',
+        verify_contact_error: 'Saisissez un numéro valide pour cette commande.',
+        keep_phone: 'Garder ce numéro',
+        change_phone: 'Changer de numéro',
+        use_phone: 'Utiliser ce numéro',
+        phone_choice_note: 'Choisissez le numéro à utiliser pour cette commande.',
+        phone_edit_note: 'Saisissez le nouveau numéro, puis cliquez sur « Utiliser ce numéro ».',
+        phone_selected_note: 'Ce numéro sera utilisé pour votre commande.',
         account_required: 'Connectez-vous ou créez un compte pour continuer.',
         continue_to_payment: 'Continuer vers le paiement',
         back_to_verify: 'Retour à la vérification',
@@ -258,7 +275,6 @@ function setupCheckoutSteps() {
         renderVerificationPanel();
         showStep(3);
         renderVerificationSummary();
-        if (!checkoutCodesSent) requestCheckoutCodes();
     });
     document.getElementById('verify-email-code-btn').addEventListener('click', () => verifyCheckoutChannel('email'));
     document.getElementById('verify-whatsapp-code-btn').addEventListener('click', () => verifyCheckoutChannel('whatsapp'));
@@ -281,6 +297,9 @@ let checkoutNoticeKey = 'verify_notice';
 let checkoutCanResend = false;
 let checkoutResendUntil = 0;
 let checkoutResendTimer = null;
+let checkoutPhoneSnapshot = null;
+let checkoutPhoneEditing = false;
+let checkoutPhoneChoiceConfirmed = false;
 
 function updateCheckoutVerificationActions() {
     const sendButton = document.getElementById('send-checkout-codes-btn');
@@ -294,7 +313,7 @@ function updateCheckoutVerificationActions() {
         sendButton.disabled = seconds > 0;
         return;
     }
-    sendButton.hidden = checkoutEmailVerified && checkoutWhatsAppVerified;
+    sendButton.hidden = checkoutEmailVerified;
     const seconds = Math.max(0, Math.ceil((checkoutResendUntil - Date.now()) / 1000));
     sendButton.textContent = seconds
         ? ctr('resend_in').replace('{seconds}', String(seconds))
@@ -306,7 +325,7 @@ function renderVerificationPanel() {
     const customer = JSON.parse(localStorage.getItem('playora_customer') || 'null') || {};
     const phoneInput = document.getElementById('verify-phone');
     const countrySelect = document.getElementById('verify-country-code');
-    if (!phoneInput.value && customer.phone) {
+    if (!phoneInput.dataset.initialized && customer.phone) {
         const savedPhone = String(customer.phone).replace(/[\s()-]/g, '');
         const matchingCountry = [...countrySelect.options]
             .filter(option => savedPhone.startsWith(option.value))
@@ -317,6 +336,15 @@ function renderVerificationPanel() {
         } else {
             phoneInput.value = savedPhone;
         }
+    }
+    if (!phoneInput.dataset.initialized) {
+        checkoutPhoneSnapshot = phoneInput.value ? { country: countrySelect.value, number: phoneInput.value } : null;
+        checkoutPhoneEditing = !phoneInput.value;
+        checkoutPhoneChoiceConfirmed = false;
+        phoneInput.readOnly = !checkoutPhoneEditing;
+        countrySelect.disabled = !checkoutPhoneEditing;
+        phoneInput.dataset.initialized = 'true';
+        updatePhoneChoiceActions();
     }
     document.getElementById('verify-email-value').textContent = customer.email || '—';
     document.getElementById('verify-phone-value').textContent = formatInternationalPhone();
@@ -333,12 +361,54 @@ function setupContactConfirmation() {
     const sendButton = document.getElementById('send-checkout-codes-btn');
     const phoneInput = document.getElementById('verify-phone');
     const countrySelect = document.getElementById('verify-country-code');
+    const keepButton = document.getElementById('keep-phone-btn');
+    const changeButton = document.getElementById('change-phone-btn');
+    const confirmButton = document.getElementById('confirm-phone-btn');
     sendButton.addEventListener('click', requestCheckoutCodes);
+    keepButton.addEventListener('click', () => {
+        if (checkoutPhoneEditing && checkoutPhoneSnapshot) {
+            countrySelect.value = checkoutPhoneSnapshot.country;
+            phoneInput.value = checkoutPhoneSnapshot.number;
+        }
+        checkoutPhoneEditing = false;
+        checkoutPhoneChoiceConfirmed = true;
+        phoneInput.readOnly = true;
+        countrySelect.disabled = true;
+        document.getElementById('verify-phone-value').textContent = formatInternationalPhone();
+        updatePhoneChoiceActions();
+        requestCheckoutCodes();
+    });
+    changeButton.addEventListener('click', () => {
+        checkoutPhoneEditing = true;
+        checkoutPhoneChoiceConfirmed = false;
+        phoneInput.readOnly = false;
+        countrySelect.disabled = false;
+        updatePhoneChoiceActions();
+        phoneInput.focus();
+    });
+    confirmButton.addEventListener('click', () => {
+        const phone = formatInternationalPhone().replace(/\s/g, '');
+        if (!/^\+[1-9]\d{7,14}$/.test(phone)) {
+            showToast(ctr('verify_contact_error'), 'error');
+            phoneInput.focus();
+            return;
+        }
+        checkoutPhoneSnapshot = { country: countrySelect.value, number: phoneInput.value };
+        checkoutPhoneEditing = false;
+        checkoutPhoneChoiceConfirmed = true;
+        phoneInput.readOnly = true;
+        countrySelect.disabled = true;
+        document.getElementById('verify-phone-value').textContent = formatInternationalPhone();
+        updatePhoneChoiceActions();
+        requestCheckoutCodes();
+    });
     bindCheckoutOtpInputs();
     const resetPhoneVerification = () => {
+        const allowRetry = checkoutCanResend;
+        checkoutPhoneChoiceConfirmed = false;
         document.getElementById('verify-phone-value').textContent = formatInternationalPhone();
         checkoutCodesSent = false;
-        checkoutCanResend = true;
+        checkoutCanResend = allowRetry;
         checkoutEmailSent = false;
         checkoutWhatsAppSent = false;
         checkoutEmailVerified = false;
@@ -347,24 +417,42 @@ function setupContactConfirmation() {
         checkoutNoticeKey = 'verify_notice';
         if (checkoutResendTimer) clearInterval(checkoutResendTimer);
         document.getElementById('email-code-panel').hidden = true;
-        document.getElementById('whatsapp-code-panel').hidden = !checkoutWhatsAppSent || checkoutEmailSent;
+        document.getElementById('whatsapp-code-panel').hidden = true;
         clearCheckoutOtp('email');
         clearCheckoutOtp('whatsapp');
         document.getElementById('verify-email-status').textContent = ctr('email_waiting');
-        document.getElementById('verify-whatsapp-status').textContent = ctr('whatsapp_waiting');
+        document.getElementById('verify-whatsapp-status').textContent = ctr('whatsapp_not_required');
         document.getElementById('continue-after-verification').disabled = true;
         document.getElementById('verify-email-card').classList.remove('is-verified');
         document.getElementById('verify-whatsapp-card').classList.remove('is-verified');
         document.querySelector('#verify-email-card .checkout-verify-icon').textContent = '1';
         document.querySelector('#verify-whatsapp-card .checkout-verify-icon').textContent = '2';
         document.getElementById('verify-email-required').textContent = ctr('required_state');
-        document.getElementById('verify-whatsapp-required').textContent = ctr('required_state');
+        document.getElementById('verify-whatsapp-required').textContent = ctr('optional_state');
+        document.getElementById('verify-whatsapp-status').textContent = ctr('whatsapp_not_required');
         document.getElementById('verify-notice').textContent = ctr('verify_notice');
         updateCheckoutVerificationActions();
+        updatePhoneChoiceActions();
         if (checkoutResendUntil > Date.now()) startCheckoutResendTimer();
     };
     phoneInput.addEventListener('input', resetPhoneVerification);
     countrySelect.addEventListener('change', resetPhoneVerification);
+}
+
+function updatePhoneChoiceActions() {
+    const keepButton = document.getElementById('keep-phone-btn');
+    const changeButton = document.getElementById('change-phone-btn');
+    const confirmButton = document.getElementById('confirm-phone-btn');
+    const status = document.getElementById('phone-choice-status');
+    if (!keepButton || !changeButton || !confirmButton || !status) return;
+
+    const lockedAfterSend = checkoutEmailSent || checkoutPhoneChoiceConfirmed && checkoutCodesSent;
+    keepButton.hidden = lockedAfterSend || !checkoutPhoneSnapshot;
+    changeButton.hidden = lockedAfterSend || checkoutPhoneEditing || !checkoutPhoneSnapshot;
+    confirmButton.hidden = lockedAfterSend || !checkoutPhoneEditing;
+    status.textContent = ctr(lockedAfterSend || checkoutPhoneChoiceConfirmed
+        ? 'phone_selected_note'
+        : checkoutPhoneEditing ? 'phone_edit_note' : 'phone_choice_note');
 }
 
 async function requestCheckoutCodes() {
@@ -372,6 +460,10 @@ async function requestCheckoutCodes() {
     const phoneInput = document.getElementById('verify-phone');
     if (!localStorage.getItem('playora_customer_token')) {
         showToast(ctr('account_required'), 'error');
+        return;
+    }
+    if (!checkoutPhoneChoiceConfirmed) {
+        showToast(ctr('verify_contact_error'), 'error');
         return;
     }
     const phone = formatInternationalPhone().replace(/\s/g, '');
@@ -387,7 +479,7 @@ async function requestCheckoutCodes() {
         checkoutCodesSent = true;
         checkoutCanResend = true;
         checkoutEmailSent = Boolean(result.emailSent);
-        checkoutWhatsAppSent = Boolean(result.whatsappSent);
+        checkoutWhatsAppSent = false;
         checkoutEmailVerified = false;
         checkoutWhatsAppVerified = false;
         checkoutVerificationToken = null;
@@ -395,22 +487,21 @@ async function requestCheckoutCodes() {
         clearCheckoutOtp('email');
         clearCheckoutOtp('whatsapp');
         document.getElementById('email-code-panel').hidden = !checkoutEmailSent;
-        document.getElementById('whatsapp-code-panel').hidden = !checkoutWhatsAppSent || checkoutEmailSent;
+        document.getElementById('whatsapp-code-panel').hidden = true;
         document.getElementById('verify-email-status').textContent = checkoutEmailSent
             ? ctr('email_code_sent').replace('{email}', document.getElementById('verify-email-value').textContent)
             : ctr('email_not_sent');
-        document.getElementById('verify-whatsapp-status').textContent = checkoutWhatsAppSent
-            ? ctr(checkoutEmailSent ? 'whatsapp_waiting' : 'whatsapp_code_sent').replace('{phone}', document.getElementById('verify-phone-value').textContent)
-            : ctr('whatsapp_not_sent');
+        document.getElementById('verify-whatsapp-status').textContent = ctr('whatsapp_not_required');
         document.getElementById('verify-email-required').textContent = ctr('required_state');
-        document.getElementById('verify-whatsapp-required').textContent = ctr('required_state');
-        const noticeKey = checkoutEmailSent && checkoutWhatsAppSent
-            ? 'codes_sent_notice'
-            : checkoutEmailSent ? 'email_only_sent_notice' : 'whatsapp_only_sent_notice';
+        document.getElementById('verify-whatsapp-required').textContent = ctr('optional_state');
+        const noticeKey = checkoutEmailSent ? 'email_only_sent_notice' : 'email_not_sent';
         checkoutNoticeKey = noticeKey;
         document.getElementById('verify-notice').textContent = ctr(noticeKey);
-        showToast(ctr(noticeKey), checkoutEmailSent || checkoutWhatsAppSent ? 'success' : 'error');
-        document.querySelector(checkoutEmailSent ? '#email-code-panel input' : '#whatsapp-code-panel input')?.focus();
+        showToast(ctr(noticeKey), checkoutEmailSent ? 'success' : 'error');
+        if (checkoutEmailSent) {
+            document.querySelector('#email-code-panel input')?.focus();
+            updatePhoneChoiceActions();
+        }
         startCheckoutResendTimer();
     } catch (error) {
         checkoutCanResend = true;
@@ -497,18 +588,9 @@ async function verifyCheckoutChannel(channel) {
             document.getElementById('verify-email-required').textContent = ctr('verified_state');
             document.getElementById('email-code-panel').hidden = true;
         }
-        if (checkoutEmailVerified && checkoutWhatsAppSent) {
-            document.getElementById('verify-whatsapp-status').textContent = ctr('whatsapp_code_sent').replace('{phone}', document.getElementById('verify-phone-value').textContent);
-            document.getElementById('whatsapp-code-panel').hidden = false;
-            document.querySelector('#whatsapp-code-panel input')?.focus();
-        } else if (checkoutEmailVerified && !checkoutWhatsAppSent) {
-            document.getElementById('verify-whatsapp-status').textContent = ctr('whatsapp_not_sent');
-        }
-        if (checkoutWhatsAppVerified) {
-            document.getElementById('verify-whatsapp-status').textContent = ctr('whatsapp_verified_status');
-            document.getElementById('verify-whatsapp-required').textContent = ctr('verified_state');
-            document.getElementById('whatsapp-code-panel').hidden = true;
-        }
+        document.getElementById('verify-whatsapp-status').textContent = ctr('whatsapp_not_required');
+        document.getElementById('verify-whatsapp-required').textContent = ctr('optional_state');
+        document.getElementById('whatsapp-code-panel').hidden = true;
         if (result.token) {
             checkoutVerificationToken = result.token;
             checkoutNoticeKey = 'contacts_verified_notice';
@@ -518,7 +600,7 @@ async function verifyCheckoutChannel(channel) {
             showToast(ctr('contacts_verified_notice'), 'success');
             return;
         }
-        const noticeKey = checkoutEmailVerified ? 'email_verified_waiting_whatsapp' : 'whatsapp_verified_waiting_email';
+        const noticeKey = 'email_verified_waiting_whatsapp';
         checkoutNoticeKey = noticeKey;
         document.getElementById('verify-notice').textContent = ctr(noticeKey);
         showToast(ctr(noticeKey), 'success');
@@ -555,19 +637,13 @@ function updateCheckoutVerificationStatus() {
         : checkoutEmailSent
             ? ctr('email_code_sent').replace('{email}', document.getElementById('verify-email-value').textContent)
             : checkoutCodesSent ? ctr('email_not_sent') : ctr('email_waiting');
-    const whatsappStatus = checkoutWhatsAppVerified
-        ? ctr('whatsapp_verified_status')
-        : checkoutWhatsAppSent && (!checkoutEmailSent || checkoutEmailVerified)
-            ? ctr('whatsapp_code_sent').replace('{phone}', document.getElementById('verify-phone-value').textContent)
-            : checkoutCodesSent && !checkoutWhatsAppSent
-                ? ctr('whatsapp_not_sent')
-                : ctr('whatsapp_waiting');
+    const whatsappStatus = ctr('whatsapp_not_required');
     document.getElementById('verify-email-status').textContent = emailStatus;
     document.getElementById('verify-whatsapp-status').textContent = whatsappStatus;
     document.getElementById('verify-email-required').textContent = ctr(checkoutEmailVerified ? 'verified_state' : 'required_state');
-    document.getElementById('verify-whatsapp-required').textContent = ctr(checkoutWhatsAppVerified ? 'verified_state' : 'required_state');
+    document.getElementById('verify-whatsapp-required').textContent = ctr('optional_state');
     document.getElementById('email-code-panel').hidden = !checkoutEmailSent || checkoutEmailVerified;
-    document.getElementById('whatsapp-code-panel').hidden = !checkoutWhatsAppSent || checkoutWhatsAppVerified || (checkoutEmailSent && !checkoutEmailVerified);
+    document.getElementById('whatsapp-code-panel').hidden = true;
     document.getElementById('verify-notice').textContent = ctr(checkoutVerificationToken ? 'contacts_verified_notice' : checkoutNoticeKey);
     document.getElementById('continue-after-verification').disabled = !checkoutVerificationToken;
     updateCheckoutVerifiedIndicators();

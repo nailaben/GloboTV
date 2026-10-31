@@ -298,28 +298,30 @@ router.post('/checkout/send-codes', customerAuth, async (req, res) => {
         client.release();
         client = null;
 
-        const deliveries = await Promise.allSettled([
-            sendVerificationCode(email, emailCode),
-            sendCheckoutWhatsAppCode(phone, whatsappCode)
-        ]);
-        const emailSent = deliveries[0].status === 'fulfilled';
-        const whatsappSent = deliveries[1].status === 'fulfilled';
+        let emailSent = false;
+        try {
+            await sendVerificationCode(email, emailCode);
+            emailSent = true;
+        } catch (deliveryError) {
+            console.error('Checkout email verification delivery failed:', deliveryError.message);
+        }
+        const whatsappSent = false;
         await pool.query(
             'UPDATE customer_checkout_verifications SET email_sent = $2, whatsapp_sent = $3 WHERE id = $1',
             [id, emailSent, whatsappSent]
         );
         if (!emailSent && !whatsappSent) {
             await pool.query('DELETE FROM customer_checkout_verifications WHERE id = $1', [id]);
-            const error = deliveries[0].reason;
-            const notConfigured = /not configured|version is invalid/i.test(error.message || '');
-            return res.status(notConfigured ? 503 : 502).json({ success: false, message: error.message || 'Could not send both verification codes. Check the email and WhatsApp service settings.' });
+            return res.status(503).json({ success: false, message: 'Could not send the email verification code. Check the email service settings.' });
         }
-        const message = emailSent && whatsappSent
-            ? 'Verification codes sent. They expire in 15 minutes.'
-            : emailSent
-                ? 'Email code sent. WhatsApp delivery is unavailable; you can enter the email code now.'
-                : 'WhatsApp code sent. Email delivery is unavailable; you can enter the WhatsApp code now.';
-        return res.json({ success: true, emailSent, whatsappSent, message, expiresIn: 900 });
+        return res.json({
+            success: true,
+            emailSent: true,
+            whatsappSent: false,
+            whatsappRequired: false,
+            message: 'Email verification code sent. WhatsApp verification is temporarily not required.',
+            expiresIn: 900
+        });
     } catch (err) {
         if (client) await client.query('ROLLBACK').catch(() => {});
         console.error('Checkout verification send error:', err.message);
@@ -334,9 +336,8 @@ router.post('/checkout/verify-codes', customerAuth, async (req, res) => {
     const phone = String(req.body.phone || '').trim();
     const emailCode = String(req.body.emailCode || '').trim();
     const whatsappCode = String(req.body.whatsappCode || '').trim();
-    if (!/^\+[1-9]\d{7,14}$/.test(phone) || (emailCode && !/^\d{6}$/.test(emailCode)) ||
-        (whatsappCode && !/^\d{6}$/.test(whatsappCode)) || (!emailCode && !whatsappCode)) {
-        return res.status(400).json({ success: false, message: 'Enter a 6-digit code received by email or WhatsApp.' });
+    if (!/^\+[1-9]\d{7,14}$/.test(phone) || !/^\d{6}$/.test(emailCode) || whatsappCode) {
+        return res.status(400).json({ success: false, message: 'Enter the 6-digit code sent to your email.' });
     }
     if (!process.env.JWT_SECRET) return res.status(503).json({ success: false, message: 'Account security is not configured.' });
 
@@ -368,30 +369,17 @@ router.post('/checkout/verify-codes', customerAuth, async (req, res) => {
             await client.query('ROLLBACK');
             return res.status(429).json({ success: false, message: 'Too many incorrect attempts. Request new codes after one minute.' });
         }
-        const emailMatches = !emailCode || (pending.email_sent && hashesMatch(pending.email_code_hash, checkoutCodeHash(req.customer.id, 'email', emailCode, pending.id)));
-        const whatsappMatches = !whatsappCode || (pending.whatsapp_sent && hashesMatch(pending.whatsapp_code_hash, checkoutCodeHash(req.customer.id, 'whatsapp', whatsappCode, pending.id)));
-        if (!emailMatches || !whatsappMatches) {
+        const emailMatches = pending.email_sent && hashesMatch(pending.email_code_hash, checkoutCodeHash(req.customer.id, 'email', emailCode, pending.id));
+        if (!emailMatches) {
             await client.query('UPDATE customer_checkout_verifications SET attempts = attempts + 1 WHERE customer_id = $1', [req.customer.id]);
             await client.query('COMMIT');
-            return res.status(400).json({ success: false, message: 'One or both verification codes are incorrect.' });
+            return res.status(400).json({ success: false, message: 'The email verification code is incorrect.' });
         }
 
-        if (emailCode) await client.query('UPDATE customer_checkout_verifications SET email_verified_at = NOW() WHERE customer_id = $1', [req.customer.id]);
-        if (whatsappCode) await client.query('UPDATE customer_checkout_verifications SET whatsapp_verified_at = NOW() WHERE customer_id = $1', [req.customer.id]);
-        const emailVerified = Boolean(pending.email_verified_at || emailCode);
-        const whatsappVerified = Boolean(pending.whatsapp_verified_at || whatsappCode);
-        if (!emailVerified || !whatsappVerified) {
-            await client.query('COMMIT');
-            return res.json({
-                success: true,
-                verified: false,
-                emailVerified,
-                whatsappVerified,
-                message: emailVerified ? 'Email verified. WhatsApp verification is still required.' : 'WhatsApp verified. Email verification is still required.'
-            });
-        }
-
-        await client.query('UPDATE customer_checkout_verifications SET verified_at = NOW() WHERE customer_id = $1', [req.customer.id]);
+        await client.query(
+            'UPDATE customer_checkout_verifications SET email_verified_at = NOW(), verified_at = NOW() WHERE customer_id = $1',
+            [req.customer.id]
+        );
         await client.query('COMMIT');
         const token = jwt.sign({
             type: 'checkout_verification',
@@ -404,9 +392,10 @@ router.post('/checkout/verify-codes', customerAuth, async (req, res) => {
             success: true,
             verified: true,
             emailVerified: true,
-            whatsappVerified: true,
+            whatsappVerified: false,
+            whatsappRequired: false,
             token,
-            message: 'Email and WhatsApp verified.'
+            message: 'Email verified. WhatsApp verification is temporarily not required.'
         });
     } catch (err) {
         if (client) await client.query('ROLLBACK').catch(() => {});
