@@ -609,35 +609,14 @@
                                 <h1 data-co-i18n="verify_title">Verify your account</h1>
                                 <p data-co-i18n="verify_subtitle">Confirm the contact details where your codes will be delivered.</p>
                             </header>
-                            <div class="checkout-verify-card" id="verify-email-card">
-                                <span class="checkout-verify-icon" aria-hidden="true">1</span>
-                                <div class="checkout-verify-copy">
-                                    <strong data-co-i18n="email_verification">Email verification</strong>
-                                    <small id="verify-email-value"></small>
-                                    <small id="verify-email-status" data-co-i18n="email_waiting">Waiting to send a code</small>
-                                </div>
-                                <span class="checkout-verify-state" id="verify-email-required" data-co-i18n="required_state">Required</span>
-                                <div class="checkout-otp-panel" id="email-code-panel" hidden>
-                                    <div class="checkout-otp-inputs" data-otp-group="email" role="group" aria-label="Email verification code">
-                                        <input class="form-input" type="text" inputmode="numeric" autocomplete="one-time-code" maxlength="1" aria-label="Email code digit 1">
-                                        <input class="form-input" type="text" inputmode="numeric" maxlength="1" aria-label="Email code digit 2">
-                                        <input class="form-input" type="text" inputmode="numeric" maxlength="1" aria-label="Email code digit 3">
-                                        <input class="form-input" type="text" inputmode="numeric" maxlength="1" aria-label="Email code digit 4">
-                                        <input class="form-input" type="text" inputmode="numeric" maxlength="1" aria-label="Email code digit 5">
-                                        <input class="form-input" type="text" inputmode="numeric" maxlength="1" aria-label="Email code digit 6">
-                                    </div>
-                                    <button type="button" class="btn btn-primary checkout-otp-verify" id="verify-email-code-btn" data-co-i18n="verify_email">Verify email</button>
-                                </div>
-                                <button type="button" class="checkout-text-action" id="send-checkout-codes-btn" data-co-i18n="send_codes" hidden>Send email code</button>
-                            </div>
                             <div class="checkout-verify-card" id="verify-whatsapp-card">
-                                <span class="checkout-verify-icon" aria-hidden="true">2</span>
+                                <span class="checkout-verify-icon" aria-hidden="true">1</span>
                                 <div class="checkout-verify-copy">
                                     <strong data-co-i18n="whatsapp_verification">Phone for this order</strong>
                                     <small id="verify-phone-value"></small>
-                                    <small id="verify-whatsapp-status" data-co-i18n="whatsapp_not_required">WhatsApp verification is temporarily not required.</small>
+                                    <small id="verify-whatsapp-status" data-co-i18n="phone_order_note">Choose or confirm the phone number for this order.</small>
                                 </div>
-                                <span class="checkout-verify-state" id="verify-whatsapp-required" data-co-i18n="optional_state">Not required</span>
+                                <span class="checkout-verify-state" id="verify-whatsapp-required" data-co-i18n="required_state">Required</span>
                                 <div class="checkout-otp-panel" id="whatsapp-code-panel" hidden>
                                     <div class="checkout-otp-inputs" data-otp-group="whatsapp" role="group" aria-label="WhatsApp verification code">
                                         <input class="form-input" type="text" inputmode="numeric" autocomplete="one-time-code" maxlength="1" aria-label="WhatsApp code digit 1">
@@ -697,6 +676,27 @@
                                     <button type="button" class="btn btn-sm" id="confirm-phone-btn" data-co-i18n="use_phone" hidden>Use this number</button>
                                     <small id="phone-choice-status" data-co-i18n="phone_choice_note">Choose the number to use for this order.</small>
                                 </div>
+                            </div>
+                            <div class="checkout-verify-card" id="verify-email-card">
+                                <span class="checkout-verify-icon" aria-hidden="true">2</span>
+                                <div class="checkout-verify-copy">
+                                    <strong data-co-i18n="email_verification">Email verification</strong>
+                                    <small id="verify-email-value"></small>
+                                    <small id="verify-email-status" data-co-i18n="email_waiting">Waiting to send a code</small>
+                                </div>
+                                <span class="checkout-verify-state" id="verify-email-required" data-co-i18n="required_state">Required</span>
+                                <div class="checkout-otp-panel" id="email-code-panel" hidden>
+                                    <div class="checkout-otp-inputs" data-otp-group="email" role="group" aria-label="Email verification code">
+                                        <input class="form-input" type="text" inputmode="numeric" autocomplete="one-time-code" maxlength="1" aria-label="Email code digit 1">
+                                        <input class="form-input" type="text" inputmode="numeric" maxlength="1" aria-label="Email code digit 2">
+                                        <input class="form-input" type="text" inputmode="numeric" maxlength="1" aria-label="Email code digit 3">
+                                        <input class="form-input" type="text" inputmode="numeric" maxlength="1" aria-label="Email code digit 4">
+                                        <input class="form-input" type="text" inputmode="numeric" maxlength="1" aria-label="Email code digit 5">
+                                        <input class="form-input" type="text" inputmode="numeric" maxlength="1" aria-label="Email code digit 6">
+                                    </div>
+                                    <button type="button" class="btn btn-primary checkout-otp-verify" id="verify-email-code-btn" data-co-i18n="verify_email">Verify email</button>
+                                </div>
+                                <button type="button" class="checkout-text-action" id="send-checkout-codes-btn" data-co-i18n="send_codes" hidden>Send email code</button>
                             </div>
                             <div id="verify-notice" class="checkout-verify-notice" data-co-i18n="verify_notice">Choose whether to keep or change your number. We will send a verification code by email only.</div>
                         </div>
