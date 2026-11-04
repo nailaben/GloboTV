@@ -84,7 +84,7 @@ const checkoutI18n = {
         payment_subtotal: 'Subtotal',
         payment_fees: 'Payment fees',
         provider_fees: 'Calculated by provider',
-        payment_redirect_note: 'You will be redirected to the secure payment page. Any provider fees are shown there before payment.',
+        payment_redirect_note: 'You will be redirected to PayPal to review and securely pay the exact order total.',
         pay_now: 'Pay now',
         continue_to_account: 'Continue to account',
         back_to_summary: 'Back to Order Summary',
@@ -174,7 +174,7 @@ const checkoutI18n = {
         payment_subtotal: 'Sous-total',
         payment_fees: 'Frais de paiement',
         provider_fees: 'Calculés par le prestataire',
-        payment_redirect_note: 'Vous serez redirigé vers la page de paiement sécurisée. Les frais éventuels y seront indiqués avant le paiement.',
+        payment_redirect_note: 'Vous serez redirigé vers PayPal pour vérifier et payer en toute sécurité le montant exact de la commande.',
         pay_now: 'Payer',
         continue_to_account: 'Continuer vers le compte',
         back_to_summary: 'Retour au récapitulatif',
@@ -893,7 +893,7 @@ function setupForm() {
             customer_email: customer.email || '',
             checkoutVerificationToken: checkoutVerificationToken || '',
             notes: '',
-            payment_provider: document.querySelector('[name="checkout-payment-method"]:checked')?.value || 'oneclick',
+            payment_provider: 'paypal',
             items: cart.map(item => ({ product_id: item.product_id, offer_id: item.offer_id, quantity: item.quantity }))
         };
 

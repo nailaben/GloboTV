@@ -4,6 +4,39 @@ const { pool } = require('../config/db');
 const authMiddleware = require('../middleware/auth');
 const jwt = require('jsonwebtoken');
 
+const paypalBaseUrl = () => process.env.PAYPAL_ENV === 'live'
+    ? 'https://api-m.paypal.com'
+    : 'https://api-m.sandbox.paypal.com';
+
+async function paypalRequest(path, options = {}) {
+    const clientId = process.env.PAYPAL_CLIENT_ID;
+    const clientSecret = process.env.PAYPAL_CLIENT_SECRET;
+    if (!clientId || !clientSecret) throw new Error('PayPal credentials are not configured.');
+
+    const tokenResponse = await fetch(`${paypalBaseUrl()}/v1/oauth2/token`, {
+        method: 'POST',
+        headers: {
+            Authorization: `Basic ${Buffer.from(`${clientId}:${clientSecret}`).toString('base64')}`,
+            'Content-Type': 'application/x-www-form-urlencoded'
+        },
+        body: 'grant_type=client_credentials'
+    });
+    const tokenData = await tokenResponse.json();
+    if (!tokenResponse.ok || !tokenData.access_token) throw new Error('Could not authenticate with PayPal.');
+
+    const response = await fetch(`${paypalBaseUrl()}${path}`, {
+        ...options,
+        headers: {
+            Authorization: `Bearer ${tokenData.access_token}`,
+            'Content-Type': 'application/json',
+            ...(options.headers || {})
+        }
+    });
+    const data = await response.json();
+    if (!response.ok) throw new Error(data.message || 'PayPal request failed.');
+    return data;
+}
+
 // Generate unique order number
 const generateOrderNumber = () => {
     const timestamp = Date.now().toString(36).toUpperCase();
@@ -119,6 +152,11 @@ router.post('/', async (req, res) => {
                 return res.status(503).json({ success: false, message: 'A valid OneClick payment link is not configured yet.' });
             }
             paymentLink = parsedUrl.toString();
+        } else if (payment_provider === 'paypal') {
+            if (!process.env.PAYPAL_CLIENT_ID || !process.env.PAYPAL_CLIENT_SECRET) {
+                await client.query('ROLLBACK');
+                return res.status(503).json({ success: false, message: 'PayPal is not configured yet. Add the PayPal API credentials to the server environment.' });
+            }
         }
 
         // Create order
@@ -139,6 +177,30 @@ router.post('/', async (req, res) => {
                 VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
             `, [order.id, item.product.id, item.product.name_ar, item.product.name_en, item.product.name_fr || item.product.name_en, item.offer.id, item.offer.label_en, item.offer.label_fr, item.quantity, item.unit_price, item.subtotal]);
 
+        }
+
+        if (payment_provider === 'paypal') {
+            const baseUrl = process.env.PUBLIC_BASE_URL || `${req.protocol}://${req.get('host')}`;
+            const paypalOrder = await paypalRequest('/v2/checkout/orders', {
+                method: 'POST',
+                body: JSON.stringify({
+                    intent: 'CAPTURE',
+                    purchase_units: [{
+                        reference_id: order_number,
+                        custom_id: order_number,
+                        description: `GloboTV order ${order_number}`,
+                        amount: { currency_code: 'EUR', value: subtotal.toFixed(2) }
+                    }],
+                    application_context: {
+                        brand_name: 'GloboTV',
+                        user_action: 'PAY_NOW',
+                        return_url: `${baseUrl}/api/orders/paypal/return`,
+                        cancel_url: `${baseUrl}/checkout.html?payment=cancelled`
+                    }
+                })
+            });
+            paymentLink = paypalOrder.links?.find(link => link.rel === 'payer-action' || link.rel === 'approve')?.href || null;
+            if (!paypalOrder.id || !paymentLink) throw new Error('PayPal did not return an approval link.');
         }
 
         await client.query('COMMIT');
@@ -168,6 +230,45 @@ router.post('/', async (req, res) => {
         client?.release();
     }
 });
+
+// PayPal returns here after the buyer approves. Verify the order against our
+// database, capture it on the server, and only then mark the local order paid.
+router.get('/paypal/return', async (req, res) => {
+    const paypalOrderId = String(req.query.token || '');
+    if (!paypalOrderId) return res.redirect('/checkout.html?payment=error');
+
+    try {
+        const paypalOrder = await paypalRequest(`/v2/checkout/orders/${encodeURIComponent(paypalOrderId)}`);
+        const purchase = paypalOrder.purchase_units?.[0];
+        if (paypalOrder.status !== 'APPROVED' || !purchase?.custom_id) {
+            return res.redirect('/checkout.html?payment=not-approved');
+        }
+
+        const orderResult = await pool.query('SELECT * FROM orders WHERE order_number = $1 LIMIT 1', [purchase.custom_id]);
+        const order = orderResult.rows[0];
+        if (!order || purchase.amount?.currency_code !== order.currency || Number(purchase.amount?.value) !== Number(order.total_amount)) {
+            return res.redirect('/checkout.html?payment=verification-error');
+        }
+
+        const capture = await paypalRequest(`/v2/checkout/orders/${encodeURIComponent(paypalOrderId)}/capture`, { method: 'POST', body: '{}' });
+        const capturedPurchase = capture.purchase_units?.[0];
+        const captureInfo = capturedPurchase?.payments?.captures?.[0];
+        if (capture.status !== 'COMPLETED' || captureInfo?.status !== 'COMPLETED' ||
+            capturedPurchase?.custom_id !== order.order_number ||
+            captureInfo?.amount?.currency_code !== order.currency ||
+            Number(captureInfo?.amount?.value) !== Number(order.total_amount)) {
+            return res.redirect('/checkout.html?payment=capture-error');
+        }
+
+        await pool.query("UPDATE orders SET status = 'completed', updated_at = NOW() WHERE id = $1", [order.id]);
+        return res.redirect('/order-success.html?payment=paypal');
+    } catch (error) {
+        console.error('PayPal return error:', error);
+        return res.redirect('/checkout.html?payment=error');
+    }
+});
+
+router.get('/paypal/cancel', (req, res) => res.redirect('/checkout.html?payment=cancelled'));
 
 // GET /api/orders - Get all orders (seller only)
 router.get('/', authMiddleware, async (req, res) => {
