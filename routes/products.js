@@ -334,10 +334,18 @@ async function replaceOffers(productId, offers) {
     const client = await pool.connect();
     try {
         await client.query('BEGIN');
-        await client.query('DELETE FROM product_offers WHERE product_id=$1', [productId]);
+        const existing = await client.query('SELECT id FROM product_offers WHERE product_id=$1 ORDER BY sort_order,id FOR UPDATE', [productId]);
         for (let i = 0; i < offers.length; i++) {
             const o = offers[i];
-            await client.query('INSERT INTO product_offers(product_id,label_en,label_fr,price_eur,sort_order) VALUES($1,$2,$3,$4,$5)', [productId, o.label_en, o.label_fr, o.price_eur, i]);
+            if (existing.rows[i]) {
+                await client.query('UPDATE product_offers SET label_en=$1,label_fr=$2,price_eur=$3,sort_order=$4,is_active=true WHERE id=$5 AND product_id=$6', [o.label_en, o.label_fr, o.price_eur, i, existing.rows[i].id, productId]);
+            } else {
+                await client.query('INSERT INTO product_offers(product_id,label_en,label_fr,price_eur,sort_order) VALUES($1,$2,$3,$4,$5)', [productId, o.label_en, o.label_fr, o.price_eur, i]);
+            }
+        }
+        const removedOfferIds = existing.rows.slice(offers.length).map(row => row.id);
+        if (removedOfferIds.length) {
+            await client.query('DELETE FROM product_offers WHERE product_id=$1 AND id = ANY($2::int[])', [productId, removedOfferIds]);
         }
         await client.query('COMMIT');
     } catch (error) { await client.query('ROLLBACK'); throw error; }

@@ -903,7 +903,7 @@ function setupForm() {
             checkoutVerificationToken: checkoutVerificationToken || '',
             notes: '',
             payment_provider: 'paypal',
-            items: cart.map(item => ({ product_id: item.product_id, offer_id: item.offer_id, quantity: item.quantity }))
+            items: cart.map(item => ({ product_id: item.product_id, offer_id: item.offer_id, offer_label_en: item.offer_label_en, offer_label_fr: item.offer_label_fr, quantity: item.quantity }))
         };
 
         if (!orderData.customer_name || !orderData.customer_phone || !orderData.customer_email) {

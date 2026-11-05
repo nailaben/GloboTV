@@ -217,10 +217,20 @@ router.post('/', async (req, res) => {
                 return res.status(400).json({ success: false, message: `Insufficient stock for ${product.name_en}` });
             }
 
-            const offerResult = await client.query('SELECT * FROM product_offers WHERE id=$1 AND product_id=$2 AND is_active=true', [item.offer_id, product.id]);
-            if (!item.offer_id || offerResult.rows.length === 0) {
+            let offerResult = await client.query('SELECT * FROM product_offers WHERE id=$1 AND product_id=$2 AND is_active=true', [item.offer_id, product.id]);
+            if (!offerResult.rows[0] && (item.offer_label_en || item.offer_label_fr)) {
+                offerResult = await client.query(`
+                    SELECT * FROM product_offers WHERE product_id=$1 AND is_active=true
+                        AND label_en=$2 AND label_fr=$3 ORDER BY sort_order,id LIMIT 1
+                `, [product.id, item.offer_label_en || '', item.offer_label_fr || '']);
+            }
+            if (!offerResult.rows[0] && !item.offer_label_en && !item.offer_label_fr) {
+                const singleOffer = await client.query('SELECT * FROM product_offers WHERE product_id=$1 AND is_active=true ORDER BY sort_order,id LIMIT 2', [product.id]);
+                if (singleOffer.rows.length === 1) offerResult = singleOffer;
+            }
+            if (!offerResult.rows[0]) {
                 await client.query('ROLLBACK');
-                return res.status(400).json({ success: false, message: `Choose a valid offer for ${product.name_en}` });
+                return res.status(400).json({ success: false, code: 'OFFER_SELECTION_REQUIRED', message: `The offer for ${product.name_en} changed. Remove it from your cart, choose an offer again, then retry payment.` });
             }
             const offer = offerResult.rows[0];
             const unitPriceCents = Math.round(Number(offer.price_eur) * 100);

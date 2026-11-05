@@ -900,9 +900,9 @@ body[dir="rtl"] .cart-sidebar {
     width: 26px;
     height: 26px;
     border-radius: 50%;
-    background: #f0f0f4;
-    border: 1px solid #e5e5e7;
-    color: var(--text-primary);
+    background: rgba(213, 82, 163, 0.12);
+    border: 1px solid rgba(213, 82, 163, 0.48);
+    color: #f7d8eb;
     cursor: pointer;
     display: flex;
     align-items: center;
@@ -912,9 +912,14 @@ body[dir="rtl"] .cart-sidebar {
 }
 
 .qty-btn:hover {
-    background: var(--primary);
-    border-color: var(--primary);
+    background: linear-gradient(135deg, #d552a3, #831c91);
+    border-color: #e77cbb;
     color: white;
+}
+
+.qty-btn:focus-visible {
+    outline: 2px solid #f3a6d1;
+    outline-offset: 2px;
 }
 
 .qty-value {
