@@ -131,7 +131,22 @@ async function paypalRequest(path, options = {}) {
         }
     });
     const data = await response.json();
-    if (!response.ok) throw new Error(data.message || 'PayPal request failed.');
+    if (!response.ok) {
+        const error = new Error(data.message || 'PayPal request failed.');
+        error.name = data.name || 'PayPalApiError';
+        error.paypal = {
+            httpStatus: response.status,
+            debugId: data.debug_id || null,
+            details: (Array.isArray(data.details) ? data.details : []).map(detail => ({
+                issue: detail.issue || null,
+                description: detail.description || null,
+                field: detail.field || null
+            })),
+            requestPath: path,
+            method: options.method || 'GET'
+        };
+        throw error;
+    }
     return data;
 }
 
@@ -413,7 +428,11 @@ router.get('/paypal/return', async (req, res) => {
         }
         return res.redirect('/order-success.html?payment=paypal');
     } catch (error) {
-        console.error('PayPal return error:', { message: error.message, name: error.name });
+        console.error('PayPal return error:', {
+            message: error.message,
+            name: error.name,
+            paypal: error.paypal || null
+        });
         return res.redirect('/checkout.html?payment=error');
     }
 });
@@ -520,8 +539,18 @@ router.post('/:id/reconcile-payment', authMiddleware, async (req, res) => {
         return res.json({ success: true, payment_status: 'paid' });
     } catch (error) {
         if (client) await client.query('ROLLBACK').catch(() => {});
-        console.error('Legacy payment reconciliation error:', error.message);
-        return res.status(500).json({ success: false, message: 'Could not verify this PayPal payment.' });
+        console.error('PayPal payment reconciliation error:', {
+            message: error.message,
+            name: error.name,
+            paypal: error.paypal || null
+        });
+        const paypalIssue = error.paypal?.details?.map(detail => detail.issue).filter(Boolean).join(', ');
+        return res.status(500).json({
+            success: false,
+            message: paypalIssue
+                ? `PayPal could not complete this payment (${paypalIssue}).`
+                : 'Could not verify this PayPal payment.'
+        });
     } finally {
         client?.release();
     }
