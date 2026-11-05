@@ -88,7 +88,7 @@ async function releaseExpiredOrders() {
     }
 }
 
-const paypalBaseUrl = () => process.env.PAYPAL_ENV === 'live'
+const paypalBaseUrl = () => process.env.GloboTV_ENV === 'live'
     ? 'https://api-m.paypal.com'
     : 'https://api-m.sandbox.paypal.com';
 
@@ -107,8 +107,8 @@ function getPublicBaseUrl(req) {
 }
 
 async function paypalRequest(path, options = {}) {
-    const clientId = process.env.PAYPAL_CLIENT_ID;
-    const clientSecret = process.env.PAYPAL_CLIENT_SECRET;
+    const clientId = process.env.GloboTV_CLIENT_ID;
+    const clientSecret = process.env.GloboTV_CLIENT_SECRET;
     if (!clientId || !clientSecret) throw new Error('PayPal credentials are not configured.');
 
     const tokenResponse = await fetch(`${paypalBaseUrl()}/v1/oauth2/token`, {
@@ -274,7 +274,7 @@ router.post('/', async (req, res) => {
         const order_number = generateOrderNumber();
 
         let paymentLink = null;
-        if (!process.env.PAYPAL_CLIENT_ID || !process.env.PAYPAL_CLIENT_SECRET) {
+        if (!process.env.GloboTV_CLIENT_ID || !process.env.GloboTV_CLIENT_SECRET) {
             await client.query('ROLLBACK');
             return res.status(503).json({ success: false, message: 'PayPal is not configured yet. Add the PayPal API credentials to the server environment.' });
         }
