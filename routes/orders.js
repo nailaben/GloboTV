@@ -363,8 +363,12 @@ router.post('/', async (req, res) => {
 // database, capture it on the server, and only then mark the local order paid.
 router.get('/paypal/return', async (req, res) => {
     const paypalOrderId = String(req.query.token || '');
-    const failReturn = (reason, query = reason) => {
-        console.warn('PayPal return not completed:', { reason, hasOrderToken: Boolean(paypalOrderId) });
+    const failReturn = (reason, query = reason, context = {}) => {
+        console.warn('PayPal return not completed:', JSON.stringify({
+            reason,
+            hasOrderToken: Boolean(paypalOrderId),
+            ...context
+        }));
         return res.redirect(`/checkout.html?payment=${encodeURIComponent(query)}`);
     };
     if (!paypalOrderId) return failReturn('missing_order_token', 'error');
@@ -374,7 +378,10 @@ router.get('/paypal/return', async (req, res) => {
         const paypalOrder = await paypalRequest(`/v2/checkout/orders/${encodeURIComponent(paypalOrderId)}`);
         const purchase = paypalOrder.purchase_units?.[0];
         if (!['APPROVED', 'COMPLETED'].includes(paypalOrder.status) || !purchase?.custom_id) {
-            return failReturn('paypal_order_not_approved_or_missing_reference', 'not-approved');
+            return failReturn('paypal_order_not_approved_or_missing_reference', 'not-approved', {
+                paypalOrderStatus: paypalOrder.status || null,
+                hasPurchaseReference: Boolean(purchase?.custom_id)
+            });
         }
 
         const client = await pool.connect();
@@ -390,7 +397,12 @@ router.get('/paypal/return', async (req, res) => {
             if (!order || order.payment_provider !== 'paypal' || order.payment_reference !== paypalOrderId ||
                 !moneyMatches(purchase.amount, order?.total_amount, order?.currency)) {
                 await client.query('ROLLBACK');
-                return failReturn('local_order_reference_or_amount_mismatch', 'verification-error');
+                return failReturn('local_order_reference_or_amount_mismatch', 'verification-error', {
+                    localOrderFound: Boolean(order),
+                    localPaymentProvider: order?.payment_provider || null,
+                    paypalReferenceMatches: Boolean(order && order.payment_reference === paypalOrderId),
+                    paypalOrderStatus: paypalOrder.status || null
+                });
             }
 
             if (order.payment_status === 'paid' && order.payment_capture_id) {
@@ -399,7 +411,12 @@ router.get('/paypal/return', async (req, res) => {
             }
             if (order.payment_status !== 'pending' || !order.stock_reserved) {
                 await client.query('ROLLBACK');
-                return failReturn('order_not_pending_or_stock_not_reserved', 'verification-error');
+                return failReturn('order_not_pending_or_stock_not_reserved', 'verification-error', {
+                    orderNumber: order.order_number,
+                    localPaymentStatus: order.payment_status,
+                    stockReserved: Boolean(order.stock_reserved),
+                    paypalOrderStatus: paypalOrder.status || null
+                });
             }
 
             const capture = paypalOrder.status === 'COMPLETED'
@@ -411,7 +428,11 @@ router.get('/paypal/return', async (req, res) => {
                 capturedPurchase?.custom_id !== order.order_number ||
                 !moneyMatches(captureInfo?.amount, order.total_amount, order.currency)) {
                 await client.query('ROLLBACK');
-                return failReturn('paypal_capture_not_completed_or_amount_mismatch', 'capture-error');
+                return failReturn('paypal_capture_not_completed_or_amount_mismatch', 'capture-error', {
+                    captureOrderStatus: capture.status || null,
+                    captureStatus: captureInfo?.status || null,
+                    referenceMatches: capturedPurchase?.custom_id === order.order_number
+                });
             }
 
             await client.query(`
@@ -428,11 +449,11 @@ router.get('/paypal/return', async (req, res) => {
         }
         return res.redirect('/order-success.html?payment=paypal');
     } catch (error) {
-        console.error('PayPal return error:', {
+        console.error('PayPal return error:', JSON.stringify({
             message: error.message,
             name: error.name,
             paypal: error.paypal || null
-        });
+        }));
         return res.redirect('/checkout.html?payment=error');
     }
 });
@@ -539,11 +560,11 @@ router.post('/:id/reconcile-payment', authMiddleware, async (req, res) => {
         return res.json({ success: true, payment_status: 'paid' });
     } catch (error) {
         if (client) await client.query('ROLLBACK').catch(() => {});
-        console.error('PayPal payment reconciliation error:', {
+        console.error('PayPal payment reconciliation error:', JSON.stringify({
             message: error.message,
             name: error.name,
             paypal: error.paypal || null
-        });
+        }));
         const paypalIssue = error.paypal?.details?.map(detail => detail.issue).filter(Boolean).join(', ');
         return res.status(500).json({
             success: false,
