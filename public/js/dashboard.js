@@ -479,11 +479,11 @@ async function loadOrdersTable() {
 
     tbody.innerHTML = orders.map(o => {
         const paymentLabel = o.payment_status === 'paid'
-            ? t('Paid', 'Payée')
+            ? t('Payment received', 'Paiement reçu')
             : o.payment_status === 'legacy_unverified' ? t('Legacy payment — verify manually', 'Ancien paiement — vérifier manuellement')
             : o.payment_status === 'refunded' ? t('Refunded', 'Remboursée')
             : o.payment_status === 'refund_pending' ? t('Refund pending', 'Remboursement en attente')
-            : o.payment_status === 'pending' ? t('Payment pending', 'Paiement en attente')
+            : o.payment_status === 'pending' ? t('Awaiting PayPal payment — not received', 'En attente du paiement PayPal — non reçu')
             : o.payment_status === 'expired' ? t('Payment expired', 'Paiement expiré')
             : o.payment_status === 'cancelled' ? t('Payment cancelled', 'Paiement annulé')
             : '';
@@ -507,6 +507,8 @@ async function loadOrdersTable() {
                 ${o.payment_status === 'legacy_unverified' ? `<button type="button" class="btn btn-secondary" style="margin-top:.35rem;padding:.35rem .55rem;font-size:.75rem" onclick="reconcilePayment(${o.id})">${t('Verify PayPal payment', 'Vérifier le paiement PayPal')}</button>` : ''}
                 ${o.payment_status === 'paid' && o.payment_provider === 'paypal' ? `<button type="button" class="btn btn-secondary" style="margin-top:.35rem;padding:.35rem .55rem;font-size:.75rem" onclick="refundOrder(${o.id})">${t('Refund via PayPal', 'Rembourser via PayPal')}</button>` : ''}
                 ${o.payment_status === 'refund_pending' ? `<button type="button" class="btn btn-secondary" style="margin-top:.35rem;padding:.35rem .55rem;font-size:.75rem" onclick="checkRefundStatus(${o.id})">${t('Check refund status', 'Vérifier le remboursement')}</button>` : ''}
+                ${o.payment_status === 'paid' && o.delivery_status !== 'sent' ? `<button type="button" class="btn btn-secondary" style="margin-top:.35rem;padding:.35rem .55rem;font-size:.75rem" onclick="sendOrderDelivery(${o.id})">${t('Enter code and email customer', 'Saisir le code et envoyer par e-mail')}</button>` : ''}
+                ${o.delivery_status === 'sent' ? `<small style="display:block;margin-top:.3rem;color:var(--success,#38c98a)">${t('Delivery email sent', 'E-mail de livraison envoyé')}</small>` : ''}
             </td>
             <td style="font-size:0.78rem;color:var(--text-muted)">${formatDate(o.created_at)}</td>
         </tr>
@@ -565,6 +567,22 @@ window.reconcilePayment = async function(orderId) {
         await loadStats();
     } catch (error) {
         showToast(error.message || t('Payment could not be verified', 'Paiement non vérifié'), 'error');
+    }
+};
+
+window.sendOrderDelivery = async function(orderId) {
+    const code = window.prompt(t('Enter the product activation code to email to the customer. The email will include the items purchased.', 'Saisissez le code produit à envoyer au client. L’e-mail contiendra aussi les produits achetés.'));
+    if (!code?.trim()) return;
+    const confirmed = window.confirm(t('Send this activation code to the customer email shown on the order?', 'Envoyer ce code à l’adresse e-mail du client affichée sur la commande ?'));
+    if (!confirmed) return;
+    try {
+        const result = await api.sendOrderDelivery(orderId, code.trim());
+        if (!result.success) throw new Error(result.message || 'Could not send delivery email');
+        showToast(t('Code sent to the customer and order completed', 'Code envoyé au client et commande terminée'), 'success');
+        await loadOrdersTable();
+        await loadStats();
+    } catch (error) {
+        showToast(error.message || t('Could not send delivery email', 'Échec de l’envoi du code'), 'error');
     }
 };
 
