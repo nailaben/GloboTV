@@ -480,6 +480,9 @@ async function loadOrdersTable() {
     tbody.innerHTML = orders.map(o => {
         const paymentLabel = o.payment_status === 'paid'
             ? t('Paid', 'Payée')
+            : o.payment_status === 'legacy_unverified' ? t('Legacy payment — verify manually', 'Ancien paiement — vérifier manuellement')
+            : o.payment_status === 'refunded' ? t('Refunded', 'Remboursée')
+            : o.payment_status === 'refund_pending' ? t('Refund pending', 'Remboursement en attente')
             : o.payment_status === 'pending' ? t('Payment pending', 'Paiement en attente')
             : o.payment_status === 'expired' ? t('Payment expired', 'Paiement expiré')
             : o.payment_status === 'cancelled' ? t('Payment cancelled', 'Paiement annulé')
@@ -501,6 +504,9 @@ async function loadOrdersTable() {
                     `).join('')}
                 </select>
                 ${paymentLabel ? `<small style="display:block;margin-top:.3rem;color:var(--text-muted)">${paymentLabel}</small>` : ''}
+                ${o.payment_status === 'legacy_unverified' ? `<button type="button" class="btn btn-secondary" style="margin-top:.35rem;padding:.35rem .55rem;font-size:.75rem" onclick="reconcilePayment(${o.id})">${t('Verify PayPal payment', 'Vérifier le paiement PayPal')}</button>` : ''}
+                ${o.payment_status === 'paid' && o.payment_provider === 'paypal' ? `<button type="button" class="btn btn-secondary" style="margin-top:.35rem;padding:.35rem .55rem;font-size:.75rem" onclick="refundOrder(${o.id})">${t('Refund via PayPal', 'Rembourser via PayPal')}</button>` : ''}
+                ${o.payment_status === 'refund_pending' ? `<button type="button" class="btn btn-secondary" style="margin-top:.35rem;padding:.35rem .55rem;font-size:.75rem" onclick="checkRefundStatus(${o.id})">${t('Check refund status', 'Vérifier le remboursement')}</button>` : ''}
             </td>
             <td style="font-size:0.78rem;color:var(--text-muted)">${formatDate(o.created_at)}</td>
         </tr>
@@ -516,6 +522,49 @@ window.updateStatus = async function(orderId, status, selectEl) {
         await loadStats();
     } else {
         showToast(t('An error occurred', 'Une erreur est survenue'), 'error');
+        await loadOrdersTable();
+    }
+};
+
+window.refundOrder = async function(orderId) {
+    const confirmed = window.confirm(t('Refund this payment through PayPal? The order stock will be restored only after PayPal confirms the refund.', 'Rembourser ce paiement via PayPal ? Le stock sera rétabli après confirmation de PayPal.'));
+    if (!confirmed) return;
+    try {
+        const result = await api.refundOrder(orderId);
+        if (!result.success) throw new Error(result.message || 'Refund failed');
+        showToast(result.refund_status === 'COMPLETED' ? t('Payment refunded and stock restored', 'Paiement remboursé et stock rétabli') : t('Refund is pending at PayPal', 'Remboursement en attente chez PayPal'), result.refund_status === 'COMPLETED' ? 'success' : 'info');
+        await loadOrdersTable();
+        await loadStats();
+    } catch (error) {
+        showToast(error.message || t('Refund failed', 'Échec du remboursement'), 'error');
+    }
+};
+
+window.checkRefundStatus = async function(orderId) {
+    try {
+        const result = await api.checkRefundStatus(orderId);
+        if (!result.success) throw new Error(result.message || 'Could not check refund');
+        if (result.refund_status === 'COMPLETED') showToast(t('Refund completed and stock restored', 'Remboursement effectué et stock rétabli'), 'success');
+        else if (['DENIED', 'FAILED'].includes(result.refund_status)) showToast(t('PayPal did not complete the refund', 'PayPal n’a pas effectué le remboursement'), 'error');
+        else showToast(t('Refund is still pending at PayPal', 'Le remboursement est toujours en attente chez PayPal'), 'info');
+        await loadOrdersTable();
+        await loadStats();
+    } catch (error) {
+        showToast(error.message || t('Could not check refund', 'Impossible de vérifier le remboursement'), 'error');
+    }
+};
+
+window.reconcilePayment = async function(orderId) {
+    const paypalOrderId = window.prompt(t('Enter the PayPal order ID. The payment will be marked paid only if PayPal confirms the matching order number, amount, currency, and completed capture.', 'Saisissez l’identifiant de commande PayPal. Le paiement sera confirmé seulement si PayPal valide le numéro, le montant, la devise et la capture.'));
+    if (!paypalOrderId?.trim()) return;
+    try {
+        const result = await api.reconcilePayment(orderId, paypalOrderId.trim());
+        if (!result.success) throw new Error(result.message || 'Payment could not be verified');
+        showToast(t('PayPal payment verified', 'Paiement PayPal vérifié'), 'success');
+        await loadOrdersTable();
+        await loadStats();
+    } catch (error) {
+        showToast(error.message || t('Payment could not be verified', 'Paiement non vérifié'), 'error');
     }
 };
 

@@ -4,7 +4,7 @@ const path = require('path');
 const fs = require('fs');
 require('dotenv').config();
 
-const { testConnection } = require('./config/db');
+const { pool, testConnection } = require('./config/db');
 const productsRouter = require('./routes/products');
 const ordersRouter = require('./routes/orders');
 const sellerRouter = require('./routes/seller');
@@ -37,8 +37,14 @@ app.use('/api/seller', sellerRouter);
 app.use('/api/customer', customerRouter);
 
 // Health check
-app.get('/api/health', (req, res) => {
-    res.json({ success: true, message: 'GloboTV API is running 🚀', timestamp: new Date() });
+app.get('/api/health', async (req, res) => {
+    try {
+        await pool.query('SELECT 1');
+        res.json({ success: true, status: 'ok', database: 'connected', timestamp: new Date() });
+    } catch (error) {
+        console.error('Health check database failure:', error.message);
+        res.status(503).json({ success: false, status: 'unavailable', database: 'disconnected', timestamp: new Date() });
+    }
 });
 
 // SPA fallback - serve index.html for all non-API routes
@@ -55,12 +61,9 @@ app.get('*', (req, res) => {
 // existing Render database that predates the PayPal integration.
 async function startServer() {
     await testConnection();
-    try {
-        await ordersRouter.ensurePaymentSchema();
-        await ordersRouter.releaseExpiredOrders();
-    } catch (error) {
-        console.error('Order payment schema initialization failed:', error.message);
-    }
+    await ordersRouter.ensurePaymentSchema();
+    await pool.query(`CREATE TABLE IF NOT EXISTS rate_limit_buckets (bucket_key TEXT PRIMARY KEY, window_started_at TIMESTAMPTZ NOT NULL, request_count INTEGER NOT NULL)`);
+    await ordersRouter.releaseExpiredOrders();
 
     const paymentCleanupTimer = setInterval(() => {
         ordersRouter.releaseExpiredOrders().catch(error => {
@@ -68,6 +71,13 @@ async function startServer() {
         });
     }, 5 * 60 * 1000);
     paymentCleanupTimer.unref();
+
+    const rateLimitCleanupTimer = setInterval(() => {
+        pool.query(`DELETE FROM rate_limit_buckets WHERE window_started_at < NOW() - INTERVAL '2 hours'`).catch(error => {
+            console.error('Rate limit cleanup failed:', error.message);
+        });
+    }, 15 * 60 * 1000);
+    rateLimitCleanupTimer.unref();
 
     app.listen(PORT, '0.0.0.0', () => {
     console.log(`\nGloboTV Server running on port ${PORT}`);

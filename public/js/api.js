@@ -174,6 +174,22 @@ const api = {
         });
     },
 
+    refundOrder: async (id) => fetchApi(`${API_BASE}/orders/${id}/refund`, {
+        method: 'POST',
+        headers: { 'Authorization': `Bearer ${getToken()}` }
+    }),
+
+    checkRefundStatus: async (id) => fetchApi(`${API_BASE}/orders/${id}/refund/status`, {
+        method: 'POST',
+        headers: { 'Authorization': `Bearer ${getToken()}` }
+    }),
+
+    reconcilePayment: async (id, paypalOrderId) => fetchApi(`${API_BASE}/orders/${id}/reconcile-payment`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${getToken()}` },
+        body: JSON.stringify({ paypal_order_id: paypalOrderId })
+    }),
+
     // ---- Seller Auth ----
     login: async (username, password) => {
         const res = await fetch(`${API_BASE}/seller/login`, {

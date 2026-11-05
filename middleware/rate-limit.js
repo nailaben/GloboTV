@@ -1,27 +1,24 @@
-const buckets = new Map();
-let lastCleanupAt = 0;
+const { pool } = require('../config/db');
 
 function rateLimit({ windowMs, max, keyPrefix }) {
-    return (req, res, next) => {
-        const now = Date.now();
-        if (now - lastCleanupAt > 60_000) {
-            lastCleanupAt = now;
-            for (const [bucketKey, value] of buckets) {
-                if (value.resetAt <= now) buckets.delete(bucketKey);
-            }
+    return async (req, res, next) => {
+        try {
+            const key = `${keyPrefix}:${req.ip || req.socket.remoteAddress || 'unknown'}`;
+            const result = await pool.query(`
+                INSERT INTO rate_limit_buckets (bucket_key, window_started_at, request_count)
+                VALUES ($1, NOW(), 1)
+                ON CONFLICT (bucket_key) DO UPDATE SET
+                    window_started_at = CASE WHEN rate_limit_buckets.window_started_at <= NOW() - ($2 * INTERVAL '1 millisecond') THEN NOW() ELSE rate_limit_buckets.window_started_at END,
+                    request_count = CASE WHEN rate_limit_buckets.window_started_at <= NOW() - ($2 * INTERVAL '1 millisecond') THEN 1 ELSE rate_limit_buckets.request_count + 1 END
+                RETURNING request_count, GREATEST(1, CEIL(EXTRACT(EPOCH FROM (window_started_at + ($2 * INTERVAL '1 millisecond') - NOW()))))::INTEGER AS retry_after
+            `, [key, windowMs]);
+            const bucket = result.rows[0];
+            if (bucket.request_count <= max) return next();
+            res.set('Retry-After', String(bucket.retry_after));
+            return res.status(429).json({ success: false, message: 'Too many attempts. Please wait and try again.' });
+        } catch (error) {
+            return next(error);
         }
-        const key = `${keyPrefix}:${req.ip || req.socket.remoteAddress || 'unknown'}`;
-        let bucket = buckets.get(key);
-        if (!bucket || bucket.resetAt <= now) {
-            bucket = { count: 0, resetAt: now + windowMs };
-            buckets.set(key, bucket);
-        }
-
-        bucket.count += 1;
-        if (bucket.count <= max) return next();
-
-        res.set('Retry-After', String(Math.max(1, Math.ceil((bucket.resetAt - now) / 1000))));
-        return res.status(429).json({ success: false, message: 'Too many attempts. Please wait and try again.' });
     };
 }
 

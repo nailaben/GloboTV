@@ -254,6 +254,12 @@ CREATE TABLE IF NOT EXISTS orders (
 
     payment_capture_id VARCHAR(255),
 
+    payment_refund_id VARCHAR(255),
+
+    refund_status VARCHAR(30),
+
+    refunded_at TIMESTAMPTZ,
+
     stock_reserved BOOLEAN NOT NULL DEFAULT FALSE,
 
     stock_released_at TIMESTAMPTZ,
@@ -278,6 +284,9 @@ ADD COLUMN IF NOT EXISTS payment_provider VARCHAR(30),
 ADD COLUMN IF NOT EXISTS payment_status VARCHAR(30) NOT NULL DEFAULT 'unpaid',
 ADD COLUMN IF NOT EXISTS payment_reference VARCHAR(255),
 ADD COLUMN IF NOT EXISTS payment_capture_id VARCHAR(255),
+ADD COLUMN IF NOT EXISTS payment_refund_id VARCHAR(255),
+ADD COLUMN IF NOT EXISTS refund_status VARCHAR(30),
+ADD COLUMN IF NOT EXISTS refunded_at TIMESTAMPTZ,
 ADD COLUMN IF NOT EXISTS stock_reserved BOOLEAN NOT NULL DEFAULT FALSE,
 ADD COLUMN IF NOT EXISTS stock_released_at TIMESTAMPTZ,
 ADD COLUMN IF NOT EXISTS paid_at TIMESTAMPTZ;

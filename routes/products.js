@@ -6,6 +6,13 @@ const fs = require('fs');
 const { pool } = require('../config/db');
 const authMiddleware = require('../middleware/auth');
 const productUploadDir = process.env.PRODUCT_UPLOAD_DIR || path.join(__dirname, '../public/images/products');
+const cloudinaryEnv = {
+    cloudName: process.env.CLOUDINARY_CLOUD_NAME,
+    apiKey: process.env.CLOUDINARY_API_KEY,
+    apiSecret: process.env.CLOUDINARY_API_SECRET
+};
+const cloudinaryEnabled = Object.values(cloudinaryEnv).every(Boolean);
+const cloudinaryPartiallyConfigured = Object.values(cloudinaryEnv).some(Boolean) && !cloudinaryEnabled;
 
 const imageExtensionsByMime = {
     'image/jpeg': '.jpg',
@@ -17,7 +24,19 @@ const imageExtensionsByMime = {
 const allowedImageExtensions = new Set(['.jpg', '.jpeg', '.jfif', '.png', '.gif', '.webp', '.avif']);
 
 // Multer config for image uploads
-const storage = multer.diskStorage({
+function productImageFileFilter(req, file, cb) {
+    const extension = path.extname(file.originalname).toLowerCase();
+    const knownMimeType = Object.hasOwn(imageExtensionsByMime, file.mimetype);
+    // Browser MIME metadata can be missing or generic, so accept a supported
+    // extension in that case and rely on recognized image MIME types otherwise.
+    if ((knownMimeType && (!extension || extension === '.bin' || allowedImageExtensions.has(extension))) ||
+        ((!file.mimetype || file.mimetype === 'application/octet-stream') && allowedImageExtensions.has(extension))) {
+        return cb(null, true);
+    }
+    return cb(new Error('Only JPG, PNG, GIF, WebP, and AVIF images are allowed.'));
+}
+
+const diskStorage = multer.diskStorage({
     destination: (req, file, cb) => {
         if (!fs.existsSync(productUploadDir)) fs.mkdirSync(productUploadDir, { recursive: true });
         cb(null, productUploadDir);
@@ -32,24 +51,54 @@ const storage = multer.diskStorage({
     }
 });
 
-const upload = multer({
-    storage,
+const diskUpload = multer({
+    storage: diskStorage,
     limits: { fileSize: 5 * 1024 * 1024 },
-    fileFilter: (req, file, cb) => {
-        const extension = path.extname(file.originalname).toLowerCase();
-        const knownMimeType = Object.hasOwn(imageExtensionsByMime, file.mimetype);
-        // Browser MIME metadata can be missing or generic, so accept a supported
-        // extension in that case and rely on recognized image MIME types otherwise.
-        if ((knownMimeType && (!extension || extension === '.bin' || allowedImageExtensions.has(extension))) ||
-            ((!file.mimetype || file.mimetype === 'application/octet-stream') && allowedImageExtensions.has(extension))) {
-            return cb(null, true);
-        }
-        return cb(new Error('Only JPG, PNG, GIF, WebP, and AVIF images are allowed.'));
-    }
+    fileFilter: productImageFileFilter
 });
 
+const memoryUpload = multer({
+    storage: multer.memoryStorage(),
+    limits: { fileSize: 5 * 1024 * 1024 },
+    fileFilter: productImageFileFilter
+});
+
+async function uploadToCloudinary(file) {
+    const timestamp = Math.floor(Date.now() / 1000);
+    const folder = 'globotv/products';
+    const signatureBase = `folder=${folder}&timestamp=${timestamp}${cloudinaryEnv.apiSecret}`;
+    const signature = require('crypto').createHash('sha1').update(signatureBase).digest('hex');
+    const form = new FormData();
+    form.append('file', new Blob([file.buffer], { type: file.mimetype }), file.originalname);
+    form.append('api_key', cloudinaryEnv.apiKey);
+    form.append('timestamp', String(timestamp));
+    form.append('folder', folder);
+    form.append('signature', signature);
+
+    const response = await fetch(`https://api.cloudinary.com/v1_1/${encodeURIComponent(cloudinaryEnv.cloudName)}/image/upload`, {
+        method: 'POST', body: form, signal: AbortSignal.timeout(30_000)
+    });
+    const result = await response.json();
+    if (!response.ok || !result.secure_url) {
+        throw new Error(result.error?.message || 'Cloudinary image upload failed.');
+    }
+    return result.secure_url;
+}
+
 function uploadProductImage(req, res, next) {
-    upload.single('image')(req, res, error => {
+    if (cloudinaryPartiallyConfigured) {
+        return res.status(503).json({ success: false, message: 'Cloudinary configuration is incomplete.' });
+    }
+    const parser = cloudinaryEnabled ? memoryUpload : diskUpload;
+    parser.single('image')(req, res, async error => {
+        if (!error && req.file && cloudinaryEnabled) {
+            try {
+                req.file.cloudinaryUrl = await uploadToCloudinary(req.file);
+            } catch (uploadError) {
+                console.error('Cloudinary upload error:', uploadError.message);
+                return res.status(502).json({ success: false, message: 'Could not store the product image. Please try again.' });
+            }
+        }
         if (!error) return next();
         if (error instanceof multer.MulterError && error.code === 'LIMIT_FILE_SIZE') {
             return res.status(413).json({ success: false, message: 'Image must be 5 MB or smaller.' });
@@ -173,7 +222,7 @@ router.post('/', authMiddleware, uploadProductImage, async (req, res) => {
     try {
         let image_url = req.body.image_url || null;
         if (req.file) {
-            image_url = `/images/products/${req.file.filename}`;
+            image_url = req.file.cloudinaryUrl || `/images/products/${req.file.filename}`;
         }
 
         const result = await pool.query(`
@@ -202,7 +251,7 @@ router.put('/:id', authMiddleware, uploadProductImage, async (req, res) => {
     try {
         let image_url = req.body.image_url;
         if (req.file) {
-            image_url = `/images/products/${req.file.filename}`;
+            image_url = req.file.cloudinaryUrl || `/images/products/${req.file.filename}`;
         }
 
         const updateFields = [];

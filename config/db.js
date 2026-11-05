@@ -30,6 +30,7 @@ const testConnection = async () => {
         client.release();
     } catch (err) {
         console.error('❌ PostgreSQL connection failed:', err.message);
+        throw err;
     }
 };
 

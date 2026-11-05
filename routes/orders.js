@@ -13,10 +13,30 @@ function ensurePaymentSchema() {
                 ADD COLUMN IF NOT EXISTS payment_status VARCHAR(30) NOT NULL DEFAULT 'unpaid',
                 ADD COLUMN IF NOT EXISTS payment_reference VARCHAR(255),
                 ADD COLUMN IF NOT EXISTS payment_capture_id VARCHAR(255),
+                ADD COLUMN IF NOT EXISTS payment_refund_id VARCHAR(255),
+                ADD COLUMN IF NOT EXISTS refund_status VARCHAR(30),
+                ADD COLUMN IF NOT EXISTS refunded_at TIMESTAMPTZ,
                 ADD COLUMN IF NOT EXISTS stock_reserved BOOLEAN NOT NULL DEFAULT FALSE,
                 ADD COLUMN IF NOT EXISTS stock_released_at TIMESTAMPTZ,
                 ADD COLUMN IF NOT EXISTS paid_at TIMESTAMPTZ
-        `).catch(error => {
+        `).then(async () => {
+            const client = await pool.connect();
+            try {
+                await client.query('BEGIN');
+                await client.query(`CREATE TABLE IF NOT EXISTS app_migrations (name VARCHAR(120) PRIMARY KEY, applied_at TIMESTAMPTZ NOT NULL DEFAULT NOW())`);
+                await client.query(`CREATE UNIQUE INDEX IF NOT EXISTS orders_payment_capture_id_unique ON orders(payment_capture_id) WHERE payment_capture_id IS NOT NULL`);
+                const migration = await client.query(`INSERT INTO app_migrations(name) VALUES ('legacy-payment-review-v1') ON CONFLICT DO NOTHING RETURNING name`);
+                if (migration.rowCount) {
+                    await client.query(`UPDATE orders SET payment_status = 'legacy_unverified' WHERE payment_provider IS NULL AND payment_status = 'unpaid'`);
+                }
+                await client.query('COMMIT');
+            } catch (error) {
+                await client.query('ROLLBACK').catch(() => {});
+                throw error;
+            } finally {
+                client.release();
+            }
+        }).catch(error => {
             paymentSchemaPromise = null;
             throw error;
         });
@@ -408,6 +428,164 @@ router.get('/paypal/cancel', async (req, res) => {
     return res.redirect('/checkout.html?payment=cancelled');
 });
 
+// Refund a captured PayPal order. Only a completed PayPal refund updates the
+// local payment and inventory records; the stable request ID makes retries safe.
+router.post('/:id/reconcile-payment', authMiddleware, async (req, res) => {
+    const paypalOrderId = String(req.body.paypal_order_id || '').trim();
+    if (!/^[A-Za-z0-9_-]{5,64}$/.test(paypalOrderId)) {
+        return res.status(400).json({ success: false, message: 'Enter a valid PayPal order ID.' });
+    }
+    let client;
+    try {
+        await ensurePaymentSchema();
+        client = await pool.connect();
+        await client.query('BEGIN');
+        const selected = await client.query(`
+            SELECT o.* FROM orders o
+            WHERE o.id = $1 AND EXISTS (
+                SELECT 1 FROM order_items oi JOIN products p ON p.id = oi.product_id
+                WHERE oi.order_id = o.id AND p.seller_id = $2
+            ) FOR UPDATE
+        `, [req.params.id, req.seller.id]);
+        const order = selected.rows[0];
+        if (!order) {
+            await client.query('ROLLBACK');
+            return res.status(404).json({ success: false, message: 'Order not found' });
+        }
+        if (order.payment_status !== 'legacy_unverified') {
+            await client.query('ROLLBACK');
+            return res.status(409).json({ success: false, message: 'Only legacy orders awaiting payment review can be reconciled.' });
+        }
+        const paypalOrder = await paypalRequest(`/v2/checkout/orders/${encodeURIComponent(paypalOrderId)}`);
+        const purchase = paypalOrder.purchase_units?.[0];
+        const capture = purchase?.payments?.captures?.find(item => item.status === 'COMPLETED');
+        if (paypalOrder.status !== 'COMPLETED' || purchase?.custom_id !== order.order_number ||
+            purchase?.amount?.currency_code !== order.currency || Number(purchase?.amount?.value) !== Number(order.total_amount) || !capture?.id ||
+            capture.amount?.currency_code !== order.currency || Number(capture.amount?.value) !== Number(order.total_amount)) {
+            await client.query('ROLLBACK');
+            return res.status(409).json({ success: false, message: 'PayPal details do not match this order or the payment is not completed.' });
+        }
+        await client.query(`
+            UPDATE orders SET payment_provider = 'paypal', payment_reference = $1, payment_capture_id = $2,
+                payment_status = 'paid', paid_at = NOW(), status = CASE WHEN status = 'pending' THEN 'confirmed' ELSE status END,
+                updated_at = NOW()
+            WHERE id = $3 AND payment_status = 'legacy_unverified'
+        `, [paypalOrderId, capture.id, order.id]);
+        await client.query('COMMIT');
+        return res.json({ success: true, payment_status: 'paid' });
+    } catch (error) {
+        if (client) await client.query('ROLLBACK').catch(() => {});
+        console.error('Legacy payment reconciliation error:', error.message);
+        return res.status(500).json({ success: false, message: 'Could not verify this PayPal payment.' });
+    } finally {
+        client?.release();
+    }
+});
+
+router.post('/:id/refund', authMiddleware, async (req, res) => {
+    let client;
+    try {
+        await ensurePaymentSchema();
+        client = await pool.connect();
+        await client.query('BEGIN');
+        const selected = await client.query(`
+            SELECT o.* FROM orders o
+            WHERE o.id = $1 AND EXISTS (
+                SELECT 1 FROM order_items oi JOIN products p ON p.id = oi.product_id
+                WHERE oi.order_id = o.id AND p.seller_id = $2
+            ) FOR UPDATE
+        `, [req.params.id, req.seller.id]);
+        const order = selected.rows[0];
+        if (!order) {
+            await client.query('ROLLBACK');
+            return res.status(404).json({ success: false, message: 'Order not found' });
+        }
+        if (order.payment_status === 'refunded' && order.payment_refund_id) {
+            await client.query('COMMIT');
+            return res.json({ success: true, refund_status: 'COMPLETED', refund_id: order.payment_refund_id });
+        }
+        if (order.payment_status === 'refund_pending' && order.payment_refund_id) {
+            await client.query('COMMIT');
+            return res.json({ success: true, refund_status: 'PENDING', refund_id: order.payment_refund_id });
+        }
+        if (order.payment_status !== 'paid' || !order.payment_capture_id || order.payment_provider !== 'paypal') {
+            await client.query('ROLLBACK');
+            return res.status(409).json({ success: false, message: 'Only paid PayPal orders can be refunded.' });
+        }
+
+        const refund = await paypalRequest(`/v2/payments/captures/${encodeURIComponent(order.payment_capture_id)}/refund`, {
+            method: 'POST', body: '{}', headers: { 'PayPal-Request-Id': `refund-${order.payment_capture_id}` }
+        });
+        if (!refund.id || !['COMPLETED', 'PENDING'].includes(refund.status)) {
+            await client.query('ROLLBACK');
+            return res.status(502).json({ success: false, message: 'PayPal did not confirm the refund.' });
+        }
+        if (refund.status === 'COMPLETED') {
+            const items = await client.query(`SELECT product_id, SUM(quantity)::INTEGER AS quantity FROM order_items WHERE order_id = $1 AND product_id IS NOT NULL GROUP BY product_id`, [order.id]);
+            for (const item of items.rows) await client.query('UPDATE products SET stock_quantity = stock_quantity + $1 WHERE id = $2', [item.quantity, item.product_id]);
+        }
+        await client.query(`UPDATE orders SET payment_status = $1, payment_refund_id = $2, refund_status = $3, refunded_at = CASE WHEN $1 = 'refunded' THEN NOW() ELSE refunded_at END, status = CASE WHEN $1 = 'refunded' THEN 'cancelled' ELSE status END, updated_at = NOW() WHERE id = $4`, [refund.status === 'COMPLETED' ? 'refunded' : 'refund_pending', refund.id, refund.status, order.id]);
+        await client.query('COMMIT');
+        return res.json({ success: true, refund_status: refund.status, refund_id: refund.id });
+    } catch (error) {
+        if (client) await client.query('ROLLBACK').catch(() => {});
+        console.error('PayPal refund error:', error.message);
+        return res.status(500).json({ success: false, message: 'Refund could not be completed.' });
+    } finally {
+        client?.release();
+    }
+});
+
+// Reconcile an asynchronous PayPal refund and restore stock exactly once.
+router.post('/:id/refund/status', authMiddleware, async (req, res) => {
+    let client;
+    try {
+        await ensurePaymentSchema();
+        client = await pool.connect();
+        await client.query('BEGIN');
+        const selected = await client.query(`
+            SELECT o.* FROM orders o
+            WHERE o.id = $1 AND EXISTS (
+                SELECT 1 FROM order_items oi JOIN products p ON p.id = oi.product_id
+                WHERE oi.order_id = o.id AND p.seller_id = $2
+            ) FOR UPDATE
+        `, [req.params.id, req.seller.id]);
+        const order = selected.rows[0];
+        if (!order) {
+            await client.query('ROLLBACK');
+            return res.status(404).json({ success: false, message: 'Order not found' });
+        }
+        if (order.payment_status === 'refunded') {
+            await client.query('COMMIT');
+            return res.json({ success: true, refund_status: 'COMPLETED' });
+        }
+        if (order.payment_status !== 'refund_pending' || !order.payment_refund_id) {
+            await client.query('ROLLBACK');
+            return res.status(409).json({ success: false, message: 'This order has no pending refund.' });
+        }
+
+        const refund = await paypalRequest(`/v2/payments/refunds/${encodeURIComponent(order.payment_refund_id)}`);
+        if (refund.status === 'COMPLETED') {
+            const items = await client.query(`SELECT product_id, SUM(quantity)::INTEGER AS quantity FROM order_items WHERE order_id = $1 AND product_id IS NOT NULL GROUP BY product_id`, [order.id]);
+            for (const item of items.rows) await client.query('UPDATE products SET stock_quantity = stock_quantity + $1 WHERE id = $2', [item.quantity, item.product_id]);
+            await client.query(`UPDATE orders SET payment_status = 'refunded', refund_status = 'COMPLETED', refunded_at = NOW(), status = 'cancelled', updated_at = NOW() WHERE id = $1 AND payment_status = 'refund_pending'`, [order.id]);
+        } else if (['DENIED', 'FAILED'].includes(refund.status)) {
+            await client.query(`UPDATE orders SET payment_status = 'paid', refund_status = $1, updated_at = NOW() WHERE id = $2 AND payment_status = 'refund_pending'`, [refund.status, order.id]);
+        } else if (refund.status !== 'PENDING') {
+            await client.query('ROLLBACK');
+            return res.status(502).json({ success: false, message: 'PayPal returned an unrecognized refund status.' });
+        }
+        await client.query('COMMIT');
+        return res.json({ success: true, refund_status: refund.status });
+    } catch (error) {
+        if (client) await client.query('ROLLBACK').catch(() => {});
+        console.error('PayPal refund status check error:', error.message);
+        return res.status(500).json({ success: false, message: 'Could not check refund status.' });
+    } finally {
+        client?.release();
+    }
+});
+
 // GET /api/orders - Get all orders (seller only)
 router.get('/', authMiddleware, async (req, res) => {
     try {
@@ -520,6 +698,10 @@ router.patch('/:id/status', authMiddleware, async (req, res) => {
         if (!order) {
             await client.query('ROLLBACK');
             return res.status(404).json({ success: false, message: 'Order not found' });
+        }
+        if (status === 'cancelled' && order.payment_status === 'paid') {
+            await client.query('ROLLBACK');
+            return res.status(409).json({ success: false, message: 'Refund the PayPal payment before cancelling this paid order.' });
         }
         if (status === 'cancelled' && order.payment_status === 'pending' && order.stock_reserved) {
             await releaseReservedStock(client, order);
