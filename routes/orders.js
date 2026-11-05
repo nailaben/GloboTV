@@ -348,14 +348,18 @@ router.post('/', async (req, res) => {
 // database, capture it on the server, and only then mark the local order paid.
 router.get('/paypal/return', async (req, res) => {
     const paypalOrderId = String(req.query.token || '');
-    if (!paypalOrderId) return res.redirect('/checkout.html?payment=error');
+    const failReturn = (reason, query = reason) => {
+        console.warn('PayPal return not completed:', { reason, hasOrderToken: Boolean(paypalOrderId) });
+        return res.redirect(`/checkout.html?payment=${encodeURIComponent(query)}`);
+    };
+    if (!paypalOrderId) return failReturn('missing_order_token', 'error');
 
     try {
         await ensurePaymentSchema();
         const paypalOrder = await paypalRequest(`/v2/checkout/orders/${encodeURIComponent(paypalOrderId)}`);
         const purchase = paypalOrder.purchase_units?.[0];
         if (!['APPROVED', 'COMPLETED'].includes(paypalOrder.status) || !purchase?.custom_id) {
-            return res.redirect('/checkout.html?payment=not-approved');
+            return failReturn('paypal_order_not_approved_or_missing_reference', 'not-approved');
         }
 
         const client = await pool.connect();
@@ -363,10 +367,15 @@ router.get('/paypal/return', async (req, res) => {
             await client.query('BEGIN');
             const orderResult = await client.query('SELECT * FROM orders WHERE order_number = $1 FOR UPDATE', [purchase.custom_id]);
             const order = orderResult.rows[0];
+            const moneyMatches = (amount, orderAmount, orderCurrency) => {
+                const cents = Number.isFinite(Number(amount?.value)) ? Math.round(Number(amount.value) * 100) : NaN;
+                return String(amount?.currency_code || '').toUpperCase() === String(orderCurrency || '').toUpperCase() &&
+                    cents === Math.round(Number(orderAmount) * 100);
+            };
             if (!order || order.payment_provider !== 'paypal' || order.payment_reference !== paypalOrderId ||
-                purchase.amount?.currency_code !== order.currency || Number(purchase.amount?.value) !== Number(order.total_amount)) {
+                !moneyMatches(purchase.amount, order?.total_amount, order?.currency)) {
                 await client.query('ROLLBACK');
-                return res.redirect('/checkout.html?payment=verification-error');
+                return failReturn('local_order_reference_or_amount_mismatch', 'verification-error');
             }
 
             if (order.payment_status === 'paid' && order.payment_capture_id) {
@@ -375,7 +384,7 @@ router.get('/paypal/return', async (req, res) => {
             }
             if (order.payment_status !== 'pending' || !order.stock_reserved) {
                 await client.query('ROLLBACK');
-                return res.redirect('/checkout.html?payment=verification-error');
+                return failReturn('order_not_pending_or_stock_not_reserved', 'verification-error');
             }
 
             const capture = paypalOrder.status === 'COMPLETED'
@@ -385,10 +394,9 @@ router.get('/paypal/return', async (req, res) => {
             const captureInfo = capturedPurchase?.payments?.captures?.[0];
             if (capture.status !== 'COMPLETED' || captureInfo?.status !== 'COMPLETED' ||
                 capturedPurchase?.custom_id !== order.order_number ||
-                captureInfo?.amount?.currency_code !== order.currency ||
-                Number(captureInfo?.amount?.value) !== Number(order.total_amount)) {
+                !moneyMatches(captureInfo?.amount, order.total_amount, order.currency)) {
                 await client.query('ROLLBACK');
-                return res.redirect('/checkout.html?payment=capture-error');
+                return failReturn('paypal_capture_not_completed_or_amount_mismatch', 'capture-error');
             }
 
             await client.query(`
@@ -405,7 +413,7 @@ router.get('/paypal/return', async (req, res) => {
         }
         return res.redirect('/order-success.html?payment=paypal');
     } catch (error) {
-        console.error('PayPal return error:', error);
+        console.error('PayPal return error:', { message: error.message, name: error.name });
         return res.redirect('/checkout.html?payment=error');
     }
 });
@@ -442,8 +450,8 @@ router.get('/paypal/cancel', async (req, res) => {
 // Refund a captured PayPal order. Only a completed PayPal refund updates the
 // local payment and inventory records; the stable request ID makes retries safe.
 router.post('/:id/reconcile-payment', authMiddleware, async (req, res) => {
-    const paypalOrderId = String(req.body.paypal_order_id || '').trim();
-    if (!/^[A-Za-z0-9_-]{5,64}$/.test(paypalOrderId)) {
+    let paypalOrderId = String(req.body.paypal_order_id || '').trim();
+    if (paypalOrderId && !/^[A-Za-z0-9_-]{5,64}$/.test(paypalOrderId)) {
         return res.status(400).json({ success: false, message: 'Enter a valid PayPal order ID.' });
     }
     let client;
@@ -463,25 +471,51 @@ router.post('/:id/reconcile-payment', authMiddleware, async (req, res) => {
             await client.query('ROLLBACK');
             return res.status(404).json({ success: false, message: 'Order not found' });
         }
-        if (order.payment_status !== 'legacy_unverified') {
+        const isPendingPayPalOrder = order.payment_status === 'pending' && order.payment_provider === 'paypal' &&
+            order.stock_reserved && order.payment_reference;
+        const isLegacyOrder = order.payment_status === 'legacy_unverified';
+        if (!isPendingPayPalOrder && !isLegacyOrder) {
             await client.query('ROLLBACK');
-            return res.status(409).json({ success: false, message: 'Only legacy orders awaiting payment review can be reconciled.' });
+            return res.status(409).json({ success: false, message: 'This order is not awaiting PayPal payment verification.' });
         }
-        const paypalOrder = await paypalRequest(`/v2/checkout/orders/${encodeURIComponent(paypalOrderId)}`);
+        if (isPendingPayPalOrder) {
+            if (paypalOrderId && paypalOrderId !== order.payment_reference) {
+                await client.query('ROLLBACK');
+                return res.status(409).json({ success: false, message: 'PayPal order ID does not match this order.' });
+            }
+            paypalOrderId = order.payment_reference;
+        } else if (!paypalOrderId) {
+            await client.query('ROLLBACK');
+            return res.status(400).json({ success: false, message: 'Enter the PayPal order ID for this legacy order.' });
+        }
+
+        let paypalOrder = await paypalRequest(`/v2/checkout/orders/${encodeURIComponent(paypalOrderId)}`);
         const purchase = paypalOrder.purchase_units?.[0];
-        const capture = purchase?.payments?.captures?.find(item => item.status === 'COMPLETED');
-        if (paypalOrder.status !== 'COMPLETED' || purchase?.custom_id !== order.order_number ||
-            purchase?.amount?.currency_code !== order.currency || Number(purchase?.amount?.value) !== Number(order.total_amount) || !capture?.id ||
-            capture.amount?.currency_code !== order.currency || Number(capture.amount?.value) !== Number(order.total_amount)) {
+        const matchesAmount = amount => String(amount?.currency_code || '').toUpperCase() === String(order.currency || '').toUpperCase() &&
+            Math.round(Number(amount?.value) * 100) === Math.round(Number(order.total_amount) * 100);
+        if (!purchase || purchase.custom_id !== order.order_number || !matchesAmount(purchase.amount)) {
+            await client.query('ROLLBACK');
+            return res.status(409).json({ success: false, message: 'PayPal details do not match this order or the payment is not completed.' });
+        }
+
+        if (isPendingPayPalOrder && paypalOrder.status === 'APPROVED') {
+            paypalOrder = await paypalRequest(`/v2/checkout/orders/${encodeURIComponent(paypalOrderId)}/capture`, {
+                method: 'POST', body: '{}'
+            });
+        }
+        const capturedPurchase = paypalOrder.purchase_units?.[0];
+        const capture = capturedPurchase?.payments?.captures?.find(item => item.status === 'COMPLETED');
+        if (paypalOrder.status !== 'COMPLETED' || capturedPurchase?.custom_id !== order.order_number ||
+            !matchesAmount(capturedPurchase?.amount) || !capture?.id || !matchesAmount(capture.amount)) {
             await client.query('ROLLBACK');
             return res.status(409).json({ success: false, message: 'PayPal details do not match this order or the payment is not completed.' });
         }
         await client.query(`
             UPDATE orders SET payment_provider = 'paypal', payment_reference = $1, payment_capture_id = $2,
-                payment_status = 'paid', paid_at = NOW(), status = CASE WHEN status = 'pending' THEN 'confirmed' ELSE status END,
-                updated_at = NOW()
-            WHERE id = $3 AND payment_status = 'legacy_unverified'
-        `, [paypalOrderId, capture.id, order.id]);
+                payment_status = 'paid', paid_at = COALESCE(paid_at, NOW()), stock_reserved = FALSE,
+                status = CASE WHEN status = 'pending' THEN 'confirmed' ELSE status END, updated_at = NOW()
+            WHERE id = $3 AND payment_status = $4
+        `, [paypalOrderId, capture.id, order.id, order.payment_status]);
         await client.query('COMMIT');
         return res.json({ success: true, payment_status: 'paid' });
     } catch (error) {

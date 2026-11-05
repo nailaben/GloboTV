@@ -496,7 +496,8 @@ async function loadOrdersTable() {
             </td>
             <td style="font-size:0.8rem;color:var(--text-muted)">
                 ${escapeHtml(o.customer_email)}
-                ${o.payment_status === 'paid' ? `<button type="button" class="btn btn-secondary" style="display:block;margin-top:.35rem;padding:.35rem .55rem;font-size:.75rem" onclick="composeCustomerEmail(${o.id})">${t('Prepare email', 'Préparer l’e-mail')}</button>` : ''}
+                <button type="button" class="btn btn-secondary" style="display:block;margin-top:.35rem;padding:.35rem .55rem;font-size:.75rem" onclick="previewCustomerEmail(${o.id})">${t('Preview email', 'Aperçu de l’e-mail')}</button>
+                ${o.payment_status === 'paid' ? `<button type="button" class="btn btn-secondary" style="display:block;margin-top:.35rem;padding:.35rem .55rem;font-size:.75rem" onclick="composeCustomerEmail(${o.id})">${t('Open email draft', 'Ouvrir le brouillon')}</button>` : ''}
             </td>
             <td>${o.items_count || '—'}</td>
             <td><span style="font-weight:700;color:var(--accent)">${new Intl.NumberFormat(currentLang === 'fr' ? 'fr-FR' : 'en-IE',{style:'currency',currency:o.currency||'USD'}).format(Number(o.total_amount))}</span></td>
@@ -508,6 +509,7 @@ async function loadOrdersTable() {
                 </select>
                 ${paymentLabel ? `<small style="display:block;margin-top:.3rem;color:var(--text-muted)">${paymentLabel}</small>` : ''}
                 ${o.payment_status === 'legacy_unverified' ? `<button type="button" class="btn btn-secondary" style="margin-top:.35rem;padding:.35rem .55rem;font-size:.75rem" onclick="reconcilePayment(${o.id})">${t('Verify PayPal payment', 'Vérifier le paiement PayPal')}</button>` : ''}
+                ${o.payment_status === 'pending' && o.payment_provider === 'paypal' ? `<button type="button" class="btn btn-secondary" style="margin-top:.35rem;padding:.35rem .55rem;font-size:.75rem" onclick="reconcilePayment(${o.id}, '')">${t('Check PayPal payment', 'Vérifier le paiement PayPal')}</button>` : ''}
                 ${o.payment_status === 'paid' && o.payment_provider === 'paypal' ? `<button type="button" class="btn btn-secondary" style="margin-top:.35rem;padding:.35rem .55rem;font-size:.75rem" onclick="refundOrder(${o.id})">${t('Refund via PayPal', 'Rembourser via PayPal')}</button>` : ''}
                 ${o.payment_status === 'refund_pending' ? `<button type="button" class="btn btn-secondary" style="margin-top:.35rem;padding:.35rem .55rem;font-size:.75rem" onclick="checkRefundStatus(${o.id})">${t('Check refund status', 'Vérifier le remboursement')}</button>` : ''}
             </td>
@@ -557,17 +559,80 @@ window.checkRefundStatus = async function(orderId) {
     }
 };
 
-window.reconcilePayment = async function(orderId) {
-    const paypalOrderId = window.prompt(t('Enter the PayPal order ID. The payment will be marked paid only if PayPal confirms the matching order number, amount, currency, and completed capture.', 'Saisissez l’identifiant de commande PayPal. Le paiement sera confirmé seulement si PayPal valide le numéro, le montant, la devise et la capture.'));
-    if (!paypalOrderId?.trim()) return;
+window.reconcilePayment = async function(orderId, knownPaypalOrderId = null) {
+    const paypalOrderId = knownPaypalOrderId === null
+        ? window.prompt(t('Enter the PayPal order ID. The payment will be marked paid only if PayPal confirms the matching order number, amount, currency, and completed capture.', 'Saisissez l’identifiant de commande PayPal. Le paiement sera confirmé seulement si PayPal valide le numéro, le montant, la devise et la capture.'))
+        : knownPaypalOrderId;
+    if (knownPaypalOrderId === null && !paypalOrderId?.trim()) return;
     try {
-        const result = await api.reconcilePayment(orderId, paypalOrderId.trim());
+        const result = await api.reconcilePayment(orderId, paypalOrderId?.trim() || '');
         if (!result.success) throw new Error(result.message || 'Payment could not be verified');
-        showToast(t('PayPal payment verified', 'Paiement PayPal vérifié'), 'success');
+        showToast(t('PayPal payment verified and order updated', 'Paiement PayPal vérifié et commande mise à jour'), 'success');
         await loadOrdersTable();
         await loadStats();
     } catch (error) {
         showToast(error.message || t('Payment could not be verified', 'Paiement non vérifié'), 'error');
+    }
+};
+
+let activeCustomerEmailDraft = null;
+
+function closeCustomerEmailPreview() {
+    document.getElementById('email-preview-modal').style.display = 'none';
+    activeCustomerEmailDraft = null;
+}
+
+document.getElementById('close-email-preview')?.addEventListener('click', closeCustomerEmailPreview);
+document.getElementById('close-email-preview-footer')?.addEventListener('click', closeCustomerEmailPreview);
+document.getElementById('email-preview-modal')?.addEventListener('click', event => {
+    if (event.target.id === 'email-preview-modal') closeCustomerEmailPreview();
+});
+
+document.getElementById('open-email-draft')?.addEventListener('click', () => {
+    if (!activeCustomerEmailDraft?.paid) return;
+    const { to, subject, body } = activeCustomerEmailDraft;
+    const url = `https://mail.google.com/mail/?view=cm&fs=1&to=${encodeURIComponent(to)}&su=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
+    window.open(url, '_blank', 'noopener');
+});
+
+function createCustomerEmailDraft(order, items, paid) {
+    const itemLines = items.map(item => {
+        const offer = item.offer_label_en ? ` — ${item.offer_label_en}` : '';
+        return `• ${item.product_name_en}${offer} × ${item.quantity}`;
+    }).join('\n');
+    const subject = `GloboTV order ${order.order_number} — product activation code`;
+    const body = [
+        `Hello ${order.customer_name},`,
+        '',
+        paid ? 'Thank you for your purchase. Your payment has been confirmed.' : '[Payment confirmation will appear here after successful payment.]',
+        `Order: ${order.order_number}`,
+        'Products purchased:',
+        itemLines,
+        '',
+        'Product activation code:',
+        '[Paste the product code here]',
+        '',
+        'Enter this code in the product to activate it.',
+        'GloboTV'
+    ].join('\n');
+    return { to: order.customer_email, subject, body, paid };
+}
+
+window.previewCustomerEmail = async function(orderId) {
+    try {
+        const result = await api.getOrder(orderId);
+        if (!result.success || !result.order) throw new Error(result.message || 'Could not load this order');
+        activeCustomerEmailDraft = createCustomerEmailDraft(result.order, result.items || [], result.order.payment_status === 'paid');
+        document.getElementById('email-preview-to').value = activeCustomerEmailDraft.to;
+        document.getElementById('email-preview-subject').value = activeCustomerEmailDraft.subject;
+        document.getElementById('email-preview-body').value = activeCustomerEmailDraft.body;
+        document.getElementById('email-preview-notice').textContent = activeCustomerEmailDraft.paid
+            ? t('Preview only. No email will be sent until you send the Gmail draft.', 'Aperçu uniquement. Aucun e-mail ne sera envoyé avant votre envoi depuis Gmail.')
+            : t('TEST PREVIEW ONLY — payment is not confirmed and no email will be sent.', 'APERÇU DE TEST — le paiement n’est pas confirmé et aucun e-mail ne sera envoyé.');
+        document.getElementById('open-email-draft').disabled = !activeCustomerEmailDraft.paid;
+        document.getElementById('email-preview-modal').style.display = 'flex';
+    } catch (error) {
+        showToast(error.message || t('Could not prepare the email preview', 'Impossible de préparer l’aperçu'), 'error');
     }
 };
 
@@ -577,27 +642,8 @@ window.composeCustomerEmail = async function(orderId) {
         const result = await api.getOrder(orderId);
         if (!result.success || !result.order) throw new Error(result.message || 'Could not load this order');
         if (result.order.payment_status !== 'paid') throw new Error(t('Payment is not confirmed yet', 'Le paiement n’est pas encore confirmé'));
-        const order = result.order;
-        const itemLines = (result.items || []).map(item => {
-            const offer = item.offer_label_en ? ` — ${item.offer_label_en}` : '';
-            return `• ${item.product_name_en}${offer} × ${item.quantity}`;
-        }).join('\n');
-        const subject = `GloboTV order ${order.order_number} — product activation code`;
-        const body = [
-            `Hello ${order.customer_name},`,
-            '',
-            'Thank you for your purchase. Your payment has been confirmed.',
-            `Order: ${order.order_number}`,
-            'Products purchased:',
-            itemLines,
-            '',
-            'Product activation code:',
-            '[Paste the product code here]',
-            '',
-            'Enter this code in the product to activate it.',
-            'GloboTV'
-        ].join('\n');
-        const gmailUrl = `https://mail.google.com/mail/?view=cm&fs=1&to=${encodeURIComponent(order.customer_email)}&su=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
+        const { to, subject, body } = createCustomerEmailDraft(result.order, result.items || [], true);
+        const gmailUrl = `https://mail.google.com/mail/?view=cm&fs=1&to=${encodeURIComponent(to)}&su=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
         if (composeWindow) composeWindow.location.replace(gmailUrl);
         else window.location.assign(gmailUrl);
     } catch (error) {

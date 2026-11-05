@@ -208,6 +208,29 @@
         </main>
     </div>
 
+    <!-- ===== CUSTOMER EMAIL PREVIEW ===== -->
+    <div class="modal-overlay" id="email-preview-modal" style="display:none">
+        <div class="modal" style="max-width:680px">
+            <div class="modal-header">
+                <span class="modal-title">Customer email preview</span>
+                <button class="modal-close" id="close-email-preview" type="button" aria-label="Close">✕</button>
+            </div>
+            <div style="padding:1rem">
+                <p id="email-preview-notice" style="color:#f0bd73;margin:0 0 1rem">Preview only. No email will be sent.</p>
+                <label class="form-label" for="email-preview-to">To</label>
+                <input id="email-preview-to" class="form-input" readonly>
+                <label class="form-label" for="email-preview-subject" style="display:block;margin-top:.8rem">Subject</label>
+                <input id="email-preview-subject" class="form-input" readonly>
+                <label class="form-label" for="email-preview-body" style="display:block;margin-top:.8rem">Message</label>
+                <textarea id="email-preview-body" class="form-textarea" rows="12" readonly></textarea>
+                <div style="display:flex;justify-content:flex-end;gap:.6rem;margin-top:1rem">
+                    <button class="btn btn-ghost" type="button" id="close-email-preview-footer">Close</button>
+                    <button class="btn btn-primary" type="button" id="open-email-draft" disabled>Open Gmail draft</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
     <!-- ===== PRODUCT MODAL ===== -->
     <div class="modal-overlay" id="product-modal" style="display:none">
         <div class="modal" style="max-width:680px">
@@ -313,8 +336,8 @@
         </div>
     </div>
 
-    <script src="/js/api.js?v=20261020-2"></script>
-    <script src="/js/dashboard.js?v=20261020-2"></script>
+    <script src="/js/api.js?v=20261105-1"></script>
+    <script src="/js/dashboard.js?v=20261105-paypal-reconcile"></script>
 </body>
 
 </html>

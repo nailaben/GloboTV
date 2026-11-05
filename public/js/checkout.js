@@ -11,6 +11,7 @@ document.addEventListener('DOMContentLoaded', () => {
     setupCheckoutSteps();
     setupContactConfirmation();
     setupForm();
+    showPaymentReturnNotice();
     document.addEventListener('langChange', () => {
         applyCheckoutTranslations();
         renderOrderSummary();
@@ -219,6 +220,43 @@ function applyCheckoutTranslations() {
     document.querySelectorAll('[data-co-placeholder]').forEach(el => {
         el.placeholder = ctr(el.getAttribute('data-co-placeholder'));
     });
+}
+
+function showPaymentReturnNotice() {
+    const result = new URLSearchParams(window.location.search).get('payment');
+    if (!result || result === 'paypal') return;
+
+    const messages = {
+        en: {
+            cancelled: 'Payment was cancelled or not completed. Your order is still pending.',
+            'not-approved': 'PayPal did not confirm the payment. Your order is still pending.',
+            'verification-error': 'We could not match PayPal’s payment to this order. Check your PayPal activity and contact support before trying again.',
+            'capture-error': 'PayPal returned, but we could not confirm the captured payment. Check PayPal and your order status before trying again.',
+            error: 'We could not confirm the PayPal payment. Check PayPal and your order status before trying again.'
+        },
+        fr: {
+            cancelled: 'Le paiement a été annulé ou n’a pas été terminé. La commande est toujours en attente.',
+            'not-approved': 'PayPal n’a pas confirmé le paiement. La commande est toujours en attente.',
+            'verification-error': 'Nous n’avons pas pu associer le paiement PayPal à cette commande. Vérifiez votre activité PayPal et contactez le support avant de réessayer.',
+            'capture-error': 'PayPal vous a redirigé vers le site, mais nous n’avons pas pu confirmer le paiement capturé. Vérifiez PayPal et le statut de la commande avant de réessayer.',
+            error: 'Nous n’avons pas pu confirmer le paiement PayPal. Vérifiez PayPal et le statut de la commande avant de réessayer.'
+        }
+    };
+    const message = (messages[currentLang] || messages.en)[result];
+    if (!message) return;
+
+    const notice = document.createElement('div');
+    notice.className = 'checkout-payment-return-notice';
+    notice.setAttribute('role', 'alert');
+    notice.textContent = message;
+    const close = document.createElement('button');
+    close.type = 'button';
+    close.className = 'checkout-payment-return-close';
+    close.setAttribute('aria-label', 'Close');
+    close.textContent = '×';
+    close.addEventListener('click', () => notice.remove());
+    notice.append(close);
+    document.querySelector('.checkout-steps')?.insertAdjacentElement('afterend', notice);
 }
 
 function setupLangToggle() {
