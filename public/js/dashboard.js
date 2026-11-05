@@ -494,7 +494,10 @@ async function loadOrdersTable() {
                 <div style="font-weight:600;font-size:0.875rem">${escapeHtml(o.customer_name)}</div>
                 <div style="color:var(--text-muted);font-size:0.78rem">${escapeHtml(o.customer_phone)}</div>
             </td>
-            <td style="font-size:0.8rem;color:var(--text-muted)">${escapeHtml(o.customer_email)}</td>
+            <td style="font-size:0.8rem;color:var(--text-muted)">
+                ${escapeHtml(o.customer_email)}
+                ${o.payment_status === 'paid' ? `<button type="button" class="btn btn-secondary" style="display:block;margin-top:.35rem;padding:.35rem .55rem;font-size:.75rem" onclick="composeCustomerEmail(${o.id})">${t('Prepare email', 'Préparer l’e-mail')}</button>` : ''}
+            </td>
             <td>${o.items_count || '—'}</td>
             <td><span style="font-weight:700;color:var(--accent)">${new Intl.NumberFormat(currentLang === 'fr' ? 'fr-FR' : 'en-IE',{style:'currency',currency:o.currency||'USD'}).format(Number(o.total_amount))}</span></td>
             <td>
@@ -507,8 +510,6 @@ async function loadOrdersTable() {
                 ${o.payment_status === 'legacy_unverified' ? `<button type="button" class="btn btn-secondary" style="margin-top:.35rem;padding:.35rem .55rem;font-size:.75rem" onclick="reconcilePayment(${o.id})">${t('Verify PayPal payment', 'Vérifier le paiement PayPal')}</button>` : ''}
                 ${o.payment_status === 'paid' && o.payment_provider === 'paypal' ? `<button type="button" class="btn btn-secondary" style="margin-top:.35rem;padding:.35rem .55rem;font-size:.75rem" onclick="refundOrder(${o.id})">${t('Refund via PayPal', 'Rembourser via PayPal')}</button>` : ''}
                 ${o.payment_status === 'refund_pending' ? `<button type="button" class="btn btn-secondary" style="margin-top:.35rem;padding:.35rem .55rem;font-size:.75rem" onclick="checkRefundStatus(${o.id})">${t('Check refund status', 'Vérifier le remboursement')}</button>` : ''}
-                ${o.payment_status === 'paid' && o.delivery_status !== 'sent' ? `<button type="button" class="btn btn-secondary" style="margin-top:.35rem;padding:.35rem .55rem;font-size:.75rem" onclick="sendOrderDelivery(${o.id})">${t('Enter code and email customer', 'Saisir le code et envoyer par e-mail')}</button>` : ''}
-                ${o.delivery_status === 'sent' ? `<small style="display:block;margin-top:.3rem;color:var(--success,#38c98a)">${t('Delivery email sent', 'E-mail de livraison envoyé')}</small>` : ''}
             </td>
             <td style="font-size:0.78rem;color:var(--text-muted)">${formatDate(o.created_at)}</td>
         </tr>
@@ -570,19 +571,38 @@ window.reconcilePayment = async function(orderId) {
     }
 };
 
-window.sendOrderDelivery = async function(orderId) {
-    const code = window.prompt(t('Enter the product activation code to email to the customer. The email will include the items purchased.', 'Saisissez le code produit à envoyer au client. L’e-mail contiendra aussi les produits achetés.'));
-    if (!code?.trim()) return;
-    const confirmed = window.confirm(t('Send this activation code to the customer email shown on the order?', 'Envoyer ce code à l’adresse e-mail du client affichée sur la commande ?'));
-    if (!confirmed) return;
+window.composeCustomerEmail = async function(orderId) {
+    const composeWindow = window.open('about:blank', '_blank');
     try {
-        const result = await api.sendOrderDelivery(orderId, code.trim());
-        if (!result.success) throw new Error(result.message || 'Could not send delivery email');
-        showToast(t('Code sent to the customer and order completed', 'Code envoyé au client et commande terminée'), 'success');
-        await loadOrdersTable();
-        await loadStats();
+        const result = await api.getOrder(orderId);
+        if (!result.success || !result.order) throw new Error(result.message || 'Could not load this order');
+        if (result.order.payment_status !== 'paid') throw new Error(t('Payment is not confirmed yet', 'Le paiement n’est pas encore confirmé'));
+        const order = result.order;
+        const itemLines = (result.items || []).map(item => {
+            const offer = item.offer_label_en ? ` — ${item.offer_label_en}` : '';
+            return `• ${item.product_name_en}${offer} × ${item.quantity}`;
+        }).join('\n');
+        const subject = `GloboTV order ${order.order_number} — product activation code`;
+        const body = [
+            `Hello ${order.customer_name},`,
+            '',
+            'Thank you for your purchase. Your payment has been confirmed.',
+            `Order: ${order.order_number}`,
+            'Products purchased:',
+            itemLines,
+            '',
+            'Product activation code:',
+            '[Paste the product code here]',
+            '',
+            'Enter this code in the product to activate it.',
+            'GloboTV'
+        ].join('\n');
+        const gmailUrl = `https://mail.google.com/mail/?view=cm&fs=1&to=${encodeURIComponent(order.customer_email)}&su=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
+        if (composeWindow) composeWindow.location.replace(gmailUrl);
+        else window.location.assign(gmailUrl);
     } catch (error) {
-        showToast(error.message || t('Could not send delivery email', 'Échec de l’envoi du code'), 'error');
+        composeWindow?.close();
+        showToast(error.message || t('Could not prepare the email', 'Impossible de préparer l’e-mail'), 'error');
     }
 };
 

@@ -16,8 +16,6 @@ function ensurePaymentSchema() {
                 ADD COLUMN IF NOT EXISTS payment_refund_id VARCHAR(255),
                 ADD COLUMN IF NOT EXISTS refund_status VARCHAR(30),
                 ADD COLUMN IF NOT EXISTS refunded_at TIMESTAMPTZ,
-                ADD COLUMN IF NOT EXISTS delivery_status VARCHAR(30) NOT NULL DEFAULT 'not_sent',
-                ADD COLUMN IF NOT EXISTS delivery_sent_at TIMESTAMPTZ,
                 ADD COLUMN IF NOT EXISTS stock_reserved BOOLEAN NOT NULL DEFAULT FALSE,
                 ADD COLUMN IF NOT EXISTS stock_released_at TIMESTAMPTZ,
                 ADD COLUMN IF NOT EXISTS paid_at TIMESTAMPTZ
@@ -137,43 +135,6 @@ async function paypalRequest(path, options = {}) {
     return data;
 }
 
-function escapeEmailHtml(value) {
-    return String(value ?? '').replace(/[&<>"']/g, char => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[char]);
-}
-
-async function sendDeliveryEmail(order, items, code) {
-    const apiKey = process.env.MAILJET_API_KEY;
-    const secretKey = process.env.MAILJET_SECRET_KEY;
-    const from = process.env.EMAIL_FROM;
-    if (!apiKey || !secretKey || !from) throw new Error('Mailjet delivery email is not configured.');
-    const senderMatch = String(from).trim().match(/^(.*?)\s*<([^<>]+)>$/);
-    const senderName = senderMatch ? senderMatch[1].trim().replace(/^['"]|['"]$/g, '') : 'GloboTV';
-    const senderEmail = senderMatch ? senderMatch[2].trim() : String(from).trim();
-    if (!/^\S+@\S+\.\S+$/.test(senderEmail)) throw new Error('The Mailjet sender address is invalid.');
-
-    const itemText = items.map(item => `- ${item.product_name_en}${item.offer_label_en ? ` (${item.offer_label_en})` : ''} x${item.quantity}: ${item.subtotal} ${order.currency}`).join('\n');
-    const itemHtml = items.map(item => `<li>${escapeEmailHtml(item.product_name_en)}${item.offer_label_en ? ` (${escapeEmailHtml(item.offer_label_en)})` : ''} × ${Number(item.quantity)} — ${escapeEmailHtml(item.subtotal)} ${escapeEmailHtml(order.currency)}</li>`).join('');
-    const response = await fetch('https://api.mailjet.com/v3.1/send', {
-        method: 'POST',
-        headers: {
-            Authorization: `Basic ${Buffer.from(`${apiKey}:${secretKey}`).toString('base64')}`,
-            'Content-Type': 'application/json'
-        },
-        body: JSON.stringify({ Messages: [{
-            From: { Email: senderEmail, Name: senderName || 'GloboTV' },
-            To: [{ Email: order.customer_email, Name: order.customer_name }],
-            Subject: `Your GloboTV order ${order.order_number} is ready`,
-            TextPart: `Hello ${order.customer_name},\n\nYour payment is confirmed.\nOrder: ${order.order_number}\nItems:\n${itemText}\n\nYour activation code: ${code}\n\nThank you for shopping with GloboTV.`,
-            HTMLPart: `<div style="font-family:Arial,sans-serif;color:#21152b;max-width:600px;margin:auto"><h2>Your order is ready</h2><p>Hello ${escapeEmailHtml(order.customer_name)}, your payment is confirmed.</p><p>Order <strong>${escapeEmailHtml(order.order_number)}</strong></p><ul>${itemHtml}</ul><div style="padding:18px;background:#f7edf5;border-radius:8px"><strong>Your activation code</strong><div style="font-size:22px;font-weight:bold;letter-spacing:1px;margin-top:8px;white-space:pre-wrap">${escapeEmailHtml(code)}</div></div><p>Thank you for shopping with GloboTV.</p></div>`
-        }] })
-    });
-    const result = await response.json().catch(() => ({}));
-    if (!response.ok || result.Messages?.[0]?.Status !== 'success') {
-        const errorCode = result.Messages?.[0]?.Errors?.[0]?.ErrorCode || result.ErrorIdentifier || 'provider_error';
-        console.error('Mailjet delivery failed:', response.status, errorCode);
-        throw new Error('Could not send the delivery email. Check Mailjet settings and the verified sender.');
-    }
-}
 
 // Generate unique order number
 const generateOrderNumber = () => {
@@ -631,63 +592,6 @@ router.post('/:id/refund/status', authMiddleware, async (req, res) => {
         if (client) await client.query('ROLLBACK').catch(() => {});
         console.error('PayPal refund status check error:', error.message);
         return res.status(500).json({ success: false, message: 'Could not check refund status.' });
-    } finally {
-        client?.release();
-    }
-});
-
-// Send the seller-entered activation code only after PayPal has confirmed payment.
-router.post('/:id/deliver', authMiddleware, async (req, res) => {
-    const code = String(req.body.code || '').trim();
-    if (!code || code.length > 500) {
-        return res.status(400).json({ success: false, message: 'Enter a delivery code up to 500 characters.' });
-    }
-    let client;
-    try {
-        await ensurePaymentSchema();
-        client = await pool.connect();
-        await client.query('BEGIN');
-        const selected = await client.query(`
-            SELECT o.* FROM orders o
-            WHERE o.id = $1 AND EXISTS (
-                SELECT 1 FROM order_items oi JOIN products p ON p.id = oi.product_id
-                WHERE oi.order_id = o.id AND p.seller_id = $2
-            ) FOR UPDATE
-        `, [req.params.id, req.seller.id]);
-        const order = selected.rows[0];
-        if (!order) {
-            await client.query('ROLLBACK');
-            return res.status(404).json({ success: false, message: 'Order not found' });
-        }
-        if (order.payment_status !== 'paid') {
-            await client.query('ROLLBACK');
-            return res.status(409).json({ success: false, message: 'Payment is not confirmed. Delivery is blocked.' });
-        }
-        if (order.delivery_status === 'sent' || order.delivery_sent_at) {
-            await client.query('ROLLBACK');
-            return res.status(409).json({ success: false, message: 'The delivery email has already been sent.' });
-        }
-        const items = await client.query(`
-            SELECT product_name_en, offer_label_en, quantity, subtotal
-            FROM order_items WHERE order_id = $1 ORDER BY id
-        `, [order.id]);
-        if (!items.rows.length) {
-            await client.query('ROLLBACK');
-            return res.status(409).json({ success: false, message: 'The order has no deliverable items.' });
-        }
-        await sendDeliveryEmail(order, items.rows, code);
-        await client.query(`
-            UPDATE orders SET delivery_status = 'sent', delivery_sent_at = NOW(),
-                status = CASE WHEN status IN ('confirmed', 'shipped') THEN 'completed' ELSE status END,
-                updated_at = NOW()
-            WHERE id = $1 AND payment_status = 'paid' AND delivery_status <> 'sent'
-        `, [order.id]);
-        await client.query('COMMIT');
-        return res.json({ success: true, delivery_status: 'sent' });
-    } catch (error) {
-        if (client) await client.query('ROLLBACK').catch(() => {});
-        console.error('Order delivery email error:', error.message);
-        return res.status(502).json({ success: false, message: error.message || 'Could not send the delivery email.' });
     } finally {
         client?.release();
     }

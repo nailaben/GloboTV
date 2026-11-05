@@ -190,12 +190,6 @@ const api = {
         body: JSON.stringify({ paypal_order_id: paypalOrderId })
     }),
 
-    sendOrderDelivery: async (id, code) => fetchApi(`${API_BASE}/orders/${id}/deliver`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${getToken()}` },
-        body: JSON.stringify({ code })
-    }),
-
     // ---- Seller Auth ----
     login: async (username, password) => {
         const res = await fetch(`${API_BASE}/seller/login`, {
