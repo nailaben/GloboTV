@@ -22,11 +22,12 @@ app.use(cors());
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
-// Ensure images directory exists
-const imagesDir = path.join(__dirname, 'public/images/products');
-if (!fs.existsSync(imagesDir)) fs.mkdirSync(imagesDir, { recursive: true });
+// Product uploads can use a persistent Render disk by setting PRODUCT_UPLOAD_DIR.
+const productImagesDir = process.env.PRODUCT_UPLOAD_DIR || path.join(__dirname, 'public/images/products');
+if (!fs.existsSync(productImagesDir)) fs.mkdirSync(productImagesDir, { recursive: true });
 
 // Serve static files
+app.use('/images/products', express.static(productImagesDir, { maxAge: '1d' }));
 app.use(express.static(path.join(__dirname, 'public')));
 
 // API Routes
@@ -50,11 +51,30 @@ app.get('*', (req, res) => {
     }
 });
 
-// Start server
-app.listen(PORT, '0.0.0.0', async () => {
+// Initialize the payment fields before accepting traffic, including on an
+// existing Render database that predates the PayPal integration.
+async function startServer() {
+    await testConnection();
+    try {
+        await ordersRouter.ensurePaymentSchema();
+        await ordersRouter.releaseExpiredOrders();
+    } catch (error) {
+        console.error('Order payment schema initialization failed:', error.message);
+    }
+
+    const paymentCleanupTimer = setInterval(() => {
+        ordersRouter.releaseExpiredOrders().catch(error => {
+            console.error('Expired order cleanup failed:', error.message);
+        });
+    }, 5 * 60 * 1000);
+    paymentCleanupTimer.unref();
+
+    app.listen(PORT, '0.0.0.0', () => {
     console.log(`\nGloboTV Server running on port ${PORT}`);
     console.log(`Store: http://localhost:${PORT}`);
     console.log(`Dashboard: http://localhost:${PORT}/seller/login.html`);
     console.log(`API: http://localhost:${PORT}/api/health\n`);
-    await testConnection();
-});
+    });
+}
+
+startServer();

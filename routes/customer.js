@@ -3,8 +3,14 @@ const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
 const crypto = require('crypto');
 const { pool } = require('../config/db');
+const rateLimit = require('../middleware/rate-limit');
 
 const router = express.Router();
+const limitCustomerLogin = rateLimit({ windowMs: 15 * 60 * 1000, max: 10, keyPrefix: 'customer-login' });
+const limitCustomerRegistration = rateLimit({ windowMs: 60 * 60 * 1000, max: 5, keyPrefix: 'customer-register' });
+const limitCustomerResend = rateLimit({ windowMs: 60 * 60 * 1000, max: 5, keyPrefix: 'customer-resend' });
+const limitCheckoutCodeSend = rateLimit({ windowMs: 15 * 60 * 1000, max: 5, keyPrefix: 'checkout-code-send' });
+const limitCheckoutCodeVerify = rateLimit({ windowMs: 15 * 60 * 1000, max: 10, keyPrefix: 'checkout-code-verify' });
 
 function customerAuth(req, res, next) {
     const token = req.headers.authorization?.split(' ')[1];
@@ -251,7 +257,7 @@ async function finishOAuth(req, res) {
 router.get('/google', startOAuth);
 router.get('/google/callback', finishOAuth);
 
-router.post('/checkout/send-codes', customerAuth, async (req, res) => {
+router.post('/checkout/send-codes', limitCheckoutCodeSend, customerAuth, async (req, res) => {
     const phone = String(req.body.phone || '').trim();
     if (!/^\+[1-9]\d{7,14}$/.test(phone)) {
         return res.status(400).json({ success: false, message: 'Enter a valid international phone number including its country code.' });
@@ -332,7 +338,7 @@ router.post('/checkout/send-codes', customerAuth, async (req, res) => {
     }
 });
 
-router.post('/checkout/verify-codes', customerAuth, async (req, res) => {
+router.post('/checkout/verify-codes', limitCheckoutCodeVerify, customerAuth, async (req, res) => {
     const phone = String(req.body.phone || '').trim();
     const emailCode = String(req.body.emailCode || '').trim();
     const whatsappCode = String(req.body.whatsappCode || '').trim();
@@ -406,7 +412,7 @@ router.post('/checkout/verify-codes', customerAuth, async (req, res) => {
     }
 });
 
-router.post('/register', async (req, res) => {
+router.post('/register', limitCustomerRegistration, async (req, res) => {
     const name = String(req.body.name || '').trim();
     const email = String(req.body.email || '').trim().toLowerCase();
     const password = String(req.body.password || '');
@@ -476,7 +482,7 @@ router.post('/verify-email', async (req, res) => {
     }
 });
 
-router.post('/resend-verification', async (req, res) => {
+router.post('/resend-verification', limitCustomerResend, async (req, res) => {
     const email = String(req.body.email || '').trim().toLowerCase();
     if (!/^\S+@\S+\.\S+$/.test(email)) return res.status(400).json({ success: false, message: 'Enter a valid email address.' });
     try {
@@ -501,7 +507,7 @@ router.post('/resend-verification', async (req, res) => {
     }
 });
 
-router.post('/login', async (req, res) => {
+router.post('/login', limitCustomerLogin, async (req, res) => {
     const email = String(req.body.email || '').trim().toLowerCase();
     const password = String(req.body.password || '');
     try {

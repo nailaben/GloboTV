@@ -78,8 +78,8 @@ const checkoutI18n = {
         back_to_verify: 'Back to Verify',
         payment_method_title: 'Payment method',
         payment_method_subtitle: 'Choose how you would like to pay securely.',
-        oneclick_method: 'CIB / Edahabia',
-        oneclick_method_note: 'Secure payment through OneClick',
+        paypal_method: 'PayPal',
+        paypal_method_note: 'Secure payment through PayPal',
         items_label: 'Items',
         payment_subtotal: 'Subtotal',
         payment_fees: 'Payment fees',
@@ -168,8 +168,8 @@ const checkoutI18n = {
         back_to_verify: 'Retour à la vérification',
         payment_method_title: 'Mode de paiement',
         payment_method_subtitle: 'Choisissez un moyen de paiement sécurisé.',
-        oneclick_method: 'CIB / Edahabia',
-        oneclick_method_note: 'Paiement sécurisé via OneClick',
+        paypal_method: 'PayPal',
+        paypal_method_note: 'Paiement sécurisé via PayPal',
         items_label: 'Articles',
         payment_subtotal: 'Sous-total',
         payment_fees: 'Frais de paiement',
@@ -660,18 +660,27 @@ function renderOrderSummary() {
         return;
     }
 
-    container.innerHTML = cart.map(item => `
+    container.innerHTML = cart.map(item => {
+        const itemName = currentLang === 'fr' ? (item.name_fr || item.name_en) : item.name_en;
+        const offerName = currentLang === 'fr' ? item.offer_label_fr : item.offer_label_en;
+        let imageUrl = '/images/placeholder.png';
+        try {
+            const parsed = new URL(String(item.image_url || imageUrl), window.location.origin);
+            if (['http:', 'https:'].includes(parsed.protocol)) imageUrl = parsed.href;
+        } catch { /* Use the placeholder for malformed or unsupported URLs. */ }
+        return `
         <div class="checkout-item">
-            <img src="${item.image_url || '/images/placeholder.png'}" alt="${currentLang === 'fr' ? (item.name_fr || item.name_en) : item.name_en}"
+            <img src="${escapeHtml(imageUrl)}" alt="${escapeHtml(itemName)}"
                  onerror="this.src='/images/placeholder.png'">
             <div class="checkout-item-info">
-                <div class="checkout-item-name">${currentLang === 'fr' ? (item.name_fr || item.name_en) : item.name_en}</div>
-                <div class="checkout-item-qty">${currentLang === 'fr' ? item.offer_label_fr : item.offer_label_en}</div>
-                <div class="checkout-item-qty">${ctr('qty_label')}: ${item.quantity}</div>
+                <div class="checkout-item-name">${escapeHtml(itemName)}</div>
+                <div class="checkout-item-qty">${escapeHtml(offerName)}</div>
+                <div class="checkout-item-qty">${ctr('qty_label')}: ${escapeHtml(item.quantity)}</div>
             </div>
             <div class="checkout-item-price">${formatCartPrice(item, item.price * item.quantity)}</div>
         </div>
-    `).join('');
+    `;
+    }).join('');
 
     const total = getCartTotal();
     const currency = cart[0]?.currency || 'EUR';

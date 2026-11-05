@@ -10,6 +10,19 @@ let heroStartIndex = 0;
 let heroFanTimer = null;
 let heroFanBusy = false;
 
+function escapeStoreHtml(value) {
+    return String(value ?? '').replace(/[&<>"']/g, char => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[char]));
+}
+
+function safeStoreImageUrl(value) {
+    try {
+        const imageUrl = new URL(String(value || '/images/placeholder.png'), window.location.origin);
+        return ['http:', 'https:'].includes(imageUrl.protocol) ? imageUrl.href : '/images/placeholder.png';
+    } catch {
+        return '/images/placeholder.png';
+    }
+}
+
 document.addEventListener('DOMContentLoaded', async () => {
     initLang();
     const initialQuery = new URLSearchParams(location.search);
@@ -116,7 +129,7 @@ const i18n = {
         unliked_product: 'Removed from favorites',
         footer_desc: 'Your fast and trusted destination for digital cards at great prices',
         quick_links: 'Quick Links', home: 'Home', support: 'Support', contact: 'Contact us',
-        privacy: 'Privacy Policy', terms: 'Terms of Use', copyright: '© 2024 GloboTV. All rights reserved.',
+        privacy: 'Privacy Policy', terms: 'Terms of Use', copyright: '© 2024 GloboTV. All rights reserved.', remove: 'Remove item',
     },
     fr: {
         hero_badge: ' Votre destination pour les cartes numériques',
@@ -151,7 +164,7 @@ const i18n = {
         unliked_product: 'Retiré des favoris',
         footer_desc: 'Votre destination rapide et fiable pour des cartes numériques au meilleur prix',
         quick_links: 'Liens rapides', home: 'Accueil', support: 'Assistance', contact: 'Nous contacter',
-        privacy: 'Politique de confidentialité', terms: 'Conditions d’utilisation', copyright: '© 2024 GloboTV. Tous droits réservés.',
+        privacy: 'Politique de confidentialité', terms: 'Conditions d’utilisation', copyright: '© 2024 GloboTV. Tous droits réservés.', remove: 'Retirer cet article',
     }
 };
 
@@ -229,16 +242,19 @@ function setupNavbar() {
         const itemsHtml = topMatches.map(p => {
             const name = currentLang === 'fr' ? (p.name_fr || p.name_en) : p.name_en;
             const catName = currentLang === 'fr' ? (p.category_name_fr || p.category_name_en) : p.category_name_en;
+            const escapedName = escapeStoreHtml(name);
+            const escapedCategory = escapeStoreHtml(catName || '');
+            const imageUrl = escapeStoreHtml(safeStoreImageUrl(p.image_url));
             const price = p.starting_price_eur != null 
                 ? new Intl.NumberFormat(currentLang === 'fr' ? 'fr-FR' : 'en-IE', { style: 'currency', currency: 'EUR' }).format(Number(p.starting_price_eur))
                 : '';
             return `
-                <a href="/product.html?id=${p.id}" class="search-dropdown-item">
-                    <img class="search-dropdown-img" src="${p.image_url || '/images/placeholder.png'}" alt="${name}" onerror="this.src='/images/placeholder.png'">
+                <a href="/product.html?id=${encodeURIComponent(String(p.id))}" class="search-dropdown-item">
+                    <img class="search-dropdown-img" src="${imageUrl}" alt="${escapedName}" onerror="this.src='/images/placeholder.png'">
                     <div class="search-dropdown-info">
-                        <div class="search-dropdown-name">${name}</div>
+                        <div class="search-dropdown-name">${escapedName}</div>
                         <div class="search-dropdown-meta">
-                            ${catName ? `<span>${catName}</span>` : ''}
+                            ${catName ? `<span>${escapedCategory}</span>` : ''}
                         </div>
                     </div>
                     ${price ? `<span class="search-dropdown-price">${price}</span>` : ''}
@@ -346,22 +362,34 @@ function renderCart() {
     emptyMsg.style.display = 'none';
     footer.style.display = 'block';
 
-    body.innerHTML = cart.map(item => `
+    body.innerHTML = cart.map(item => {
+        const name = currentLang === 'fr' ? (item.name_fr || item.name_en) : item.name_en;
+        const imageUrl = escapeStoreHtml(safeStoreImageUrl(item.image_url));
+        return `
         <div class="cart-item">
-            <img class="cart-item-img" src="${item.image_url || '/images/placeholder.png'}" 
-                 alt="${currentLang === 'fr' ? (item.name_fr || item.name_en) : item.name_en}" onerror="this.src='/images/placeholder.png'">
+            <img class="cart-item-img" src="${imageUrl}"
+                 alt="${escapeStoreHtml(name)}" onerror="this.src='/images/placeholder.png'">
             <div class="cart-item-info">
-                <div class="cart-item-name">${currentLang === 'fr' ? (item.name_fr || item.name_en) : item.name_en}</div>
+                <div class="cart-item-name">${escapeStoreHtml(name)}</div>
                 <div class="cart-item-price">${formatCartPrice(item, item.price * item.quantity)}</div>
                 <div class="qty-control">
-                    <button class="qty-btn" onclick="changeQty('${item.product_id}', '${item.offer_id || ''}', -1)">−</button>
-                    <span class="qty-value">${item.quantity}</span>
-                    <button class="qty-btn" onclick="changeQty('${item.product_id}', '${item.offer_id || ''}', 1)">+</button>
+                    <button class="qty-btn" type="button" data-cart-action="decrease" data-product-id="${escapeStoreHtml(item.product_id)}" data-offer-id="${escapeStoreHtml(item.offer_id || '')}">−</button>
+                    <span class="qty-value">${escapeStoreHtml(item.quantity)}</span>
+                    <button class="qty-btn" type="button" data-cart-action="increase" data-product-id="${escapeStoreHtml(item.product_id)}" data-offer-id="${escapeStoreHtml(item.offer_id || '')}">+</button>
                 </div>
             </div>
-            <span class="cart-item-remove material-symbols-outlined" onclick="removeItem('${item.product_id}', '${item.offer_id || ''}')">close</span>
+            <button type="button" class="cart-item-remove material-symbols-outlined" aria-label="${escapeStoreHtml(tr('remove'))}" data-cart-action="remove" data-product-id="${escapeStoreHtml(item.product_id)}" data-offer-id="${escapeStoreHtml(item.offer_id || '')}">close</button>
         </div>
-    `).join('');
+    `;
+    }).join('');
+
+    body.querySelectorAll('[data-cart-action]').forEach(button => button.addEventListener('click', () => {
+        const productId = button.dataset.productId || '';
+        const offerId = button.dataset.offerId || '';
+        if (!/^\d+$/.test(productId) || (offerId && !/^\d+$/.test(offerId))) return;
+        if (button.dataset.cartAction === 'remove') removeItem(productId, offerId);
+        else changeQty(productId, offerId, button.dataset.cartAction === 'increase' ? 1 : -1);
+    }));
 
     totalEl.textContent = new Intl.NumberFormat(currentLang === 'fr' ? 'fr-FR' : 'en-IE', { style: 'currency', currency: cart[0]?.currency || 'EUR' }).format(getCartTotal());
 }
@@ -404,9 +432,9 @@ function renderCategories() {
         </button>`;
 
     const catBtns = allCategories.map(cat => `
-        <button class="cat-btn ${activeCategory === String(cat.id) ? 'active' : ''}" onclick="filterByCategory('${cat.id}')">
-            <span class="material-symbols-outlined">${cat.icon}</span>
-            ${currentLang === 'fr' ? (cat.name_fr || cat.name_en) : cat.name_en}
+        <button class="cat-btn ${activeCategory === String(cat.id) ? 'active' : ''}" onclick="filterByCategory('${Number(cat.id)}')">
+            <span class="material-symbols-outlined">${escapeStoreHtml(cat.icon)}</span>
+            ${escapeStoreHtml(currentLang === 'fr' ? (cat.name_fr || cat.name_en) : cat.name_en)}
         </button>
     `).join('');
 
@@ -509,11 +537,15 @@ function renderProducts() {
         const desc = currentLang === 'fr' ? (product.description_fr || product.description_en) : product.description_en;
         const catName = currentLang === 'fr' ? (product.category_name_fr || product.category_name_en) : product.category_name_en;
         const isLiked = likedProductIds.includes(String(product.id));
+        const escapedName = escapeStoreHtml(name);
+        const escapedDescription = escapeStoreHtml(desc || '');
+        const escapedCategory = escapeStoreHtml(catName || '');
+        const imageUrl = escapeStoreHtml(safeStoreImageUrl(product.image_url));
 
         return `
         <div class="product-card" onclick="goToProduct(${product.id})">
             <div class="product-card-img">
-                <img src="${product.image_url || '/images/placeholder.png'}" alt="${name}" 
+                <img src="${imageUrl}" alt="${escapedName}"
                      onerror="this.src='/images/placeholder.png'" loading="lazy">
                 <button class="product-like-btn ${isLiked ? 'is-liked' : ''}"
                         onclick="event.stopPropagation(); toggleProductLike(${product.id})"
@@ -521,12 +553,12 @@ function renderProducts() {
                         title="${tr(isLiked ? 'unlike_product' : 'like_product')}" aria-pressed="${isLiked}">
                     <span class="material-symbols-outlined">${isLiked ? 'favorite' : 'favorite_border'}</span>
                 </button>
-                ${catName ? `<span class="product-card-badge">${catName}</span>` : ''}
+                ${catName ? `<span class="product-card-badge">${escapedCategory}</span>` : ''}
                 ${outOfStock ? `<div class="product-card-out">${tr('out_of_stock')}</div>` : ''}
             </div>
             <div class="product-card-body">
-                <div class="product-card-name">${name}</div>
-                <div class="product-card-desc">${desc || ''}</div>
+                <div class="product-card-name">${escapedName}</div>
+                <div class="product-card-desc">${escapedDescription}</div>
                 <div class="product-card-footer">
                     <span class="product-price">${product.starting_price_eur != null ? new Intl.NumberFormat(currentLang === 'fr' ? 'fr-FR' : 'en-IE',{style:'currency',currency:'EUR'}).format(Number(product.starting_price_eur)) : '—'}</span>
                     <button class="add-to-cart-btn" 
@@ -570,8 +602,8 @@ function populateHeroShowcase() {
     // Render fan cards
     fan.innerHTML = fanProducts.map(p => {
         const name = currentLang === 'fr' ? (p.name_fr || p.name_en) : p.name_en;
-        return `<div class="hero-fan-card" onclick="goToProduct(${p.id})" title="${name}">
-            <img src="${p.image_url || '/images/placeholder.png'}" alt="${name}" onerror="this.src='/images/placeholder.png'" loading="lazy">
+        return `<div class="hero-fan-card" onclick="goToProduct(${Number(p.id)})" title="${escapeStoreHtml(name)}">
+            <img src="${escapeStoreHtml(safeStoreImageUrl(p.image_url))}" alt="${escapeStoreHtml(name)}" onerror="this.src='/images/placeholder.png'" loading="lazy">
         </div>`;
     }).join('');
 
@@ -589,8 +621,8 @@ function populateHeroShowcase() {
     // Render strip cards
     strip.innerHTML = stripProducts.map(p => {
         const name = currentLang === 'fr' ? (p.name_fr || p.name_en) : p.name_en;
-        return `<div class="hero-strip-card" onclick="goToProduct(${p.id})" title="${name}">
-            <img src="${p.image_url || '/images/placeholder.png'}" alt="${name}" onerror="this.src='/images/placeholder.png'" loading="lazy">
+        return `<div class="hero-strip-card" onclick="goToProduct(${Number(p.id)})" title="${escapeStoreHtml(name)}">
+            <img src="${escapeStoreHtml(safeStoreImageUrl(p.image_url))}" alt="${escapeStoreHtml(name)}" onerror="this.src='/images/placeholder.png'" loading="lazy">
         </div>`;
     }).join('');
 }

@@ -4,9 +4,87 @@ const { pool } = require('../config/db');
 const authMiddleware = require('../middleware/auth');
 const jwt = require('jsonwebtoken');
 
+let paymentSchemaPromise;
+function ensurePaymentSchema() {
+    if (!paymentSchemaPromise) {
+        paymentSchemaPromise = pool.query(`
+            ALTER TABLE orders
+                ADD COLUMN IF NOT EXISTS payment_provider VARCHAR(30),
+                ADD COLUMN IF NOT EXISTS payment_status VARCHAR(30) NOT NULL DEFAULT 'unpaid',
+                ADD COLUMN IF NOT EXISTS payment_reference VARCHAR(255),
+                ADD COLUMN IF NOT EXISTS payment_capture_id VARCHAR(255),
+                ADD COLUMN IF NOT EXISTS stock_reserved BOOLEAN NOT NULL DEFAULT FALSE,
+                ADD COLUMN IF NOT EXISTS stock_released_at TIMESTAMPTZ,
+                ADD COLUMN IF NOT EXISTS paid_at TIMESTAMPTZ
+        `).catch(error => {
+            paymentSchemaPromise = null;
+            throw error;
+        });
+    }
+    return paymentSchemaPromise;
+}
+
+async function releaseReservedStock(client, order) {
+    if (!order.stock_reserved) return;
+    const items = await client.query(`
+        SELECT product_id, SUM(quantity)::INTEGER AS quantity
+        FROM order_items WHERE order_id = $1 AND product_id IS NOT NULL
+        GROUP BY product_id
+    `, [order.id]);
+    for (const item of items.rows) {
+        await client.query('UPDATE products SET stock_quantity = stock_quantity + $1 WHERE id = $2', [item.quantity, item.product_id]);
+    }
+    await client.query(`UPDATE orders SET stock_reserved = FALSE, stock_released_at = NOW() WHERE id = $1`, [order.id]);
+}
+
+async function expireStalePaypalOrders(client) {
+    const stale = await client.query(`
+        SELECT * FROM orders
+        WHERE payment_provider IN ('paypal', 'oneclick') AND payment_status = 'pending'
+            AND stock_reserved = TRUE AND created_at < NOW() - INTERVAL '30 minutes'
+        FOR UPDATE SKIP LOCKED
+    `);
+    for (const order of stale.rows) {
+        await releaseReservedStock(client, order);
+        await client.query(`
+            UPDATE orders SET payment_status = 'expired', status = 'cancelled', updated_at = NOW()
+            WHERE id = $1 AND payment_status = 'pending'
+        `, [order.id]);
+    }
+}
+
+async function releaseExpiredOrders() {
+    await ensurePaymentSchema();
+    const client = await pool.connect();
+    try {
+        await client.query('BEGIN');
+        await expireStalePaypalOrders(client);
+        await client.query('COMMIT');
+    } catch (error) {
+        await client.query('ROLLBACK').catch(() => {});
+        throw error;
+    } finally {
+        client.release();
+    }
+}
+
 const paypalBaseUrl = () => process.env.PAYPAL_ENV === 'live'
     ? 'https://api-m.paypal.com'
     : 'https://api-m.sandbox.paypal.com';
+
+function getPublicBaseUrl(req) {
+    const configured = process.env.PUBLIC_BASE_URL;
+    if (configured) {
+        try {
+            const url = new URL(configured);
+            const isLocal = ['localhost', '127.0.0.1'].includes(url.hostname);
+            if ((!isLocal && url.protocol === 'https:') || process.env.NODE_ENV !== 'production') {
+                return url.origin;
+            }
+        } catch { /* Fall back to the current request origin. */ }
+    }
+    return `${req.protocol}://${req.get('host')}`;
+}
 
 async function paypalRequest(path, options = {}) {
     const clientId = process.env.PAYPAL_CLIENT_ID;
@@ -51,6 +129,9 @@ router.post('/', async (req, res) => {
     if (!customer_name || !customer_phone || !customer_email || !Array.isArray(items) || items.length === 0) {
         return res.status(400).json({ success: false, message: 'All required fields must be provided' });
     }
+    if (payment_provider !== 'paypal') {
+        return res.status(400).json({ success: false, message: 'PayPal is the supported payment provider.' });
+    }
 
     let customerSession;
     let checkoutVerification;
@@ -71,8 +152,10 @@ router.post('/', async (req, res) => {
 
     let client;
     try {
+        await ensurePaymentSchema();
         client = await pool.connect();
         await client.query('BEGIN');
+        await expireStalePaypalOrders(client);
 
         const verification = await client.query(
             `SELECT id FROM customer_checkout_verifications
@@ -88,7 +171,7 @@ router.post('/', async (req, res) => {
         await client.query('UPDATE customer_checkout_verifications SET consumed_at = NOW() WHERE id = $1', [checkoutVerification.verificationId]);
 
         // Validate products and calculate total
-        let subtotal = 0;
+        let subtotalCents = 0;
         const validatedItems = [];
 
         for (const item of items) {
@@ -120,8 +203,9 @@ router.post('/', async (req, res) => {
                 return res.status(400).json({ success: false, message: `Choose a valid offer for ${product.name_en}` });
             }
             const offer = offerResult.rows[0];
-            const itemSubtotal = Number(offer.price_eur) * quantity;
-            subtotal += itemSubtotal;
+            const unitPriceCents = Math.round(Number(offer.price_eur) * 100);
+            const itemSubtotal = (unitPriceCents * quantity) / 100;
+            subtotalCents += unitPriceCents * quantity;
 
             // Reserve stock while the product row is locked. This also handles
             // duplicate product lines in one cart and concurrent checkouts.
@@ -134,29 +218,19 @@ router.post('/', async (req, res) => {
                 product,
                 offer,
                 quantity,
-                unit_price: Number(offer.price_eur),
+                unit_price: unitPriceCents / 100,
                 subtotal: itemSubtotal
             });
         }
 
+        const subtotal = subtotalCents / 100;
         const total_amount = subtotal;
         const order_number = generateOrderNumber();
 
         let paymentLink = null;
-        if (payment_provider === 'oneclick') {
-            const configuredUrl = process.env.ONECLICK_PAYMENT_URL;
-            let parsedUrl;
-            try { parsedUrl = new URL(configuredUrl); } catch { parsedUrl = null; }
-            if (parsedUrl?.origin !== 'https://pay.ocdz.link') {
-                await client.query('ROLLBACK');
-                return res.status(503).json({ success: false, message: 'A valid OneClick payment link is not configured yet.' });
-            }
-            paymentLink = parsedUrl.toString();
-        } else if (payment_provider === 'paypal') {
-            if (!process.env.PAYPAL_CLIENT_ID || !process.env.PAYPAL_CLIENT_SECRET) {
-                await client.query('ROLLBACK');
-                return res.status(503).json({ success: false, message: 'PayPal is not configured yet. Add the PayPal API credentials to the server environment.' });
-            }
+        if (!process.env.PAYPAL_CLIENT_ID || !process.env.PAYPAL_CLIENT_SECRET) {
+            await client.query('ROLLBACK');
+            return res.status(503).json({ success: false, message: 'PayPal is not configured yet. Add the PayPal API credentials to the server environment.' });
         }
 
         // Create order
@@ -179,29 +253,37 @@ router.post('/', async (req, res) => {
 
         }
 
-        if (payment_provider === 'paypal') {
-            const baseUrl = process.env.PUBLIC_BASE_URL || `${req.protocol}://${req.get('host')}`;
-            const paypalOrder = await paypalRequest('/v2/checkout/orders', {
-                method: 'POST',
-                body: JSON.stringify({
-                    intent: 'CAPTURE',
-                    purchase_units: [{
-                        reference_id: order_number,
-                        custom_id: order_number,
-                        description: `GloboTV order ${order_number}`,
-                        amount: { currency_code: 'EUR', value: subtotal.toFixed(2) }
-                    }],
-                    application_context: {
-                        brand_name: 'GloboTV',
-                        user_action: 'PAY_NOW',
-                        return_url: `${baseUrl}/api/orders/paypal/return`,
-                        cancel_url: `${baseUrl}/checkout.html?payment=cancelled`
+        const baseUrl = getPublicBaseUrl(req);
+        const paypalOrder = await paypalRequest('/v2/checkout/orders', {
+            method: 'POST',
+            headers: { 'PayPal-Request-Id': order_number },
+            body: JSON.stringify({
+                intent: 'CAPTURE',
+                purchase_units: [{
+                    reference_id: order_number,
+                    custom_id: order_number,
+                    description: `GloboTV order ${order_number}`,
+                    amount: { currency_code: 'EUR', value: subtotal.toFixed(2) }
+                }],
+                payment_source: {
+                    paypal: {
+                        experience_context: {
+                            brand_name: 'GloboTV',
+                            user_action: 'PAY_NOW',
+                            shipping_preference: 'NO_SHIPPING',
+                            return_url: `${baseUrl}/api/orders/paypal/return`,
+                            cancel_url: `${baseUrl}/api/orders/paypal/cancel`
+                        }
                     }
-                })
-            });
-            paymentLink = paypalOrder.links?.find(link => link.rel === 'payer-action' || link.rel === 'approve')?.href || null;
-            if (!paypalOrder.id || !paymentLink) throw new Error('PayPal did not return an approval link.');
-        }
+                }
+            })
+        });
+        paymentLink = paypalOrder.links?.find(link => link.rel === 'payer-action' || link.rel === 'approve')?.href || null;
+        if (!paypalOrder.id || !paymentLink) throw new Error('PayPal did not return an approval link.');
+        await client.query(`
+            UPDATE orders SET payment_provider = 'paypal', payment_status = 'pending',
+                payment_reference = $1, stock_reserved = TRUE WHERE id = $2
+        `, [paypalOrder.id, order.id]);
 
         await client.query('COMMIT');
 
@@ -238,29 +320,58 @@ router.get('/paypal/return', async (req, res) => {
     if (!paypalOrderId) return res.redirect('/checkout.html?payment=error');
 
     try {
+        await ensurePaymentSchema();
         const paypalOrder = await paypalRequest(`/v2/checkout/orders/${encodeURIComponent(paypalOrderId)}`);
         const purchase = paypalOrder.purchase_units?.[0];
-        if (paypalOrder.status !== 'APPROVED' || !purchase?.custom_id) {
+        if (!['APPROVED', 'COMPLETED'].includes(paypalOrder.status) || !purchase?.custom_id) {
             return res.redirect('/checkout.html?payment=not-approved');
         }
 
-        const orderResult = await pool.query('SELECT * FROM orders WHERE order_number = $1 LIMIT 1', [purchase.custom_id]);
-        const order = orderResult.rows[0];
-        if (!order || purchase.amount?.currency_code !== order.currency || Number(purchase.amount?.value) !== Number(order.total_amount)) {
-            return res.redirect('/checkout.html?payment=verification-error');
-        }
+        const client = await pool.connect();
+        try {
+            await client.query('BEGIN');
+            const orderResult = await client.query('SELECT * FROM orders WHERE order_number = $1 FOR UPDATE', [purchase.custom_id]);
+            const order = orderResult.rows[0];
+            if (!order || order.payment_provider !== 'paypal' || order.payment_reference !== paypalOrderId ||
+                purchase.amount?.currency_code !== order.currency || Number(purchase.amount?.value) !== Number(order.total_amount)) {
+                await client.query('ROLLBACK');
+                return res.redirect('/checkout.html?payment=verification-error');
+            }
 
-        const capture = await paypalRequest(`/v2/checkout/orders/${encodeURIComponent(paypalOrderId)}/capture`, { method: 'POST', body: '{}' });
-        const capturedPurchase = capture.purchase_units?.[0];
-        const captureInfo = capturedPurchase?.payments?.captures?.[0];
-        if (capture.status !== 'COMPLETED' || captureInfo?.status !== 'COMPLETED' ||
-            capturedPurchase?.custom_id !== order.order_number ||
-            captureInfo?.amount?.currency_code !== order.currency ||
-            Number(captureInfo?.amount?.value) !== Number(order.total_amount)) {
-            return res.redirect('/checkout.html?payment=capture-error');
-        }
+            if (order.payment_status === 'paid' && order.payment_capture_id) {
+                await client.query('COMMIT');
+                return res.redirect('/order-success.html?payment=paypal');
+            }
+            if (order.payment_status !== 'pending' || !order.stock_reserved) {
+                await client.query('ROLLBACK');
+                return res.redirect('/checkout.html?payment=verification-error');
+            }
 
-        await pool.query("UPDATE orders SET status = 'completed', updated_at = NOW() WHERE id = $1", [order.id]);
+            const capture = paypalOrder.status === 'COMPLETED'
+                ? paypalOrder
+                : await paypalRequest(`/v2/checkout/orders/${encodeURIComponent(paypalOrderId)}/capture`, { method: 'POST', body: '{}' });
+            const capturedPurchase = capture.purchase_units?.[0];
+            const captureInfo = capturedPurchase?.payments?.captures?.[0];
+            if (capture.status !== 'COMPLETED' || captureInfo?.status !== 'COMPLETED' ||
+                capturedPurchase?.custom_id !== order.order_number ||
+                captureInfo?.amount?.currency_code !== order.currency ||
+                Number(captureInfo?.amount?.value) !== Number(order.total_amount)) {
+                await client.query('ROLLBACK');
+                return res.redirect('/checkout.html?payment=capture-error');
+            }
+
+            await client.query(`
+                UPDATE orders SET payment_status = 'paid', payment_capture_id = $1,
+                    paid_at = NOW(), stock_reserved = FALSE, status = 'confirmed', updated_at = NOW()
+                WHERE id = $2
+            `, [captureInfo.id || null, order.id]);
+            await client.query('COMMIT');
+        } catch (error) {
+            await client.query('ROLLBACK').catch(() => {});
+            throw error;
+        } finally {
+            client.release();
+        }
         return res.redirect('/order-success.html?payment=paypal');
     } catch (error) {
         console.error('PayPal return error:', error);
@@ -268,7 +379,34 @@ router.get('/paypal/return', async (req, res) => {
     }
 });
 
-router.get('/paypal/cancel', (req, res) => res.redirect('/checkout.html?payment=cancelled'));
+router.get('/paypal/cancel', async (req, res) => {
+    const paypalOrderId = String(req.query.token || '');
+    if (!paypalOrderId) return res.redirect('/checkout.html?payment=cancelled');
+    let client;
+    try {
+        await ensurePaymentSchema();
+        client = await pool.connect();
+        await client.query('BEGIN');
+        const result = await client.query(`
+            SELECT * FROM orders WHERE payment_provider = 'paypal' AND payment_reference = $1 FOR UPDATE
+        `, [paypalOrderId]);
+        const order = result.rows[0];
+        if (order?.payment_status === 'pending') {
+            await releaseReservedStock(client, order);
+            await client.query(`
+                UPDATE orders SET payment_status = 'cancelled', status = 'cancelled', updated_at = NOW()
+                WHERE id = $1 AND payment_status = 'pending'
+            `, [order.id]);
+        }
+        await client.query('COMMIT');
+    } catch (error) {
+        if (client) await client.query('ROLLBACK').catch(() => {});
+        console.error('PayPal cancellation error:', error.message);
+    } finally {
+        client?.release();
+    }
+    return res.redirect('/checkout.html?payment=cancelled');
+});
 
 // GET /api/orders - Get all orders (seller only)
 router.get('/', authMiddleware, async (req, res) => {
@@ -366,26 +504,39 @@ router.patch('/:id/status', authMiddleware, async (req, res) => {
         return res.status(400).json({ success: false, message: 'Invalid status' });
     }
 
+    let client;
     try {
-        const result = await pool.query(
-            `UPDATE orders o SET status = $1
-             WHERE o.id = $2 AND EXISTS (
-                SELECT 1 FROM order_items oi
-                JOIN products p ON p.id = oi.product_id
-                WHERE oi.order_id = o.id AND p.seller_id = $3
-             ) RETURNING o.*`,
-            [status, req.params.id, req.seller.id]
-        );
-
-        if (result.rows.length === 0) {
+        await ensurePaymentSchema();
+        client = await pool.connect();
+        await client.query('BEGIN');
+        const selected = await client.query(`
+            SELECT o.* FROM orders o
+            WHERE o.id = $1 AND EXISTS (
+                SELECT 1 FROM order_items oi JOIN products p ON p.id = oi.product_id
+                WHERE oi.order_id = o.id AND p.seller_id = $2
+            ) FOR UPDATE
+        `, [req.params.id, req.seller.id]);
+        const order = selected.rows[0];
+        if (!order) {
+            await client.query('ROLLBACK');
             return res.status(404).json({ success: false, message: 'Order not found' });
         }
-
-        res.json({ success: true, order: result.rows[0] });
+        if (status === 'cancelled' && order.payment_status === 'pending' && order.stock_reserved) {
+            await releaseReservedStock(client, order);
+            await client.query(`UPDATE orders SET payment_status = 'cancelled' WHERE id = $1`, [order.id]);
+        }
+        const updated = await client.query('UPDATE orders SET status = $1, updated_at = NOW() WHERE id = $2 RETURNING *', [status, order.id]);
+        await client.query('COMMIT');
+        res.json({ success: true, order: updated.rows[0] });
     } catch (err) {
+        if (client) await client.query('ROLLBACK').catch(() => {});
         console.error('Update order status error:', err);
         res.status(500).json({ success: false, message: 'Server error' });
+    } finally {
+        client?.release();
     }
 });
 
 module.exports = router;
+module.exports.ensurePaymentSchema = ensurePaymentSchema;
+module.exports.releaseExpiredOrders = releaseExpiredOrders;

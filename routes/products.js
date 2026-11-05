@@ -5,6 +5,7 @@ const path = require('path');
 const fs = require('fs');
 const { pool } = require('../config/db');
 const authMiddleware = require('../middleware/auth');
+const productUploadDir = process.env.PRODUCT_UPLOAD_DIR || path.join(__dirname, '../public/images/products');
 
 const imageExtensionsByMime = {
     'image/jpeg': '.jpg',
@@ -18,9 +19,8 @@ const allowedImageExtensions = new Set(['.jpg', '.jpeg', '.jfif', '.png', '.gif'
 // Multer config for image uploads
 const storage = multer.diskStorage({
     destination: (req, file, cb) => {
-        const uploadDir = path.join(__dirname, '../public/images/products');
-        if (!fs.existsSync(uploadDir)) fs.mkdirSync(uploadDir, { recursive: true });
-        cb(null, uploadDir);
+        if (!fs.existsSync(productUploadDir)) fs.mkdirSync(productUploadDir, { recursive: true });
+        cb(null, productUploadDir);
     },
     filename: (req, file, cb) => {
         const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1E9);

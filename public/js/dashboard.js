@@ -167,20 +167,23 @@ async function loadProductsTable(search = '') {
         return;
     }
 
-    tbody.innerHTML = filtered.map(p => `
+    tbody.innerHTML = filtered.map(p => {
+        const productName = p.name_fr || p.name_en;
+        const imageUrl = safeDashboardImageUrl(p.image_url);
+        return `
         <tr>
             <td>
                 <div style="display:flex;align-items:center;gap:0.75rem">
-                    ${p.image_url
-                        ? `<img src="${p.image_url}" alt="${p.name_fr || p.name_en}" class="product-thumb" onerror="this.src='/images/placeholder.png'">`
+                    ${imageUrl
+                        ? `<img src="${escapeHtml(imageUrl)}" alt="${escapeHtml(productName)}" class="product-thumb" onerror="this.src='/images/placeholder.png'">`
                         : `<div class="product-thumb-placeholder"><span class="material-symbols-outlined">image</span></div>`}
                 </div>
             </td>
             <td>
-                    <div style="font-weight:600;font-size:0.875rem">${p.name_fr || p.name_en}</div>
-                <div style="color:var(--text-muted);font-size:0.78rem">${p.name_en}</div>
+                    <div style="font-weight:600;font-size:0.875rem">${escapeHtml(productName)}</div>
+                <div style="color:var(--text-muted);font-size:0.78rem">${escapeHtml(p.name_en)}</div>
             </td>
-            <td>${currentLang === 'fr' ? (p.category_name_fr || p.category_name_en || '—') : (p.category_name_en || '—')}</td>
+            <td>${escapeHtml(currentLang === 'fr' ? (p.category_name_fr || p.category_name_en || '—') : (p.category_name_en || '—'))}</td>
             <td><span style="font-weight:700;color:var(--primary-light)">${p.offers?.length ? new Intl.NumberFormat(currentLang === 'fr' ? 'fr-FR' : 'en-IE',{style:'currency',currency:'EUR'}).format(Math.min(...p.offers.map(o=>Number(o.price_eur)))) : '—'}</span></td>
             <td>
                 <span class="${p.stock_quantity > 0 ? 'badge badge-success' : 'badge badge-danger'}">
@@ -199,13 +202,19 @@ async function loadProductsTable(search = '') {
                     <button class="btn btn-ghost btn-sm btn-icon" onclick="openEditProduct(${p.id})" title="${t('Edit', 'Modifier')}">
                         <span class="material-symbols-outlined" style="font-size:1rem">edit</span>
                     </button>
-                    <button class="btn btn-danger btn-sm btn-icon" onclick="confirmDeleteProduct(${p.id}, '${(p.name_fr || p.name_en).replace(/'/g, "\\'")}')" title="${t('Delete', 'Supprimer')}">
+                    <button class="btn btn-danger btn-sm btn-icon" data-delete-product="${Number(p.id)}" data-delete-name="${escapeHtml(productName)}" title="${t('Delete', 'Supprimer')}">
                         <span class="material-symbols-outlined" style="font-size:1rem">delete</span>
                     </button>
                 </div>
             </td>
         </tr>
-    `).join('');
+    `;
+    }).join('');
+
+    tbody.querySelectorAll('[data-delete-product]').forEach(button => button.addEventListener('click', () => {
+        const productId = Number(button.dataset.deleteProduct);
+        if (Number.isSafeInteger(productId) && productId > 0) confirmDeleteProduct(productId, button.dataset.deleteName || '');
+    }));
 }
 
 // Product search
@@ -272,7 +281,7 @@ async function loadCategoriesForForm() {
 
     const select = document.getElementById('prod-category');
     select.innerHTML = `<option value="">${t('Select Category', 'Choisir une catégorie')}</option>` +
-        productCategories.map(c => `<option value="${c.id}">${currentLang === 'fr' ? (c.name_fr || c.name_en) : c.name_en}</option>`).join('');
+        productCategories.map(c => `<option value="${Number(c.id)}">${escapeHtml(currentLang === 'fr' ? (c.name_fr || c.name_en) : c.name_en)}</option>`).join('');
 }
 
 function clearProductForm() {
@@ -292,6 +301,16 @@ function addOfferRow(offer = {}) {
 document.getElementById('add-product-offer')?.addEventListener('click', () => addOfferRow());
 
 function escapeHtml(value) { return String(value ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
+
+function safeDashboardImageUrl(value) {
+    if (!value) return '';
+    try {
+        const imageUrl = new URL(String(value), window.location.origin);
+        return ['http:', 'https:'].includes(imageUrl.protocol) ? imageUrl.href : '';
+    } catch {
+        return '';
+    }
+}
 
 document.getElementById('close-product-modal')?.addEventListener('click', () => {
     document.getElementById('product-modal').style.display = 'none';
@@ -458,14 +477,21 @@ async function loadOrdersTable() {
         fr: { pending: 'En attente', confirmed: 'Confirmée', shipped: 'Expédiée', completed: 'Terminée', cancelled: 'Annulée' }
     };
 
-    tbody.innerHTML = orders.map(o => `
+    tbody.innerHTML = orders.map(o => {
+        const paymentLabel = o.payment_status === 'paid'
+            ? t('Paid', 'Payée')
+            : o.payment_status === 'pending' ? t('Payment pending', 'Paiement en attente')
+            : o.payment_status === 'expired' ? t('Payment expired', 'Paiement expiré')
+            : o.payment_status === 'cancelled' ? t('Payment cancelled', 'Paiement annulé')
+            : '';
+        return `
         <tr>
-            <td><span style="font-weight:700;font-size:0.8rem;color:var(--primary-light)">${o.order_number}</span></td>
+            <td><span style="font-weight:700;font-size:0.8rem;color:var(--primary-light)">${escapeHtml(o.order_number)}</span></td>
             <td>
-                <div style="font-weight:600;font-size:0.875rem">${o.customer_name}</div>
-                <div style="color:var(--text-muted);font-size:0.78rem">${o.customer_phone}</div>
+                <div style="font-weight:600;font-size:0.875rem">${escapeHtml(o.customer_name)}</div>
+                <div style="color:var(--text-muted);font-size:0.78rem">${escapeHtml(o.customer_phone)}</div>
             </td>
-            <td style="font-size:0.8rem;color:var(--text-muted)">${o.customer_email}</td>
+            <td style="font-size:0.8rem;color:var(--text-muted)">${escapeHtml(o.customer_email)}</td>
             <td>${o.items_count || '—'}</td>
             <td><span style="font-weight:700;color:var(--accent)">${new Intl.NumberFormat(currentLang === 'fr' ? 'fr-FR' : 'en-IE',{style:'currency',currency:o.currency||'USD'}).format(Number(o.total_amount))}</span></td>
             <td>
@@ -474,10 +500,12 @@ async function loadOrdersTable() {
                         <option value="${s}" ${o.status === s ? 'selected' : ''}>${statusLabels[currentLang][s]}</option>
                     `).join('')}
                 </select>
+                ${paymentLabel ? `<small style="display:block;margin-top:.3rem;color:var(--text-muted)">${paymentLabel}</small>` : ''}
             </td>
             <td style="font-size:0.78rem;color:var(--text-muted)">${formatDate(o.created_at)}</td>
         </tr>
-    `).join('');
+    `;
+    }).join('');
 }
 
 window.updateStatus = async function(orderId, status, selectEl) {

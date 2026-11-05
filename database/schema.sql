@@ -246,6 +246,20 @@ CREATE TABLE IF NOT EXISTS orders (
 
     status VARCHAR(50) DEFAULT 'pending',
 
+    payment_provider VARCHAR(30),
+
+    payment_status VARCHAR(30) NOT NULL DEFAULT 'unpaid',
+
+    payment_reference VARCHAR(255),
+
+    payment_capture_id VARCHAR(255),
+
+    stock_reserved BOOLEAN NOT NULL DEFAULT FALSE,
+
+    stock_released_at TIMESTAMPTZ,
+
+    paid_at TIMESTAMPTZ,
+
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
 
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
@@ -258,6 +272,15 @@ ADD COLUMN IF NOT EXISTS customer_id INTEGER;
 
 ALTER TABLE orders
 ADD COLUMN IF NOT EXISTS currency VARCHAR(3) NOT NULL DEFAULT 'EUR';
+
+ALTER TABLE orders
+ADD COLUMN IF NOT EXISTS payment_provider VARCHAR(30),
+ADD COLUMN IF NOT EXISTS payment_status VARCHAR(30) NOT NULL DEFAULT 'unpaid',
+ADD COLUMN IF NOT EXISTS payment_reference VARCHAR(255),
+ADD COLUMN IF NOT EXISTS payment_capture_id VARCHAR(255),
+ADD COLUMN IF NOT EXISTS stock_reserved BOOLEAN NOT NULL DEFAULT FALSE,
+ADD COLUMN IF NOT EXISTS stock_released_at TIMESTAMPTZ,
+ADD COLUMN IF NOT EXISTS paid_at TIMESTAMPTZ;
 
 
 -- Add foreign key only if needed

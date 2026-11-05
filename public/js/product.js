@@ -47,6 +47,15 @@ function escapeProductText(value) {
     return String(value ?? '').replace(/[&<>"']/g, char => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[char]));
 }
 
+function safeProductImageUrl(value) {
+    try {
+        const imageUrl = new URL(String(value || '/images/placeholder.png'), window.location.origin);
+        return ['http:', 'https:'].includes(imageUrl.protocol) ? imageUrl.href : '/images/placeholder.png';
+    } catch {
+        return '/images/placeholder.png';
+    }
+}
+
 function productName() {
     return currentLang === 'fr' ? (product.name_fr || product.name_en) : product.name_en;
 }
@@ -78,7 +87,7 @@ function renderRelatedProducts() {
         const price = item.starting_price_eur == null
             ? '—'
             : new Intl.NumberFormat(currentLang === 'fr' ? 'fr-FR' : 'en-IE', { style: 'currency', currency: 'EUR' }).format(Number(item.starting_price_eur));
-        return `<a class="product-related-card" href="/product.html?id=${encodeURIComponent(item.id)}"><img src="${escapeProductText(item.image_url || '/images/placeholder.png')}" alt="${escapeProductText(name)}" loading="lazy" onerror="this.src='/images/placeholder.png'"><span class="product-related-name">${escapeProductText(name)}</span><strong>${price}</strong></a>`;
+        return `<a class="product-related-card" href="/product.html?id=${encodeURIComponent(item.id)}"><img src="${escapeProductText(safeProductImageUrl(item.image_url))}" alt="${escapeProductText(name)}" loading="lazy" onerror="this.src='/images/placeholder.png'"><span class="product-related-name">${escapeProductText(name)}</span><strong>${price}</strong></a>`;
     }).join('')}</div></section>`;
 }
 
@@ -99,8 +108,8 @@ function renderProduct() {
     root.innerHTML = `
         <div class="product-layout">
             <div class="product-gallery">
-                <div class="product-gallery-main"><img id="product-main-image" src="${escapeProductText(product.image_url || '/images/placeholder.png')}" alt="${escapeProductText(name)}" onerror="this.src='/images/placeholder.png'"></div>
-                <div class="product-gallery-thumbs"><button class="product-thumb active" type="button" aria-label="View product image"><img src="${escapeProductText(product.image_url || '/images/placeholder.png')}" alt=""></button></div>
+                <div class="product-gallery-main"><img id="product-main-image" src="${escapeProductText(safeProductImageUrl(product.image_url))}" alt="${escapeProductText(name)}" onerror="this.src='/images/placeholder.png'"></div>
+                <div class="product-gallery-thumbs"><button class="product-thumb active" type="button" aria-label="View product image"><img src="${escapeProductText(safeProductImageUrl(product.image_url))}" alt=""></button></div>
             </div>
             <section class="product-summary">
                 <div class="product-badges"><span class="product-badge instant"><span class="material-symbols-outlined">bolt</span>${tx('instant')}</span><span class="product-badge">${escapeProductText(category)}</span></div>
@@ -113,7 +122,7 @@ function renderProduct() {
                     <div class="product-detail-actions"><div class="quantity-control"><button id="qty-minus" type="button" aria-label="Decrease quantity">−</button><output>${quantity}</output><button id="qty-plus" type="button" aria-label="Increase quantity">+</button></div><button id="add-product" class="btn btn-primary" ${!selectedOffer || Number(product.stock_quantity) <= 0 ? 'disabled' : ''}><span class="material-symbols-outlined">shopping_cart</span>${tx('cart')}</button></div>
                     <p class="stock-status ${Number(product.stock_quantity) > 0 ? '' : 'out'}">${Number(product.stock_quantity) > 0 ? tx('stock') : tx('out')}</p>
                 </section>
-                <div class="product-trust"><div><span class="material-symbols-outlined">bolt</span><strong>${tx('instantTrust')}</strong><small>${tx('available')}</small></div><div><span class="material-symbols-outlined">verified_user</span><strong>${tx('secure')}</strong><small>CIB &amp; Edahabia</small></div><div><span class="material-symbols-outlined">headphones</span><strong>${tx('support')}</strong><small>${tx('help')}</small></div></div>
+                <div class="product-trust"><div><span class="material-symbols-outlined">bolt</span><strong>${tx('instantTrust')}</strong><small>${tx('available')}</small></div><div><span class="material-symbols-outlined">verified_user</span><strong>${tx('secure')}</strong><small>PayPal</small></div><div><span class="material-symbols-outlined">headphones</span><strong>${tx('support')}</strong><small>${tx('help')}</small></div></div>
             </section>
         </div>
         <section class="product-tabs"><div class="product-tab-list"><button class="product-tab ${activeTab === 'description' ? 'active' : ''}" data-tab="description" type="button">${tx('descriptionTab')}</button><button class="product-tab ${activeTab === 'delivery' ? 'active' : ''}" data-tab="delivery" type="button">${tx('deliveryTab')}</button><button class="product-tab ${activeTab === 'reviews' ? 'active' : ''}" data-tab="reviews" type="button">${tx('reviewsTab')}</button></div><div class="product-tab-content">${renderTabContent()}</div></section>

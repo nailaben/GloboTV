@@ -137,6 +137,10 @@
     if (!order.order_number) {
         window.location.href = '/';
     }
+    if (new URLSearchParams(location.search).get('payment') === 'paypal') clearCart();
+    function escapeSuccessHtml(value) {
+        return String(value ?? '').replace(/[&<>"']/g, char => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[char]));
+    }
 
     // Apply content
     document.getElementById('order-number').textContent = order.order_number || '—';
@@ -187,8 +191,8 @@
 
     document.getElementById('order-details').innerHTML = details.map(d => `
         <div class="detail-box">
-            <div class="detail-label">${d.label}</div>
-            <div class="detail-value">${d.value || '—'}</div>
+            <div class="detail-label">${escapeSuccessHtml(d.label)}</div>
+            <div class="detail-value">${escapeSuccessHtml(d.value || '—')}</div>
         </div>
     `).join('');
 
@@ -196,7 +200,7 @@
     if (order.items && order.items.length > 0) {
         document.getElementById('order-items-list').innerHTML = order.items.map(item => `
             <div style="display:flex;justify-content:space-between;align-items:center;padding:0.6rem 0;border-bottom:1px solid var(--border-light);font-size:0.875rem">
-                <span>${lang === 'fr' ? (item.product_name_fr || item.product_name_en) : item.product_name_en} — ${lang === 'fr' ? item.offer_label_fr : item.offer_label_en} × ${item.quantity}</span>
+                <span>${escapeSuccessHtml(lang === 'fr' ? (item.product_name_fr || item.product_name_en) : item.product_name_en)} — ${escapeSuccessHtml(lang === 'fr' ? item.offer_label_fr : item.offer_label_en)} × ${escapeSuccessHtml(item.quantity)}</span>
                 <span style="font-weight:700;color:var(--primary-light)">${new Intl.NumberFormat(lang === 'fr' ? 'fr-FR' : 'en-IE', { style: 'currency', currency: order.currency || 'USD' }).format(Number(item.subtotal))}</span>
             </div>
         `).join('');

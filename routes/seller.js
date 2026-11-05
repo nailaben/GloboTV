@@ -3,10 +3,13 @@ const router = express.Router();
 const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
 const { pool } = require('../config/db');
+const rateLimit = require('../middleware/rate-limit');
 require('dotenv').config();
 
+const limitSellerLogin = rateLimit({ windowMs: 15 * 60 * 1000, max: 10, keyPrefix: 'seller-login' });
+
 // POST /api/seller/login
-router.post('/login', async (req, res) => {
+router.post('/login', limitSellerLogin, async (req, res) => {
     const { username, password } = req.body;
 
     if (!username || !password) {
@@ -50,7 +53,7 @@ router.get('/stats', authMiddleware, async (req, res) => {
         const [productsResult, ordersResult, revenueResult, pendingResult] = await Promise.all([
             pool.query('SELECT COUNT(*) FROM products WHERE seller_id = $1', [req.seller.id]),
             pool.query('SELECT COUNT(DISTINCT o.id) FROM orders o JOIN order_items oi ON oi.order_id=o.id JOIN products p ON p.id=oi.product_id WHERE p.seller_id=$1', [req.seller.id]),
-            pool.query("SELECT COALESCE(SUM(oi.subtotal), 0) AS total FROM order_items oi JOIN orders o ON o.id=oi.order_id JOIN products p ON p.id=oi.product_id WHERE p.seller_id=$1 AND o.status != 'cancelled' AND o.currency='EUR'", [req.seller.id]),
+            pool.query("SELECT COALESCE(SUM(oi.subtotal), 0) AS total FROM order_items oi JOIN orders o ON o.id=oi.order_id JOIN products p ON p.id=oi.product_id WHERE p.seller_id=$1 AND o.payment_status = 'paid' AND o.currency='EUR'", [req.seller.id]),
             pool.query("SELECT COUNT(DISTINCT o.id) FROM orders o JOIN order_items oi ON oi.order_id=o.id JOIN products p ON p.id=oi.product_id WHERE p.seller_id=$1 AND o.status = 'pending'", [req.seller.id])
         ]);
 

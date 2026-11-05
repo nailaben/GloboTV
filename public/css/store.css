@@ -925,6 +925,9 @@ body[dir="rtl"] .cart-sidebar {
 }
 
 .cart-item-remove {
+    border: 0;
+    padding: 0;
+    background: transparent;
     color: var(--text-muted);
     cursor: pointer;
     font-size: 1rem;
