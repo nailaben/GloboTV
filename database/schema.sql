@@ -183,7 +183,7 @@ CREATE TABLE IF NOT EXISTS product_offers (
     label_fr VARCHAR(120) NOT NULL,
 
     price_eur DECIMAL(10,2) NOT NULL
-        CHECK (price_eur >= 0),
+        CHECK (price_eur > 0),
 
     sort_order INTEGER NOT NULL DEFAULT 0,
 

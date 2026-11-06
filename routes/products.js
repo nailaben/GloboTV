@@ -86,11 +86,13 @@ async function uploadToCloudinary(file) {
 }
 
 function uploadProductImage(req, res, next) {
-    if (cloudinaryPartiallyConfigured) {
-        return res.status(503).json({ success: false, message: 'Cloudinary configuration is incomplete.' });
-    }
-    const parser = cloudinaryEnabled ? memoryUpload : diskUpload;
+    // Allow URL-only edits when Cloudinary is partially configured, but never
+    // silently store uploaded files on Render's ephemeral filesystem.
+    const parser = cloudinaryEnabled || cloudinaryPartiallyConfigured ? memoryUpload : diskUpload;
     parser.single('image')(req, res, async error => {
+        if (!error && req.file && cloudinaryPartiallyConfigured) {
+            return res.status(503).json({ success: false, message: 'Cloudinary configuration is incomplete.' });
+        }
         if (!error && req.file && cloudinaryEnabled) {
             try {
                 req.file.cloudinaryUrl = await uploadToCloudinary(req.file);
@@ -215,7 +217,7 @@ router.post('/', authMiddleware, uploadProductImage, async (req, res) => {
     }
 
     const offers = parseOffers(req.body.offers_json);
-    if (!name_fr || !name_en || !price || !offers || !offers.length) {
+    if (!name_fr || !name_en || !isValidEuroAmount(price) || !offers || !offers.length) {
         return res.status(400).json({ success: false, message: 'French and English names, base price, and at least one valid offer are required' });
     }
 
@@ -225,13 +227,23 @@ router.post('/', authMiddleware, uploadProductImage, async (req, res) => {
             image_url = req.file.cloudinaryUrl || `/images/products/${req.file.filename}`;
         }
 
-        const result = await pool.query(`
+        const client = await pool.connect();
+        let result;
+        try {
+            await client.query('BEGIN');
+            result = await client.query(`
             INSERT INTO products (seller_id, name_ar, name_en, name_fr, description_ar, description_en, description_fr, delivery_info_en, delivery_info_fr, reviews_en, reviews_fr, price, category_id, stock_quantity, image_url)
             VALUES ($1, $2, $3, $4, '', $5, $6, $7, $8, $9, $10, $11, $12, $13, $14)
             RETURNING *
-        `, [req.seller.id, name_fr, name_en, name_fr, description_en || '', description_fr || '', delivery_info_en || '', delivery_info_fr || '', reviews_en || '', reviews_fr || '', price, category_id || null, stockQuantity, image_url]);
-
-        await replaceOffers(result.rows[0].id, offers);
+            `, [req.seller.id, name_en, name_en, name_fr, description_en || '', description_fr || '', delivery_info_en || '', delivery_info_fr || '', reviews_en || '', reviews_fr || '', Number(price), category_id || null, stockQuantity, image_url]);
+            await replaceOffers(client, result.rows[0].id, offers);
+            await client.query('COMMIT');
+        } catch (error) {
+            await client.query('ROLLBACK');
+            throw error;
+        } finally {
+            client.release();
+        }
 
         res.status(201).json({ success: true, product: result.rows[0] });
     } catch (err) {
@@ -247,6 +259,13 @@ router.put('/:id', authMiddleware, uploadProductImage, async (req, res) => {
     if (stockQuantity !== undefined && (!Number.isSafeInteger(stockQuantity) || stockQuantity < 0)) {
         return res.status(400).json({ success: false, message: 'Stock quantity must be a whole number of 0 or more.' });
     }
+    if (price !== undefined && !isValidEuroAmount(price)) {
+        return res.status(400).json({ success: false, message: 'Base price must be a valid amount in EUR.' });
+    }
+    const offers = req.body.offers_json === undefined ? null : parseOffers(req.body.offers_json);
+    if (req.body.offers_json !== undefined && (!offers || !offers.length)) {
+        return res.status(400).json({ success: false, message: 'Add at least one valid offer with a price greater than €0.' });
+    }
 
     try {
         let image_url = req.body.image_url;
@@ -258,8 +277,8 @@ router.put('/:id', authMiddleware, uploadProductImage, async (req, res) => {
         const values = [];
         let idx = 1;
 
-        if (name_fr !== undefined) { updateFields.push(`name_fr = $${idx++}`); values.push(name_fr); updateFields.push(`name_ar = $${idx++}`); values.push(name_fr); }
-        if (name_en !== undefined) { updateFields.push(`name_en = $${idx++}`); values.push(name_en); }
+        if (name_fr !== undefined) { updateFields.push(`name_fr = $${idx++}`); values.push(name_fr); }
+        if (name_en !== undefined) { updateFields.push(`name_en = $${idx++}`); values.push(name_en); updateFields.push(`name_ar = $${idx++}`); values.push(name_en); }
         if (description_fr !== undefined) { updateFields.push(`description_fr = $${idx++}`); values.push(description_fr); }
         if (description_en !== undefined) { updateFields.push(`description_en = $${idx++}`); values.push(description_en); }
         if (delivery_info_fr !== undefined) { updateFields.push(`delivery_info_fr = $${idx++}`); values.push(delivery_info_fr); }
@@ -276,21 +295,29 @@ router.put('/:id', authMiddleware, uploadProductImage, async (req, res) => {
             return res.status(400).json({ success: false, message: 'No fields to update' });
         }
 
-        values.push(req.params.id, req.seller.id);
-        const result = await pool.query(`
+        const client = await pool.connect();
+        let result;
+        try {
+            await client.query('BEGIN');
+            values.push(req.params.id, req.seller.id);
+            result = await client.query(`
             UPDATE products SET ${updateFields.join(', ')}
             WHERE id = $${idx} AND seller_id = $${idx + 1}
             RETURNING *
-        `, values);
+            `, values);
 
-        if (result.rows.length === 0) {
-            return res.status(404).json({ success: false, message: 'Product not found' });
-        }
+            if (result.rows.length === 0) {
+                await client.query('ROLLBACK');
+                return res.status(404).json({ success: false, message: 'Product not found' });
+            }
 
-        if (req.body.offers_json !== undefined) {
-            const offers = parseOffers(req.body.offers_json);
-            if (!offers || !offers.length) return res.status(400).json({ success: false, message: 'Add at least one valid offer' });
-            await replaceOffers(req.params.id, offers);
+            if (offers) await replaceOffers(client, req.params.id, offers);
+            await client.query('COMMIT');
+        } catch (error) {
+            await client.query('ROLLBACK');
+            throw error;
+        } finally {
+            client.release();
         }
         res.json({ success: true, product: result.rows[0] });
     } catch (err) {
@@ -324,30 +351,34 @@ function parseOffers(raw) {
     try {
         const offers = JSON.parse(raw || '[]');
         if (!Array.isArray(offers)) return null;
-        const cleaned = offers.map(o => ({ label_en: String(o.label_en || '').trim(), label_fr: String(o.label_fr || '').trim(), price_eur: Number(o.price_eur) }))
-            .filter(o => o.label_en && o.label_fr && Number.isFinite(o.price_eur) && o.price_eur >= 0);
-        return cleaned.length === offers.length ? cleaned : null;
+        const cleaned = offers.map(o => {
+            if (!o || typeof o !== 'object' || Array.isArray(o)) return null;
+            const priceCents = Math.round(Number(o.price_eur) * 100);
+            if (!o.label_en || !o.label_fr || !Number.isSafeInteger(priceCents) || priceCents < 1 || priceCents > 9999999999) return null;
+            return { label_en: String(o.label_en).trim(), label_fr: String(o.label_fr).trim(), price_eur: priceCents / 100 };
+        });
+        return cleaned.every(Boolean) ? cleaned : null;
     } catch { return null; }
 }
 
-async function replaceOffers(productId, offers) {
-    const client = await pool.connect();
-    try {
-        await client.query('BEGIN');
-        const existing = await client.query('SELECT id FROM product_offers WHERE product_id=$1 ORDER BY sort_order,id FOR UPDATE', [productId]);
-        for (let i = 0; i < offers.length; i++) {
-            const o = offers[i];
-            if (existing.rows[i]) {
-                await client.query('UPDATE product_offers SET label_en=$1,label_fr=$2,price_eur=$3,sort_order=$4,is_active=true WHERE id=$5 AND product_id=$6', [o.label_en, o.label_fr, o.price_eur, i, existing.rows[i].id, productId]);
-            } else {
-                await client.query('INSERT INTO product_offers(product_id,label_en,label_fr,price_eur,sort_order) VALUES($1,$2,$3,$4,$5)', [productId, o.label_en, o.label_fr, o.price_eur, i]);
-            }
+function isValidEuroAmount(value) {
+    const amount = Number(value);
+    const cents = Math.round(amount * 100);
+    return Number.isFinite(amount) && Number.isSafeInteger(cents) && cents > 0 && cents <= 9999999999;
+}
+
+async function replaceOffers(client, productId, offers) {
+    const existing = await client.query('SELECT id FROM product_offers WHERE product_id=$1 ORDER BY sort_order,id FOR UPDATE', [productId]);
+    for (let i = 0; i < offers.length; i++) {
+        const o = offers[i];
+        if (existing.rows[i]) {
+            await client.query('UPDATE product_offers SET label_en=$1,label_fr=$2,price_eur=$3,sort_order=$4,is_active=true WHERE id=$5 AND product_id=$6', [o.label_en, o.label_fr, o.price_eur, i, existing.rows[i].id, productId]);
+        } else {
+            await client.query('INSERT INTO product_offers(product_id,label_en,label_fr,price_eur,sort_order) VALUES($1,$2,$3,$4,$5)', [productId, o.label_en, o.label_fr, o.price_eur, i]);
         }
-        const removedOfferIds = existing.rows.slice(offers.length).map(row => row.id);
-        if (removedOfferIds.length) {
-            await client.query('DELETE FROM product_offers WHERE product_id=$1 AND id = ANY($2::int[])', [productId, removedOfferIds]);
-        }
-        await client.query('COMMIT');
-    } catch (error) { await client.query('ROLLBACK'); throw error; }
-    finally { client.release(); }
+    }
+    const removedOfferIds = existing.rows.slice(offers.length).map(row => row.id);
+    if (removedOfferIds.length) {
+        await client.query('DELETE FROM product_offers WHERE product_id=$1 AND id = ANY($2::int[])', [productId, removedOfferIds]);
+    }
 }

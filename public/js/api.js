@@ -264,7 +264,7 @@ function addToCart(product, quantity = 1) {
             offer_label_en: offer?.label_en || '',
             offer_label_fr: offer?.label_fr || '',
             price: offer ? Number(offer.price_eur) : Number(product.price),
-            currency: offer ? 'EUR' : 'USD',
+            currency: 'EUR',
             image_url: product.image_url,
             stock_quantity: product.stock_quantity,
             quantity
@@ -354,11 +354,11 @@ function showToast(message, type = 'info', duration = 3000) {
 
 // ---- Format Currency ----
 function formatPrice(price) {
-    return `$${parseFloat(price).toFixed(2)}`;
+    return new Intl.NumberFormat(currentLang === 'fr' ? 'fr-FR' : 'en-IE', { style: 'currency', currency: 'EUR' }).format(Number(price));
 }
 
 function formatCartPrice(item, amount = item.price) {
-    return new Intl.NumberFormat(currentLang === 'fr' ? 'fr-FR' : 'en-IE', { style: 'currency', currency: item.currency || 'USD' }).format(Number(amount));
+    return new Intl.NumberFormat(currentLang === 'fr' ? 'fr-FR' : 'en-IE', { style: 'currency', currency: item.currency || 'EUR' }).format(Number(amount));
 }
 
 // ---- Format Date ----

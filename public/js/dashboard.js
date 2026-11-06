@@ -294,7 +294,7 @@ function addOfferRow(offer = {}) {
     const row = document.createElement('div');
     row.className = 'product-offer-row';
     row.style.cssText = 'display:grid;grid-template-columns:1fr 1fr 140px auto;gap:.5rem;margin:.5rem 0';
-    row.innerHTML = `<input class="form-input offer-label-en" placeholder="Offer name (English)" value="${escapeHtml(offer.label_en || '')}" required><input class="form-input offer-label-fr" placeholder="Nom de l’offre (français)" value="${escapeHtml(offer.label_fr || '')}" required><input class="form-input offer-price-eur" type="number" min="0" step="0.01" placeholder="Price €" value="${offer.price_eur ?? ''}" required><button type="button" class="btn btn-danger remove-offer" aria-label="Remove offer">×</button>`;
+    row.innerHTML = `<input class="form-input offer-label-en" placeholder="Offer name (English)" value="${escapeHtml(offer.label_en || '')}" required><input class="form-input offer-label-fr" placeholder="Nom de l’offre (français)" value="${escapeHtml(offer.label_fr || '')}" required><input class="form-input offer-price-eur" type="number" min="0.01" step="0.01" placeholder="Price €" value="${offer.price_eur ?? ''}" required><button type="button" class="btn btn-danger remove-offer" aria-label="Remove offer">×</button>`;
     row.querySelector('.remove-offer').addEventListener('click', () => { if (document.querySelectorAll('.product-offer-row').length > 1) row.remove(); });
     document.getElementById('product-offers-editor').appendChild(row);
 }
@@ -367,8 +367,8 @@ document.getElementById('product-form')?.addEventListener('submit', async (e) =>
         label_fr: row.querySelector('.offer-label-fr').value.trim(),
         price_eur: Number(row.querySelector('.offer-price-eur').value)
     }));
-    if (!offers.length || offers.some(o => !o.label_en || !o.label_fr || !Number.isFinite(o.price_eur) || o.price_eur < 0)) {
-        showToast(t('Add at least one complete offer with a EUR price.', 'Ajoutez au moins une offre complète avec un prix en EUR.'), 'error');
+    if (!offers.length || offers.some(o => !o.label_en || !o.label_fr || !Number.isFinite(o.price_eur) || o.price_eur <= 0 || Math.round(o.price_eur * 100) !== o.price_eur * 100)) {
+        showToast(t('Add at least one complete offer with a valid EUR price greater than €0.', 'Ajoutez au moins une offre complète avec un prix EUR valide supérieur à 0 €.'), 'error');
         btn.disabled = false;
         btn.textContent = t('Save', 'Enregistrer');
         return;
@@ -500,7 +500,7 @@ async function loadOrdersTable() {
                 ${o.payment_status === 'paid' ? `<button type="button" class="btn btn-secondary" style="display:block;margin-top:.35rem;padding:.35rem .55rem;font-size:.75rem" onclick="composeCustomerEmail(${o.id})">${t('Open email draft', 'Ouvrir le brouillon')}</button>` : ''}
             </td>
             <td>${o.items_count || '—'}</td>
-            <td><span style="font-weight:700;color:var(--accent)">${new Intl.NumberFormat(currentLang === 'fr' ? 'fr-FR' : 'en-IE',{style:'currency',currency:o.currency||'USD'}).format(Number(o.total_amount))}</span></td>
+            <td><span style="font-weight:700;color:var(--accent)">${new Intl.NumberFormat(currentLang === 'fr' ? 'fr-FR' : 'en-IE',{style:'currency',currency:o.currency||'EUR'}).format(Number(o.total_amount))}</span></td>
             <td>
                 <select class="status-select status-${o.status}" onchange="updateStatus(${o.id}, this.value, this)">
                     ${['pending','confirmed','shipped','completed','cancelled'].map(s => `

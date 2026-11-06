@@ -16,7 +16,8 @@ CREATE UNIQUE INDEX IF NOT EXISTS customers_email_lower_unique ON customers (low
 
 ALTER TABLE orders
     ADD COLUMN IF NOT EXISTS customer_id INTEGER REFERENCES customers(id) ON DELETE SET NULL;
-ALTER TABLE orders ADD COLUMN IF NOT EXISTS currency VARCHAR(3) NOT NULL DEFAULT 'USD';
+ALTER TABLE orders ADD COLUMN IF NOT EXISTS currency VARCHAR(3) NOT NULL DEFAULT 'EUR';
+ALTER TABLE orders ALTER COLUMN currency SET DEFAULT 'EUR';
 
 ALTER TABLE categories ADD COLUMN IF NOT EXISTS name_fr VARCHAR(100) NOT NULL DEFAULT '';
 UPDATE categories SET name_fr = CASE id
@@ -41,7 +42,7 @@ CREATE TABLE IF NOT EXISTS product_offers (
     product_id INTEGER NOT NULL REFERENCES products(id) ON DELETE CASCADE,
     label_en VARCHAR(120) NOT NULL,
     label_fr VARCHAR(120) NOT NULL,
-    price_eur DECIMAL(10,2) NOT NULL CHECK (price_eur >= 0),
+    price_eur DECIMAL(10,2) NOT NULL CHECK (price_eur > 0),
     sort_order INTEGER NOT NULL DEFAULT 0,
     is_active BOOLEAN NOT NULL DEFAULT true,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
