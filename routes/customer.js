@@ -4,6 +4,7 @@ const jwt = require('jsonwebtoken');
 const crypto = require('crypto');
 const { pool } = require('../config/db');
 const rateLimit = require('../middleware/rate-limit');
+const { readCookie, setSessionCookie, clearSessionCookie } = require('../middleware/session-cookies');
 
 const router = express.Router();
 const limitCustomerLogin = rateLimit({ windowMs: 15 * 60 * 1000, max: 10, keyPrefix: 'customer-login' });
@@ -13,7 +14,7 @@ const limitCheckoutCodeSend = rateLimit({ windowMs: 15 * 60 * 1000, max: 5, keyP
 const limitCheckoutCodeVerify = rateLimit({ windowMs: 15 * 60 * 1000, max: 10, keyPrefix: 'checkout-code-verify' });
 
 function customerAuth(req, res, next) {
-    const token = req.headers.authorization?.split(' ')[1];
+    const token = readCookie(req, 'globotv_customer_session');
     if (!token) return res.status(401).json({ success: false, message: 'Sign in required' });
     try {
         const payload = jwt.verify(token, process.env.JWT_SECRET);
@@ -175,7 +176,7 @@ async function startOAuth(req, res) {
     res.cookie('playora_oauth_google', state, {
         httpOnly: true,
         sameSite: 'lax',
-        secure: process.env.NODE_ENV === 'production',
+        secure: process.env.NODE_ENV === 'production' || Boolean(req.secure),
         maxAge: 10 * 60 * 1000,
         path: '/api/customer/google/callback'
     });
@@ -246,8 +247,8 @@ async function finishOAuth(req, res) {
             );
             customer = result.rows[0];
         }
-        const token = createToken(customer);
-        res.redirect(`/auth.html#token=${encodeURIComponent(token)}`);
+        setSessionCookie(req, res, 'globotv_customer_session', createToken(customer), 30 * 24 * 60 * 60 * 1000);
+        res.redirect('/account.html');
     } catch (error) {
         console.error('Google customer sign-in error:', error.message);
         redirectAuthError(res, 'oauth_failed');
@@ -474,7 +475,8 @@ router.post('/verify-email', async (req, res) => {
         );
         await pool.query('DELETE FROM customer_email_verifications WHERE email = $1', [email]);
         const customer = inserted.rows[0];
-        return res.status(201).json({ success: true, token: createToken(customer), customer });
+        setSessionCookie(req, res, 'globotv_customer_session', createToken(customer), 30 * 24 * 60 * 60 * 1000);
+        return res.status(201).json({ success: true, customer });
     } catch (err) {
         if (err.code === '23505') return res.status(409).json({ success: false, message: 'An account with this email already exists.' });
         console.error('Customer email verification error:', err);
@@ -517,11 +519,17 @@ router.post('/login', limitCustomerLogin, async (req, res) => {
             return res.status(401).json({ success: false, message: 'Email or password is incorrect.' });
         }
         const safeCustomer = { id: customer.id, name: customer.name, email: customer.email, phone: customer.phone };
-        res.json({ success: true, token: createToken(safeCustomer), customer: safeCustomer });
+        setSessionCookie(req, res, 'globotv_customer_session', createToken(safeCustomer), 30 * 24 * 60 * 60 * 1000);
+        res.json({ success: true, customer: safeCustomer });
     } catch (err) {
         console.error('Customer login error:', err);
         res.status(500).json({ success: false, message: 'Could not sign in.' });
     }
+});
+
+router.post('/logout', (req, res) => {
+    clearSessionCookie(req, res, 'globotv_customer_session');
+    res.json({ success: true });
 });
 
 router.get('/me', customerAuth, async (req, res) => {

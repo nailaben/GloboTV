@@ -4,6 +4,7 @@ const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
 const { pool } = require('../config/db');
 const rateLimit = require('../middleware/rate-limit');
+const { setSessionCookie, clearSessionCookie } = require('../middleware/session-cookies');
 require('dotenv').config();
 
 const limitSellerLogin = rateLimit({ windowMs: 15 * 60 * 1000, max: 10, keyPrefix: 'seller-login' });
@@ -35,15 +36,20 @@ router.post('/login', limitSellerLogin, async (req, res) => {
             { expiresIn: '24h' }
         );
 
+        setSessionCookie(req, res, 'globotv_seller_session', token, 24 * 60 * 60 * 1000);
         res.json({
             success: true,
-            token,
             seller: { id: seller.id, name: seller.name, username: seller.username, email: seller.email }
         });
     } catch (err) {
         console.error('Login error:', err);
         res.status(500).json({ success: false, message: 'Server error' });
     }
+});
+
+router.post('/logout', (req, res) => {
+    clearSessionCookie(req, res, 'globotv_seller_session');
+    res.json({ success: true });
 });
 
 // GET /api/seller/stats

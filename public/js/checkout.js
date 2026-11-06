@@ -306,7 +306,7 @@ function setupCheckoutSteps() {
     backToVerifyButton.addEventListener('click', () => showStep(3));
     continueVerifyButton.addEventListener('click', () => {
         const customer = JSON.parse(localStorage.getItem('playora_customer') || 'null');
-        if (!localStorage.getItem('playora_customer_token') || !customer?.email) {
+        if (!customer?.email) {
             showToast(ctr('account_required'), 'error');
             return;
         }
@@ -331,6 +331,7 @@ let checkoutWhatsAppSent = false;
 let checkoutEmailVerified = false;
 let checkoutWhatsAppVerified = false;
 let checkoutVerificationToken = null;
+let checkoutSessionResolved = false;
 let checkoutNoticeKey = 'verify_notice';
 let checkoutCanResend = false;
 let checkoutResendUntil = 0;
@@ -496,10 +497,6 @@ function updatePhoneChoiceActions() {
 async function requestCheckoutCodes() {
     const sendButton = document.getElementById('send-checkout-codes-btn');
     const phoneInput = document.getElementById('verify-phone');
-    if (!localStorage.getItem('playora_customer_token')) {
-        showToast(ctr('account_required'), 'error');
-        return;
-    }
     if (!checkoutPhoneChoiceConfirmed) {
         showToast(ctr('verify_contact_error'), 'error');
         return;
@@ -741,11 +738,28 @@ function renderCheckoutAccount() {
     const panel = document.getElementById('account-step-content');
     if (!panel) return;
 
-    const customerToken = localStorage.getItem('playora_customer_token');
-    if (customerToken) {
-        const customer = JSON.parse(localStorage.getItem('playora_customer') || 'null');
-        if (customer && customer.name) {
-            panel.innerHTML = `
+    if (!checkoutSessionResolved) {
+        panel.innerHTML = '<div class="checkout-account-panel"><div class="checkout-account-header"><h1 class="checkout-account-title">Account</h1></div><p class="checkout-account-subtitle">Loading your account…</p></div>';
+        api.getCustomer().then(result => {
+            checkoutSessionResolved = true;
+            if (result.success && result.customer) localStorage.setItem('playora_customer', JSON.stringify(result.customer));
+            else {
+                localStorage.removeItem('playora_customer_token');
+                localStorage.removeItem('playora_customer');
+            }
+            renderCheckoutAccount();
+        }).catch(() => {
+            checkoutSessionResolved = true;
+            localStorage.removeItem('playora_customer_token');
+            localStorage.removeItem('playora_customer');
+            renderCheckoutAccount();
+        });
+        return;
+    }
+
+    const customer = JSON.parse(localStorage.getItem('playora_customer') || 'null');
+    if (customer?.name) {
+        panel.innerHTML = `
                 <div class="checkout-account-panel">
                     <div class="checkout-account-header">
                         <h1 class="checkout-account-title">Account</h1>
@@ -759,24 +773,6 @@ function renderCheckoutAccount() {
                     </div>
                 </div>
             `;
-            return;
-        }
-
-        api.getCustomer().then((result) => {
-            if (result.success && result.customer) {
-                localStorage.setItem('playora_customer', JSON.stringify(result.customer));
-                renderCheckoutAccount();
-                return;
-            }
-            localStorage.removeItem('playora_customer_token');
-            localStorage.removeItem('playora_customer');
-            renderCheckoutAccount();
-        }).catch(() => {
-            localStorage.removeItem('playora_customer_token');
-            localStorage.removeItem('playora_customer');
-            renderCheckoutAccount();
-        });
-        panel.innerHTML = '<div class="checkout-account-panel"><div class="checkout-account-header"><h1 class="checkout-account-title">Account</h1></div><p class="checkout-account-subtitle">Loading your account…</p></div>';
         return;
     }
 
@@ -907,7 +903,8 @@ function renderCheckoutAccount() {
             }
 
             pendingVerificationEmail = '';
-            localStorage.setItem('playora_customer_token', result.token);
+            checkoutSessionResolved = true;
+            localStorage.removeItem('playora_customer_token');
             localStorage.setItem('playora_customer', JSON.stringify(result.customer));
             renderCheckoutAccount();
         } catch (error) {

@@ -49,11 +49,23 @@ app.get('/api/health', async (req, res) => {
 
 // SPA fallback - serve index.html for all non-API routes
 app.get('*', (req, res) => {
-    const filePath = path.join(__dirname, 'public', req.path);
-    if (fs.existsSync(filePath) && fs.statSync(filePath).isFile()) {
-        res.sendFile(filePath);
+    const publicDir = path.resolve(__dirname, 'public');
+    let requestedPath;
+    try {
+        requestedPath = path.resolve(publicDir, `.${decodeURIComponent(req.path)}`);
+    } catch {
+        return res.status(400).send('Invalid path');
+    }
+    const relativePath = path.relative(publicDir, requestedPath);
+    const escapesPublicDir = relativePath === '..' || relativePath.startsWith(`..${path.sep}`) || path.isAbsolute(relativePath);
+    if (escapesPublicDir) {
+        return res.status(404).send('Not found');
+    }
+
+    if (fs.existsSync(requestedPath) && fs.statSync(requestedPath).isFile()) {
+        return res.sendFile(requestedPath);
     } else {
-        res.sendFile(path.join(__dirname, 'public', 'index.html'));
+        return res.sendFile(path.join(publicDir, 'index.html'));
     }
 });
 

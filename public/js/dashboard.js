@@ -20,7 +20,9 @@ document.addEventListener('DOMContentLoaded', async () => {
 
 // ---- Auth ----
 function checkAuth() {
-    if (!getToken()) window.location.href = '/seller/login.html';
+    api.getStats().then(result => {
+        if (!result.success) window.location.replace('/seller/login.html?reason=session-expired');
+    }).catch(() => window.location.replace('/seller/login.html?reason=session-expired'));
 }
 
 function loadSellerInfo() {
@@ -33,9 +35,10 @@ function loadSellerInfo() {
     document.getElementById('topbar-seller').textContent = seller.name;
 }
 
-document.getElementById('logout-btn')?.addEventListener('click', () => {
+document.getElementById('logout-btn')?.addEventListener('click', async () => {
+    try { await api.logoutSeller(); } catch {}
     removeToken();
-    window.location.href = '/seller/login.html';
+    window.location.replace('/seller/login.html');
 });
 
 // ---- Sidebar ----

@@ -4,6 +4,10 @@
 
 const API_BASE = '/api';
 
+// Remove credentials saved by older versions that used JavaScript-readable storage.
+localStorage.removeItem('playora_token');
+localStorage.removeItem('playora_customer_token');
+
 // Bound API requests so dashboards can recover from a stalled server/database
 // instead of leaving their loading indicators on screen indefinitely.
 async function fetchApi(url, options = {}, timeoutMs = 15000) {
@@ -43,15 +47,12 @@ const api = {
     },
 
     getSellerProducts: async () => {
-        return fetchApi(`${API_BASE}/products/seller/all`, {
-            headers: { 'Authorization': `Bearer ${getToken()}` }
-        }, 8000);
+        return fetchApi(`${API_BASE}/products/seller/all`, {}, 8000);
     },
 
     addProduct: async (formData) => {
         return fetchApi(`${API_BASE}/products`, {
             method: 'POST',
-            headers: { 'Authorization': `Bearer ${getToken()}` },
             body: formData
         });
     },
@@ -59,7 +60,6 @@ const api = {
     updateProduct: async (id, formData) => {
         return fetchApi(`${API_BASE}/products/${id}`, {
             method: 'PUT',
-            headers: { 'Authorization': `Bearer ${getToken()}` },
             body: formData
         });
     },
@@ -67,7 +67,6 @@ const api = {
     deleteProduct: async (id) => {
         return fetchApi(`${API_BASE}/products/${id}`, {
             method: 'DELETE',
-            headers: { 'Authorization': `Bearer ${getToken()}` }
         });
     },
 
@@ -75,10 +74,7 @@ const api = {
     createOrder: async (orderData) => {
         const res = await fetch(`${API_BASE}/orders`, {
             method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-                ...(localStorage.getItem('playora_customer_token') ? { 'Authorization': `Bearer ${localStorage.getItem('playora_customer_token')}` } : {})
-            },
+            headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify(orderData)
         });
         return res.json();
@@ -87,10 +83,7 @@ const api = {
     sendCheckoutVerificationCodes: async (phone) => {
         const res = await fetch(`${API_BASE}/customer/checkout/send-codes`, {
             method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-                'Authorization': `Bearer ${localStorage.getItem('playora_customer_token') || ''}`
-            },
+            headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ phone })
         });
         return res.json();
@@ -99,10 +92,7 @@ const api = {
     verifyCheckoutCodes: async (phone, emailCode, whatsappCode) => {
         const res = await fetch(`${API_BASE}/customer/checkout/verify-codes`, {
             method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-                'Authorization': `Bearer ${localStorage.getItem('playora_customer_token') || ''}`
-            },
+            headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ phone, emailCode, whatsappCode })
         });
         return res.json();
@@ -129,64 +119,57 @@ const api = {
     },
 
     getCustomer: async () => {
-        const res = await fetch(`${API_BASE}/customer/me`, { headers: { 'Authorization': `Bearer ${localStorage.getItem('playora_customer_token') || ''}` } });
+        const res = await fetch(`${API_BASE}/customer/me`);
         return res.json();
     },
 
     updateCustomer: async (data) => {
         const res = await fetch(`${API_BASE}/customer/me`, {
             method: 'PUT',
-            headers: {
-                'Content-Type': 'application/json',
-                'Authorization': `Bearer ${localStorage.getItem('playora_customer_token') || ''}`
-            },
+            headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify(data)
         });
         return res.json();
     },
 
     getCustomerOrders: async () => {
-        const res = await fetch(`${API_BASE}/customer/orders`, { headers: { 'Authorization': `Bearer ${localStorage.getItem('playora_customer_token') || ''}` } });
+        const res = await fetch(`${API_BASE}/customer/orders`);
+        return res.json();
+    },
+
+    logoutCustomer: async () => {
+        const res = await fetch(`${API_BASE}/customer/logout`, { method: 'POST' });
         return res.json();
     },
 
     getOrders: async (params = {}) => {
         const query = new URLSearchParams(params).toString();
-        return fetchApi(`${API_BASE}/orders${query ? '?' + query : ''}`, {
-            headers: { 'Authorization': `Bearer ${getToken()}` }
-        });
+        return fetchApi(`${API_BASE}/orders${query ? '?' + query : ''}`);
     },
 
     getOrder: async (id) => {
-        return fetchApi(`${API_BASE}/orders/${id}`, {
-            headers: { 'Authorization': `Bearer ${getToken()}` }
-        });
+        return fetchApi(`${API_BASE}/orders/${id}`);
     },
 
     updateOrderStatus: async (id, status) => {
         return fetchApi(`${API_BASE}/orders/${id}/status`, {
             method: 'PATCH',
-            headers: {
-                'Content-Type': 'application/json',
-                'Authorization': `Bearer ${getToken()}`
-            },
+            headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ status })
         });
     },
 
     refundOrder: async (id) => fetchApi(`${API_BASE}/orders/${id}/refund`, {
-        method: 'POST',
-        headers: { 'Authorization': `Bearer ${getToken()}` }
+        method: 'POST'
     }),
 
     checkRefundStatus: async (id) => fetchApi(`${API_BASE}/orders/${id}/refund/status`, {
-        method: 'POST',
-        headers: { 'Authorization': `Bearer ${getToken()}` }
+        method: 'POST'
     }),
 
     reconcilePayment: async (id, paypalOrderId) => fetchApi(`${API_BASE}/orders/${id}/reconcile-payment`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${getToken()}` },
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ paypal_order_id: paypalOrderId })
     }),
 
@@ -200,16 +183,22 @@ const api = {
         return res.json();
     },
 
+    checkSellerSession: async () => {
+        const res = await fetch(`${API_BASE}/seller/stats`);
+        return res.json();
+    },
+
+    logoutSeller: async () => {
+        const res = await fetch(`${API_BASE}/seller/logout`, { method: 'POST' });
+        return res.json();
+    },
+
     getStats: async () => {
-        return fetchApi(`${API_BASE}/seller/stats`, {
-            headers: { 'Authorization': `Bearer ${getToken()}` }
-        });
+        return fetchApi(`${API_BASE}/seller/stats`);
     }
 };
 
 // ---- Token Management ----
-function getToken() { return localStorage.getItem('playora_token'); }
-function setToken(token) { localStorage.setItem('playora_token', token); }
 function removeToken() { localStorage.removeItem('playora_token'); localStorage.removeItem('playora_seller'); }
 function getSeller() { 
     const s = localStorage.getItem('playora_seller');

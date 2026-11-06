@@ -6,6 +6,8 @@ const fs = require('fs');
 const { pool } = require('../config/db');
 const authMiddleware = require('../middleware/auth');
 const productUploadDir = process.env.PRODUCT_UPLOAD_DIR || path.join(__dirname, '../public/images/products');
+const persistentUploadDirConfigured = Boolean(process.env.PRODUCT_UPLOAD_DIR);
+const localDiskUploadsAllowed = process.env.NODE_ENV !== 'production' || persistentUploadDirConfigured;
 const cloudinaryEnv = {
     cloudName: process.env.CLOUDINARY_CLOUD_NAME,
     apiKey: process.env.CLOUDINARY_API_KEY,
@@ -86,12 +88,15 @@ async function uploadToCloudinary(file) {
 }
 
 function uploadProductImage(req, res, next) {
-    // Allow URL-only edits when Cloudinary is partially configured, but never
-    // silently store uploaded files on Render's ephemeral filesystem.
-    const parser = cloudinaryEnabled || cloudinaryPartiallyConfigured ? memoryUpload : diskUpload;
+    // Allow URL-only edits without Cloudinary, but don't store new images on
+    // Render's ephemeral filesystem when no persistent disk is configured.
+    const parser = cloudinaryEnabled || !localDiskUploadsAllowed ? memoryUpload : diskUpload;
     parser.single('image')(req, res, async error => {
-        if (!error && req.file && cloudinaryPartiallyConfigured) {
-            return res.status(503).json({ success: false, message: 'Cloudinary configuration is incomplete.' });
+        if (!error && req.file && cloudinaryPartiallyConfigured && !persistentUploadDirConfigured) {
+            return res.status(503).json({ success: false, message: 'Cloudinary configuration is incomplete. Complete Cloudinary settings or configure a persistent product image directory.' });
+        }
+        if (!error && req.file && !cloudinaryEnabled && !localDiskUploadsAllowed) {
+            return res.status(503).json({ success: false, message: 'Product image storage is not configured. Set up Cloudinary or configure PRODUCT_UPLOAD_DIR to a persistent disk.' });
         }
         if (!error && req.file && cloudinaryEnabled) {
             try {

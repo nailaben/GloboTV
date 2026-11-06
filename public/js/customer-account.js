@@ -69,10 +69,11 @@ document.getElementById('profile-phone').placeholder = currentLang === 'fr'
     ? document.getElementById('profile-phone').dataset.frPlaceholder
     : document.getElementById('profile-phone').dataset.enPlaceholder;
 
-document.getElementById('logout').addEventListener('click', () => {
+document.getElementById('logout').addEventListener('click', async () => {
+    try { await api.logoutCustomer(); } catch {}
     localStorage.removeItem('playora_customer_token');
     localStorage.removeItem('playora_customer');
-    location.href = '/auth.html';
+    location.replace('/auth.html');
 });
 
 document.getElementById('discard-profile').addEventListener('click', () => {
@@ -111,11 +112,6 @@ document.getElementById('customer-profile-form').addEventListener('submit', asyn
 });
 
 (async () => {
-    if (!localStorage.getItem('playora_customer_token')) {
-        location.href = '/auth.html';
-        return;
-    }
-
     try {
         const profile = await api.getCustomer();
         if (!profile.success) throw new Error('Customer session is invalid.');
@@ -129,6 +125,6 @@ document.getElementById('customer-profile-form').addEventListener('submit', asyn
     } catch {
         localStorage.removeItem('playora_customer_token');
         localStorage.removeItem('playora_customer');
-        location.href = '/auth.html';
+        location.replace('/auth.html');
     }
 })();

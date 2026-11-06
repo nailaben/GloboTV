@@ -334,7 +334,9 @@
         let loginErrorKey = '';
         initLang();
         setupLangToggle();
-        if (getToken()) window.location.href = '/seller/dashboard.html';
+        api.checkSellerSession().then(response => {
+            if (response.success) window.location.replace('/seller/dashboard.html');
+        }).catch(() => {});
 
         const form = document.getElementById('login-form');
         const usernameInput = document.getElementById('login-username');
@@ -388,7 +390,6 @@
             try {
                 const response = await api.login(username, password);
                 if (response.success) {
-                    setToken(response.token);
                     setSeller(response.seller);
                     window.location.href = '/seller/dashboard.html';
                     return;

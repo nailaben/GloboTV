@@ -183,8 +183,7 @@ function applyTranslations() {
 // ---- Customer session ----
 async function updateCustomerNav() {
     const accountLink = document.querySelector('.account-link');
-    const customerToken = localStorage.getItem('playora_customer_token');
-    if (!accountLink || !customerToken) return;
+    if (!accountLink) return;
 
     try {
         const result = await api.getCustomer();

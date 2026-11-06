@@ -3,6 +3,7 @@ const router = express.Router();
 const { pool } = require('../config/db');
 const authMiddleware = require('../middleware/auth');
 const jwt = require('jsonwebtoken');
+const { readCookie } = require('../middleware/session-cookies');
 
 let paymentSchemaPromise;
 function ensurePaymentSchema() {
@@ -91,6 +92,7 @@ async function releaseExpiredOrders() {
 const paypalBaseUrl = () => process.env.GloboTV_ENV === 'live'
     ? 'https://api-m.paypal.com'
     : 'https://api-m.sandbox.paypal.com';
+const PAYPAL_REQUEST_TIMEOUT_MS = 15_000;
 
 function getPublicBaseUrl(req) {
     const configured = process.env.PUBLIC_BASE_URL;
@@ -113,6 +115,7 @@ async function paypalRequest(path, options = {}) {
 
     const tokenResponse = await fetch(`${paypalBaseUrl()}/v1/oauth2/token`, {
         method: 'POST',
+        signal: AbortSignal.timeout(PAYPAL_REQUEST_TIMEOUT_MS),
         headers: {
             Authorization: `Basic ${Buffer.from(`${clientId}:${clientSecret}`).toString('base64')}`,
             'Content-Type': 'application/x-www-form-urlencoded'
@@ -124,6 +127,7 @@ async function paypalRequest(path, options = {}) {
 
     const response = await fetch(`${paypalBaseUrl()}${path}`, {
         ...options,
+        signal: options.signal || AbortSignal.timeout(PAYPAL_REQUEST_TIMEOUT_MS),
         headers: {
             Authorization: `Bearer ${tokenData.access_token}`,
             'Content-Type': 'application/json',
@@ -172,8 +176,7 @@ router.post('/', async (req, res) => {
     let customerSession;
     let checkoutVerification;
     try {
-        const bearer = req.headers.authorization?.split(' ')[1];
-        customerSession = jwt.verify(bearer || '', process.env.JWT_SECRET);
+        customerSession = jwt.verify(readCookie(req, 'globotv_customer_session'), process.env.JWT_SECRET);
         checkoutVerification = jwt.verify(String(checkoutVerificationToken || ''), process.env.JWT_SECRET);
         const normalizedPhone = String(customer_phone).replace(/\s/g, '');
         if (customerSession.type !== 'customer' || checkoutVerification.type !== 'checkout_verification' ||
@@ -449,11 +452,19 @@ router.get('/paypal/return', async (req, res) => {
         }
         return res.redirect('/order-success.html?payment=paypal');
     } catch (error) {
+        const issueCodes = error.paypal?.details?.map(detail => detail.issue).filter(Boolean) || [];
+        const complianceRejected = issueCodes.includes('COMPLIANCE_VIOLATION');
         console.error('PayPal return error:', JSON.stringify({
             message: error.message,
             name: error.name,
             paypal: error.paypal || null
         }));
+        if (complianceRejected) {
+            console.error('PayPal compliance rejection: capture was refused by PayPal. Use the debug ID with PayPal Support; do not retry the same order repeatedly.', JSON.stringify({
+                debugId: error.paypal.debugId || null,
+                orderId: paypalOrderId
+            }));
+        }
         return res.redirect('/checkout.html?payment=error');
     }
 });
@@ -568,7 +579,9 @@ router.post('/:id/reconcile-payment', authMiddleware, async (req, res) => {
         const paypalIssue = error.paypal?.details?.map(detail => detail.issue).filter(Boolean).join(', ');
         return res.status(500).json({
             success: false,
-            message: paypalIssue
+            message: paypalIssue === 'COMPLIANCE_VIOLATION'
+                ? 'PayPal refused this capture for a compliance review. The order remains unpaid; contact PayPal Support with the debug ID.'
+                : paypalIssue
                 ? `PayPal could not complete this payment (${paypalIssue}).`
                 : 'Could not verify this PayPal payment.'
         });
@@ -684,7 +697,18 @@ router.post('/:id/refund/status', authMiddleware, async (req, res) => {
 // GET /api/orders - Get all orders (seller only)
 router.get('/', authMiddleware, async (req, res) => {
     try {
-        const { status, page = 1, limit = 20 } = req.query;
+        const { status } = req.query;
+        const pageInput = String(req.query.page ?? '1');
+        const limitInput = String(req.query.limit ?? '20');
+        if (!/^\d+$/.test(pageInput) || !/^\d+$/.test(limitInput)) {
+            return res.status(400).json({ success: false, message: 'Page and limit must be whole numbers.' });
+        }
+        const page = Number(pageInput);
+        const limit = Number(limitInput);
+        if (!Number.isSafeInteger(page) || page < 1 || page > 1_000_000 ||
+            !Number.isSafeInteger(limit) || limit < 1 || limit > 100) {
+            return res.status(400).json({ success: false, message: 'Page must be between 1 and 1,000,000, and limit must be between 1 and 100.' });
+        }
         const offset = (page - 1) * limit;
 
         let query = `SELECT o.*,
@@ -726,8 +750,8 @@ router.get('/', authMiddleware, async (req, res) => {
             success: true,
             orders: result.rows,
             total: parseInt(countResult.rows[0].count),
-            page: parseInt(page),
-            limit: parseInt(limit)
+            page,
+            limit
         });
     } catch (err) {
         console.error('Get orders error:', err);
