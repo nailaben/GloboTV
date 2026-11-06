@@ -123,7 +123,18 @@ async function paypalRequest(path, options = {}) {
         body: 'grant_type=client_credentials'
     });
     const tokenData = await tokenResponse.json();
-    if (!tokenResponse.ok || !tokenData.access_token) throw new Error('Could not authenticate with PayPal.');
+    if (!tokenResponse.ok || !tokenData.access_token) {
+        const authError = new Error('Could not authenticate with PayPal.');
+        // Keep diagnostics useful without ever logging the client secret or access token.
+        authError.paypal = {
+            httpStatus: tokenResponse.status,
+            error: tokenData.error || null,
+            errorDescription: tokenData.error_description || null,
+            requestPath: '/v1/oauth2/token',
+            method: 'POST'
+        };
+        throw authError;
+    }
 
     const response = await fetch(`${paypalBaseUrl()}${path}`, {
         ...options,
@@ -355,7 +366,11 @@ router.post('/', async (req, res) => {
         });
     } catch (err) {
         if (client) await client.query('ROLLBACK').catch(() => {});
-        console.error('Create order error:', err);
+        console.error('Create order error:', JSON.stringify({
+            message: err.message,
+            name: err.name,
+            paypal: err.paypal || null
+        }));
         res.status(500).json({ success: false, message: 'Server error' });
     } finally {
         client?.release();
