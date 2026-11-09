@@ -33,7 +33,6 @@ document.addEventListener('DOMContentLoaded', async () => {
     updateCustomerNav();
     setupLangToggle();
     setupCart();
-    setupProductCarousel();
     createHeroParticles();
     document.addEventListener('langChange', () => { applyTranslations(); renderProducts(); renderCart(); renderCategories(); });
     const searchInput = document.getElementById('search-input');
@@ -50,49 +49,6 @@ document.addEventListener('DOMContentLoaded', async () => {
         document.getElementById('products-section')?.scrollIntoView({ behavior: 'smooth' });
     }
 });
-
-function setupProductCarousel() {
-    const carousel = document.getElementById('products-grid');
-    if (!carousel) return;
-
-    carousel.addEventListener('wheel', event => {
-        if (carousel.scrollWidth <= carousel.clientWidth) return;
-        if (Math.abs(event.deltaY) > Math.abs(event.deltaX)) {
-            event.preventDefault();
-            carousel.scrollLeft += event.deltaY;
-        }
-    }, { passive: false });
-
-    let startX = 0;
-    let startScroll = 0;
-    let dragging = false;
-    let dragged = false;
-    carousel.addEventListener('mousedown', event => {
-        if (event.button !== 0 || event.target.closest('button')) return;
-        startX = event.clientX;
-        startScroll = carousel.scrollLeft;
-        dragging = true;
-        dragged = false;
-        carousel.classList.add('is-dragging');
-    });
-    window.addEventListener('mousemove', event => {
-        if (!dragging) return;
-        const distance = event.clientX - startX;
-        if (Math.abs(distance) > 4) dragged = true;
-        if (dragged) carousel.scrollLeft = startScroll - distance;
-    });
-    window.addEventListener('mouseup', () => {
-        if (!dragging) return;
-        dragging = false;
-        carousel.classList.remove('is-dragging');
-    });
-    carousel.addEventListener('click', event => {
-        if (!dragged) return;
-        event.preventDefault();
-        event.stopPropagation();
-        dragged = false;
-    }, true);
-}
 
 // ---- Translations ----
 const i18n = {

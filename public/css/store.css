@@ -64,33 +64,33 @@
     left: 0;
     z-index: 1101;
     width: 100%;
-    min-height: 86px;
+    min-height: 60px;
     display: flex;
     align-items: center;
     justify-content: space-between;
     gap: 1rem;
-    padding: .75rem max(24px, calc((100vw - 1180px) / 2));
+    padding: .4rem max(24px, calc((100vw - 1180px) / 2));
     border: 0;
     border-radius: 0;
     background: linear-gradient(100deg, #073a25, #08291e 70%, #061d17);
     color: #fff;
     text-decoration: none;
-    box-shadow: 0 8px 24px rgba(0, 0, 0, .18);
+    box-shadow: 0 8px 24px rgba(0, 0, 0, .18), 0 14px 28px -18px rgba(32, 199, 102, .62);
     transition: background-color .2s ease, border-color .2s ease;
 }
 
 .whatsapp-top-bar:hover { border-color: rgba(86, 244, 156, .7); color: #fff; }
-.whatsapp-top-bar-copy { display: flex; flex-direction: column; gap: .2rem; direction: rtl; }
-.whatsapp-top-bar-copy strong { font-size: .95rem; }
-.whatsapp-top-bar-copy small { color: #c3e6d3; font-size: .76rem; }
-.whatsapp-top-bar-cta { display: inline-flex; align-items: center; justify-content: center; gap: .4rem; min-height: 42px; padding: 0 1rem; border-radius: 11px; background: #20c766; color: #fff; font-size: .84rem; font-weight: 700; white-space: nowrap; }
+.whatsapp-top-bar-copy { display: flex; flex-direction: column; gap: .12rem; direction: rtl; }
+.whatsapp-top-bar-copy strong { font-size: .88rem; }
+.whatsapp-top-bar-copy small { color: #c3e6d3; font-size: .7rem; }
+.whatsapp-top-bar-cta { display: inline-flex; align-items: center; justify-content: center; gap: .35rem; min-height: 36px; padding: 0 .85rem; border-radius: 9px; background: #20c766; color: #fff; font-size: .78rem; font-weight: 700; white-space: nowrap; }
 .whatsapp-top-bar-cta .material-symbols-outlined { font-size: 19px; }
 
 @media (max-width: 640px) {
-    .whatsapp-top-bar { min-height: 68px; padding: .55rem 14px; gap: .55rem; }
+    .whatsapp-top-bar { min-height: 54px; padding: .35rem 14px; gap: .55rem; }
     .whatsapp-top-bar-copy strong { font-size: .78rem; }
     .whatsapp-top-bar-copy small { font-size: .64rem; }
-    .whatsapp-top-bar-cta { min-height: 38px; padding: 0 .65rem; gap: .25rem; font-size: .73rem; }
+    .whatsapp-top-bar-cta { min-height: 34px; padding: 0 .6rem; gap: .25rem; font-size: .7rem; }
 }
 
 .lang-toggle {
@@ -1112,7 +1112,7 @@ body[dir="rtl"] .cart-sidebar {
 /* Hero background is now defined in the main .hero rule above. */
 .product-card:hover, .category-card:hover { background-color: var(--bg-card-hover); border-color: var(--primary-light); }
 
-/* Glowing, horizontally browsable product deck. */
+/* Compact product grid with a soft ambient glow. */
 .products-section {
     position: relative;
     isolation: isolate;
@@ -1128,33 +1128,23 @@ body[dir="rtl"] .cart-sidebar {
     left: 50%;
     top: 150px;
     transform: translateX(-50%);
-    background: radial-gradient(ellipse, rgba(131, 28, 145, .3) 0%, rgba(70, 44, 125, .19) 42%, rgba(213, 82, 163, .09) 62%, transparent 76%);
+    background: radial-gradient(ellipse, rgba(131, 28, 145, .24) 0%, rgba(70, 44, 125, .15) 42%, rgba(213, 82, 163, .06) 62%, transparent 76%);
     filter: blur(35px);
     pointer-events: none;
 }
 .products-carousel {
-    display: flex;
-    gap: 1.35rem;
-    overflow-x: auto;
-    overflow-y: hidden;
-    padding: 1.5rem 1rem 2.2rem;
-    scroll-snap-type: x mandatory;
-    scroll-behavior: smooth;
-    scrollbar-width: thin;
-    scrollbar-color: #831C91 rgba(255, 255, 255, .08);
-    cursor: grab;
-    overscroll-behavior-x: contain;
+    display: grid;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    align-items: stretch;
+    gap: 1rem;
+    overflow: visible;
+    padding: 1rem 0 2rem;
 }
-.products-carousel::-webkit-scrollbar { height: 8px; }
-.products-carousel::-webkit-scrollbar-track { background: rgba(255, 255, 255, .07); border-radius: 99px; }
-.products-carousel::-webkit-scrollbar-thumb { background: linear-gradient(90deg, #462C7D, #831C91, #D552A3); border-radius: 99px; }
-.products-carousel.is-dragging { cursor: grabbing; scroll-behavior: auto; scroll-snap-type: none; user-select: none; }
 .products-carousel .product-card {
-    flex: 0 0 clamp(230px, 27vw, 300px);
-    scroll-snap-align: start;
+    min-width: 0;
     background: linear-gradient(155deg, rgba(41, 26, 48, .98), rgba(29, 21, 38, .98));
     border: 1px solid rgba(213, 82, 163, .2);
-    box-shadow: 0 10px 34px rgba(70, 44, 125, .2), 0 0 26px rgba(131, 28, 145, .1);
+    box-shadow: 0 8px 24px rgba(70, 44, 125, .16), 0 0 18px rgba(131, 28, 145, .08);
 }
 .products-carousel .product-card:hover {
     transform: translateY(-7px);
@@ -1193,25 +1183,21 @@ body[dir="rtl"] .cart-sidebar {
 .products-carousel .product-card-badge { background: rgba(70, 44, 125, .92); border-color: rgba(213, 82, 163, .45); color: #fff4fb; }
 .products-carousel .product-price { color: #FF70BF; }
 .products-carousel:focus-visible { outline: 2px solid #D552A3; outline-offset: 4px; }
-@media (max-width: 600px) {
-    .products-carousel { gap: 1rem; padding-inline: .35rem; }
-    .products-carousel .product-card { flex-basis: min(78vw, 290px); }
+@media (max-width: 900px) {
+    .products-carousel { grid-template-columns: repeat(3, minmax(0, 1fr)); gap: .85rem; }
 }
-
-/* Straight, clean card layout for the product carousel. */
-.products-carousel { align-items: stretch; padding-block: 2rem 2.5rem; }
-.products-carousel .product-card {
-    flex-basis: clamp(230px, 24vw, 300px);
-    transition: transform .35s ease, border-color .3s ease, box-shadow .3s ease;
+@media (max-width: 600px) {
+    .products-carousel { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: .7rem; padding-block: 1rem 1.5rem; }
+    .products-carousel .product-card { border-radius: 12px; }
+    .products-carousel .product-card-img { aspect-ratio: 3 / 3.5; }
+    .products-carousel .product-card-body { padding: .7rem; }
+    .products-carousel .product-card-name { font-size: .8rem; }
+    .products-carousel .product-card-desc { font-size: .7rem; }
+    .products-carousel .product-price { font-size: .9rem; }
 }
 .products-carousel .product-card:hover {
     z-index: 2;
-    transform: translateY(-8px) scale(1.02);
-}
-.products-carousel.is-dragging .product-card { transition: none; }
-@media (max-width: 600px) {
-    .products-carousel { padding-block: 1.5rem 2rem; }
-    .products-carousel .product-card { flex-basis: min(78vw, 290px); }
+    transform: translateY(-4px);
 }
 
 
