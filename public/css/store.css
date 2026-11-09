@@ -59,8 +59,10 @@
 }
 
 .whatsapp-top-bar {
-    position: relative;
-    z-index: 1001;
+    position: fixed;
+    top: 0;
+    left: 0;
+    z-index: 1101;
     width: 100%;
     min-height: 86px;
     display: flex;
