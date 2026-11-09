@@ -320,8 +320,19 @@ function setupCart() {
     document.getElementById('cart-overlay')?.addEventListener('click', closeCart);
     document.getElementById('close-cart-btn')?.addEventListener('click', closeCart);
     document.getElementById('checkout-btn')?.addEventListener('click', () => {
-        if (getCartCount() === 0) { showToast(tr('cart_empty'), 'error'); return; }
-        window.location.href = '/checkout.html';
+        const cart = getCart();
+        if (!cart.length || getCartCount() === 0) { showToast(tr('cart_empty'), 'error'); return; }
+        const currency = cart[0]?.currency || 'EUR';
+        const total = new Intl.NumberFormat(currentLang === 'fr' ? 'fr-FR' : 'en-IE', { style: 'currency', currency }).format(getCartTotal());
+        const items = cart.map(item => {
+            const name = currentLang === 'fr' ? (item.name_fr || item.name_en || item.name_ar) : (item.name_en || item.name_fr || item.name_ar);
+            const offer = currentLang === 'fr' ? item.offer_label_fr : item.offer_label_en;
+            return `- ${name}${offer ? ` (${offer})` : ''} × ${item.quantity}`;
+        }).join('\n');
+        const message = currentLang === 'fr'
+            ? `Bonjour, je souhaite commander :\n${items}\nTotal : ${total}`
+            : `Hello, I would like to place an order:\n${items}\nTotal: ${total}`;
+        window.location.assign(`https://wa.me/213557932999?text=${encodeURIComponent(message)}`);
     });
     updateCartBadge();
 }
