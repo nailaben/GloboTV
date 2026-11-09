@@ -822,20 +822,21 @@ body[dir="rtl"] .product-card-badge {
     position: fixed;
     inset: 0;
     background: rgba(0, 0, 0, 0.7);
-    z-index: 200;
+    z-index: 1200;
     backdrop-filter: blur(4px);
     animation: fadeIn 0.2s ease;
 }
 
 .cart-sidebar {
     position: fixed;
-    top: 0;
+    top: 128px;
     right: 0;
     width: min(420px, 100vw);
-    height: 100vh;
+    height: calc(100vh - 128px);
+    height: calc(100dvh - 128px);
     background: #ffffff;
     border-left: 1px solid #e5e5e7;
-    z-index: 201;
+    z-index: 1201;
     display: flex;
     flex-direction: column;
     animation: slideInRight 0.3s ease;
@@ -848,6 +849,10 @@ body[dir="rtl"] .cart-sidebar {
     border-left: none;
     border-right: 1px solid var(--border-light);
     animation: slideInLeft 0.3s ease;
+}
+
+@media (max-width: 650px) {
+    .cart-sidebar { top: 154px; height: calc(100vh - 154px); height: calc(100dvh - 154px); }
 }
 
 @keyframes slideInLeft {
