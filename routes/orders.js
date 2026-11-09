@@ -180,8 +180,8 @@ router.post('/', async (req, res) => {
     if (!customer_name || !customer_phone || !customer_email || !Array.isArray(items) || items.length === 0) {
         return res.status(400).json({ success: false, message: 'All required fields must be provided' });
     }
-    if (payment_provider !== 'paypal') {
-        return res.status(400).json({ success: false, message: 'PayPal is the supported payment provider.' });
+    if (!['paypal', 'whatsapp'].includes(payment_provider)) {
+        return res.status(400).json({ success: false, message: 'Unsupported payment provider.' });
     }
 
     let customerSession;
@@ -288,7 +288,7 @@ router.post('/', async (req, res) => {
         const order_number = generateOrderNumber();
 
         let paymentLink = null;
-        if (!process.env.GloboTV_CLIENT_ID || !process.env.GloboTV_CLIENT_SECRET) {
+        if (payment_provider === 'paypal' && (!process.env.GloboTV_CLIENT_ID || !process.env.GloboTV_CLIENT_SECRET)) {
             await client.query('ROLLBACK');
             return res.status(503).json({ success: false, message: 'PayPal is not configured yet. Add the PayPal API credentials to the server environment.' });
         }
@@ -311,6 +311,15 @@ router.post('/', async (req, res) => {
                 VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
             `, [order.id, item.product.id, item.product.name_ar, item.product.name_en, item.product.name_fr || item.product.name_en, item.offer.id, item.offer.label_en, item.offer.label_fr, item.quantity, item.unit_price, item.subtotal]);
 
+        }
+
+        if (payment_provider === 'whatsapp') {
+            await client.query(`UPDATE orders SET payment_provider = 'whatsapp', payment_status = 'unpaid' WHERE id = $1`, [order.id]);
+            await client.query('COMMIT');
+            return res.json({
+                success: true,
+                order: { ...order, payment_provider: 'whatsapp', payment_status: 'unpaid', order_number, total_amount, currency: 'EUR' }
+            });
         }
 
         const baseUrl = getPublicBaseUrl(req);
