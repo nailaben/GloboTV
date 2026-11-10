@@ -937,7 +937,7 @@ function setupForm() {
             customer_email: customer.email || '',
             checkoutVerificationToken: checkoutVerificationToken || '',
             notes: '',
-            payment_provider: 'whatsapp',
+            payment_provider: 'paypal',
             items: cart.map(item => ({ product_id: item.product_id, offer_id: item.offer_id, offer_label_en: item.offer_label_en, offer_label_fr: item.offer_label_fr, quantity: item.quantity }))
         };
 
@@ -953,17 +953,13 @@ function setupForm() {
             if (res.success) {
                 checkoutVerificationToken = null;
                 sessionStorage.setItem('last_order', JSON.stringify(res.order));
-                const currency = cart[0]?.currency || res.order.currency || 'EUR';
-                const total = new Intl.NumberFormat(currentLang === 'fr' ? 'fr-FR' : 'en-IE', { style: 'currency', currency }).format(getCartTotal());
-                const items = cart.map(item => {
-                    const name = currentLang === 'fr' ? (item.name_fr || item.name_en) : item.name_en;
-                    const offer = currentLang === 'fr' ? item.offer_label_fr : item.offer_label_en;
-                    return `- ${name}${offer ? ` (${offer})` : ''} × ${item.quantity}`;
-                }).join('\n');
-                const message = currentLang === 'fr'
-                    ? `Bonjour, je souhaite confirmer ma commande ${res.order.order_number || ''}.\n${items}\nTotal : ${total}`
-                    : `Hello, I would like to confirm my order ${res.order.order_number || ''}.\n${items}\nTotal: ${total}`;
-                window.location.assign(`https://wa.me/213557932999?text=${encodeURIComponent(message)}`);
+                if (res.order.payment_url) {
+                    window.location.assign(res.order.payment_url);
+                } else {
+                    showToast(ctr('generic_error'), 'error');
+                    btn.disabled = false;
+                    btn.innerHTML = `<span class="material-symbols-outlined">lock</span> <span>${ctr('pay_now')}</span>`;
+                }
             } else {
                 showToast(res.message || ctr('generic_error'), 'error');
                 btn.disabled = false;
