@@ -304,6 +304,27 @@ router.put('/:id', authMiddleware, uploadProductImage, async (req, res) => {
         let result;
         try {
             await client.query('BEGIN');
+            if (stockQuantity !== undefined) {
+                const lockedProduct = await client.query(`
+                    SELECT id FROM products WHERE id = $1 AND seller_id = $2 FOR UPDATE
+                `, [req.params.id, req.seller.id]);
+                if (!lockedProduct.rows[0]) {
+                    await client.query('ROLLBACK');
+                    return res.status(404).json({ success: false, message: 'Product not found' });
+                }
+                const reservations = await client.query(`
+                    SELECT COALESCE(SUM(oi.quantity), 0)::INTEGER AS quantity
+                    FROM orders o JOIN order_items oi ON oi.order_id = o.id
+                    WHERE oi.product_id = $1 AND o.payment_status = 'pending' AND o.stock_reserved = TRUE
+                `, [req.params.id]);
+                if (stockQuantity < Number(reservations.rows[0].quantity)) {
+                    await client.query('ROLLBACK');
+                    return res.status(409).json({
+                        success: false,
+                        message: `At least ${reservations.rows[0].quantity} units are reserved for pending checkouts.`
+                    });
+                }
+            }
             values.push(req.params.id, req.seller.id);
             result = await client.query(`
             UPDATE products SET ${updateFields.join(', ')}

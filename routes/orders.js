@@ -30,6 +30,22 @@ function ensurePaymentSchema() {
                 if (migration.rowCount) {
                     await client.query(`UPDATE orders SET payment_status = 'legacy_unverified' WHERE payment_provider IS NULL AND payment_status = 'unpaid'`);
                 }
+                const stockReservationMigration = await client.query(`
+                    INSERT INTO app_migrations(name) VALUES ('pending-stock-reservations-v2')
+                    ON CONFLICT DO NOTHING RETURNING name
+                `);
+                if (stockReservationMigration.rowCount) {
+                    await client.query(`
+                        UPDATE products p SET stock_quantity = p.stock_quantity + reserved.quantity
+                        FROM (
+                            SELECT oi.product_id, SUM(oi.quantity)::INTEGER AS quantity
+                            FROM orders o JOIN order_items oi ON oi.order_id = o.id
+                            WHERE o.payment_status = 'pending' AND o.stock_reserved = TRUE
+                            GROUP BY oi.product_id
+                        ) reserved
+                        WHERE p.id = reserved.product_id
+                    `);
+                }
                 await client.query('COMMIT');
             } catch (error) {
                 await client.query('ROLLBACK').catch(() => {});
@@ -47,15 +63,22 @@ function ensurePaymentSchema() {
 
 async function releaseReservedStock(client, order) {
     if (!order.stock_reserved) return;
+    await client.query(`UPDATE orders SET stock_reserved = FALSE, stock_released_at = NOW() WHERE id = $1`, [order.id]);
+}
+
+async function commitReservedStock(client, orderId) {
     const items = await client.query(`
         SELECT product_id, SUM(quantity)::INTEGER AS quantity
         FROM order_items WHERE order_id = $1 AND product_id IS NOT NULL
-        GROUP BY product_id
-    `, [order.id]);
+        GROUP BY product_id ORDER BY product_id
+    `, [orderId]);
     for (const item of items.rows) {
-        await client.query('UPDATE products SET stock_quantity = stock_quantity + $1 WHERE id = $2', [item.quantity, item.product_id]);
+        const updated = await client.query(`
+            UPDATE products SET stock_quantity = stock_quantity - $1
+            WHERE id = $2 AND stock_quantity >= $1 RETURNING id
+        `, [item.quantity, item.product_id]);
+        if (!updated.rowCount) throw new Error(`Reserved stock is no longer available for product ${item.product_id}.`);
     }
-    await client.query(`UPDATE orders SET stock_reserved = FALSE, stock_released_at = NOW() WHERE id = $1`, [order.id]);
 }
 
 async function expireStalePaypalOrders(client) {
@@ -165,6 +188,44 @@ async function paypalRequest(path, options = {}) {
     return data;
 }
 
+function findCompletedCapture(paypalOrder, order, moneyMatches) {
+    for (const purchase of paypalOrder?.purchase_units || []) {
+        if ((purchase.custom_id && purchase.custom_id !== order.order_number) ||
+            (purchase.reference_id && purchase.reference_id !== order.order_number) ||
+            !moneyMatches(purchase.amount, order.total_amount, order.currency)) continue;
+        const capture = (purchase.payments?.captures || []).find(item =>
+            item.status === 'COMPLETED' && item.id && moneyMatches(item.amount, order.total_amount, order.currency)
+        );
+        if (capture) return { purchase, capture };
+    }
+    return null;
+}
+
+async function captureAndConfirmPaypalOrder(paypalOrderId, paypalOrder, order, moneyMatches) {
+    let captureResponse = paypalOrder;
+    let captureError = null;
+    if (paypalOrder.status === 'APPROVED') {
+        try {
+            captureResponse = await paypalRequest(`/v2/checkout/orders/${encodeURIComponent(paypalOrderId)}/capture`, {
+                method: 'POST', body: '{}'
+            });
+        } catch (error) {
+            // The capture may have succeeded even if PayPal's response timed out
+            // or reported that this order had already been captured.
+            captureError = error;
+            captureResponse = null;
+        }
+    }
+
+    let verifiedCapture = findCompletedCapture(captureResponse, order, moneyMatches);
+    if (!verifiedCapture) {
+        captureResponse = await paypalRequest(`/v2/checkout/orders/${encodeURIComponent(paypalOrderId)}`);
+        verifiedCapture = findCompletedCapture(captureResponse, order, moneyMatches);
+    }
+    if (!verifiedCapture && captureError) throw captureError;
+    return { captureResponse, verifiedCapture };
+}
+
 
 // Generate unique order number
 const generateOrderNumber = () => {
@@ -223,6 +284,7 @@ router.post('/', async (req, res) => {
         // Validate products and calculate total
         let subtotalCents = 0;
         const validatedItems = [];
+        const requestedStockByProduct = new Map();
 
         for (const item of items) {
             const quantity = Number(item.quantity);
@@ -242,10 +304,18 @@ router.post('/', async (req, res) => {
 
             const product = productResult.rows[0];
 
-            if (product.stock_quantity < quantity) {
+            const pendingReservations = await client.query(`
+                SELECT COALESCE(SUM(oi.quantity), 0)::INTEGER AS quantity
+                FROM orders o JOIN order_items oi ON oi.order_id = o.id
+                WHERE oi.product_id = $1 AND o.payment_status = 'pending' AND o.stock_reserved = TRUE
+            `, [product.id]);
+            const alreadyRequested = requestedStockByProduct.get(String(product.id)) || 0;
+            const availableQuantity = Number(product.stock_quantity) - Number(pendingReservations.rows[0].quantity) - alreadyRequested;
+            if (availableQuantity < quantity) {
                 await client.query('ROLLBACK');
                 return res.status(400).json({ success: false, message: `Insufficient stock for ${product.name_en}` });
             }
+            requestedStockByProduct.set(String(product.id), alreadyRequested + quantity);
 
             let offerResult = await client.query('SELECT * FROM product_offers WHERE id=$1 AND product_id=$2 AND is_active=true', [item.offer_id, product.id]);
             if (!offerResult.rows[0] && (item.offer_label_en || item.offer_label_fr)) {
@@ -266,13 +336,6 @@ router.post('/', async (req, res) => {
             const unitPriceCents = Math.round(Number(offer.price_eur) * 100);
             const itemSubtotal = (unitPriceCents * quantity) / 100;
             subtotalCents += unitPriceCents * quantity;
-
-            // Reserve stock while the product row is locked. This also handles
-            // duplicate product lines in one cart and concurrent checkouts.
-            await client.query(
-                'UPDATE products SET stock_quantity = stock_quantity - $1 WHERE id = $2',
-                [quantity, product.id]
-            );
 
             validatedItems.push({
                 product,
@@ -387,7 +450,10 @@ router.get('/paypal/return', async (req, res) => {
             hasOrderToken: Boolean(paypalOrderId),
             ...context
         }));
-        return res.redirect(`/checkout.html?payment=${encodeURIComponent(query)}`);
+        const recovery = ['capture-error', 'error'].includes(query)
+            ? `&paypal_order_id=${encodeURIComponent(paypalOrderId)}`
+            : '';
+        return res.redirect(`/checkout.html?payment=${encodeURIComponent(query)}${recovery}`);
     };
     if (!paypalOrderId) return failReturn('missing_order_token', 'error');
 
@@ -437,29 +503,30 @@ router.get('/paypal/return', async (req, res) => {
                 });
             }
 
-            const capture = paypalOrder.status === 'COMPLETED'
-                ? paypalOrder
-                : await paypalRequest(`/v2/checkout/orders/${encodeURIComponent(paypalOrderId)}/capture`, { method: 'POST', body: '{}' });
-            const capturedPurchase = capture.purchase_units?.[0];
-            const captures = capturedPurchase?.payments?.captures || [];
-            const captureInfo = captures.find(item => item.status === 'COMPLETED');
-            if (capture.status !== 'COMPLETED' || captureInfo?.status !== 'COMPLETED' ||
-                capturedPurchase?.custom_id !== order.order_number ||
-                !moneyMatches(captureInfo?.amount, order.total_amount, order.currency)) {
+            const { captureResponse, verifiedCapture } = await captureAndConfirmPaypalOrder(
+                paypalOrderId, paypalOrder, order, moneyMatches
+            );
+            if (!verifiedCapture) {
                 await client.query('ROLLBACK');
+                const returnedPurchase = captureResponse.purchase_units?.[0];
+                const returnedCaptures = returnedPurchase?.payments?.captures || [];
                 return failReturn('paypal_capture_not_completed_or_amount_mismatch', 'capture-error', {
-                    captureOrderStatus: capture.status || null,
-                    captureStatuses: captures.map(item => item.status || null),
-                    referenceMatches: capturedPurchase?.custom_id === order.order_number,
-                    captureAmountMatches: moneyMatches(captureInfo?.amount, order.total_amount, order.currency)
+                    captureOrderStatus: captureResponse.status || null,
+                    captureStatuses: returnedCaptures.map(item => item.status || null),
+                    referenceMatches: returnedPurchase?.custom_id === order.order_number ||
+                        returnedPurchase?.reference_id === order.order_number,
+                    purchaseAmountMatches: moneyMatches(returnedPurchase?.amount, order.total_amount, order.currency),
+                    completedCaptureAmountMatches: returnedCaptures.some(item => item.status === 'COMPLETED' &&
+                        moneyMatches(item.amount, order.total_amount, order.currency))
                 });
             }
 
+            await commitReservedStock(client, order.id);
             await client.query(`
                 UPDATE orders SET payment_status = 'paid', payment_capture_id = $1,
                     paid_at = NOW(), stock_reserved = FALSE, status = 'confirmed', updated_at = NOW()
                 WHERE id = $2
-            `, [captureInfo.id || null, order.id]);
+            `, [verifiedCapture.capture.id, order.id]);
             await client.query('COMMIT');
         } catch (error) {
             await client.query('ROLLBACK').catch(() => {});
@@ -482,7 +549,79 @@ router.get('/paypal/return', async (req, res) => {
                 orderId: paypalOrderId
             }));
         }
-        return res.redirect('/checkout.html?payment=error');
+        return res.redirect(`/checkout.html?payment=error&paypal_order_id=${encodeURIComponent(paypalOrderId)}`);
+    }
+});
+
+// Let a buyer safely recover a return where PayPal captured the payment but
+// the browser return could not finish updating the local order.
+router.post('/paypal/reconcile', async (req, res) => {
+    const paypalOrderId = String(req.body.paypal_order_id || '').trim();
+    if (!/^[A-Za-z0-9_-]{5,64}$/.test(paypalOrderId)) {
+        return res.status(400).json({ success: false, message: 'Enter a valid PayPal order ID.' });
+    }
+    let client;
+    try {
+        await ensurePaymentSchema();
+        const paypalOrder = await paypalRequest(`/v2/checkout/orders/${encodeURIComponent(paypalOrderId)}`);
+        const purchase = paypalOrder.purchase_units?.[0];
+        if (!purchase?.custom_id) {
+            return res.status(409).json({ success: false, message: 'PayPal did not return this order reference.' });
+        }
+
+        client = await pool.connect();
+        await client.query('BEGIN');
+        const result = await client.query('SELECT * FROM orders WHERE order_number = $1 FOR UPDATE', [purchase.custom_id]);
+        const order = result.rows[0];
+        const moneyMatches = (amount, orderAmount, orderCurrency) => {
+            const cents = Number.isFinite(Number(amount?.value)) ? Math.round(Number(amount.value) * 100) : NaN;
+            return String(amount?.currency_code || '').toUpperCase() === String(orderCurrency || '').toUpperCase() &&
+                cents === Math.round(Number(orderAmount) * 100);
+        };
+        if (!order || order.payment_provider !== 'paypal' || order.payment_reference !== paypalOrderId ||
+            !moneyMatches(purchase.amount, order.total_amount, order.currency)) {
+            await client.query('ROLLBACK');
+            return res.status(409).json({ success: false, message: 'PayPal details do not match this order.' });
+        }
+        if (order.payment_status === 'paid' && order.payment_capture_id) {
+            await client.query('COMMIT');
+            return res.json({ success: true, payment_status: 'paid' });
+        }
+        if (!['pending', 'expired', 'cancelled'].includes(order.payment_status)) {
+            await client.query('ROLLBACK');
+            return res.status(409).json({ success: false, message: 'This order cannot be reconciled.' });
+        }
+
+        const { verifiedCapture } = await captureAndConfirmPaypalOrder(
+            paypalOrderId, paypalOrder, order, moneyMatches
+        );
+        if (!verifiedCapture) {
+            await client.query('ROLLBACK');
+            return res.status(409).json({
+                success: false,
+                message: 'PayPal has not confirmed a completed capture yet. Do not pay again; check the order status shortly.'
+            });
+        }
+
+        await commitReservedStock(client, order.id);
+        await client.query(`
+            UPDATE orders SET payment_status = 'paid', payment_capture_id = $1,
+                paid_at = COALESCE(paid_at, NOW()), stock_reserved = FALSE,
+                status = 'confirmed', updated_at = NOW()
+            WHERE id = $2
+        `, [verifiedCapture.capture.id, order.id]);
+        await client.query('COMMIT');
+        return res.json({ success: true, payment_status: 'paid' });
+    } catch (error) {
+        if (client) await client.query('ROLLBACK').catch(() => {});
+        console.error('PayPal buyer reconciliation error:', JSON.stringify({
+            message: error.message,
+            name: error.name,
+            paypal: error.paypal || null
+        }));
+        return res.status(500).json({ success: false, message: 'Could not verify the PayPal payment yet. Do not pay again.' });
+    } finally {
+        client?.release();
     }
 });
 
@@ -566,24 +705,24 @@ router.post('/:id/reconcile-payment', authMiddleware, async (req, res) => {
             return res.status(409).json({ success: false, message: 'PayPal details do not match this order or the payment is not completed.' });
         }
 
-        if (isPendingPayPalOrder && paypalOrder.status === 'APPROVED') {
-            paypalOrder = await paypalRequest(`/v2/checkout/orders/${encodeURIComponent(paypalOrderId)}/capture`, {
-                method: 'POST', body: '{}'
-            });
+        let { verifiedCapture } = isPendingPayPalOrder
+            ? await captureAndConfirmPaypalOrder(paypalOrderId, paypalOrder, order, matchesAmount)
+            : { verifiedCapture: findCompletedCapture(paypalOrder, order, matchesAmount) };
+        if (!verifiedCapture) {
+            paypalOrder = await paypalRequest(`/v2/checkout/orders/${encodeURIComponent(paypalOrderId)}`);
+            verifiedCapture = findCompletedCapture(paypalOrder, order, matchesAmount);
         }
-        const capturedPurchase = paypalOrder.purchase_units?.[0];
-        const capture = capturedPurchase?.payments?.captures?.find(item => item.status === 'COMPLETED');
-        if (paypalOrder.status !== 'COMPLETED' || capturedPurchase?.custom_id !== order.order_number ||
-            !matchesAmount(capturedPurchase?.amount) || !capture?.id || !matchesAmount(capture.amount)) {
+        if (!verifiedCapture) {
             await client.query('ROLLBACK');
             return res.status(409).json({ success: false, message: 'PayPal details do not match this order or the payment is not completed.' });
         }
+        if (isPendingPayPalOrder) await commitReservedStock(client, order.id);
         await client.query(`
             UPDATE orders SET payment_provider = 'paypal', payment_reference = $1, payment_capture_id = $2,
                 payment_status = 'paid', paid_at = COALESCE(paid_at, NOW()), stock_reserved = FALSE,
                 status = CASE WHEN status = 'pending' THEN 'confirmed' ELSE status END, updated_at = NOW()
             WHERE id = $3 AND payment_status = $4
-        `, [paypalOrderId, capture.id, order.id, order.payment_status]);
+        `, [paypalOrderId, verifiedCapture.capture.id, order.id, order.payment_status]);
         await client.query('COMMIT');
         return res.json({ success: true, payment_status: 'paid' });
     } catch (error) {

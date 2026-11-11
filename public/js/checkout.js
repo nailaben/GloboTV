@@ -231,15 +231,21 @@ function showPaymentReturnNotice() {
             cancelled: 'Payment was cancelled or not completed. Your order is still pending.',
             'not-approved': 'PayPal did not confirm the payment. Your order is still pending.',
             'verification-error': 'We could not match PayPal’s payment to this order. Check your PayPal activity and contact support before trying again.',
-            'capture-error': 'PayPal returned, but we could not confirm the captured payment. Check PayPal and your order status before trying again.',
-            error: 'We could not confirm the PayPal payment. Check PayPal and your order status before trying again.'
+            'capture-error': 'We could not finish updating your order after PayPal. Do not pay again. Verify the payment below.',
+            error: 'We could not confirm the PayPal payment. Do not pay again. Verify the payment below.',
+            verify_payment: 'Verify payment',
+            verifying_payment: 'Checking PayPal…',
+            verify_failed: 'PayPal has not confirmed the completed payment yet. Do not pay again; try checking the payment status again shortly.'
         },
         fr: {
             cancelled: 'Le paiement a été annulé ou n’a pas été terminé. La commande est toujours en attente.',
             'not-approved': 'PayPal n’a pas confirmé le paiement. La commande est toujours en attente.',
             'verification-error': 'Nous n’avons pas pu associer le paiement PayPal à cette commande. Vérifiez votre activité PayPal et contactez le support avant de réessayer.',
-            'capture-error': 'PayPal vous a redirigé vers le site, mais nous n’avons pas pu confirmer le paiement capturé. Vérifiez PayPal et le statut de la commande avant de réessayer.',
-            error: 'Nous n’avons pas pu confirmer le paiement PayPal. Vérifiez PayPal et le statut de la commande avant de réessayer.'
+            'capture-error': 'Nous n’avons pas pu terminer la mise à jour de votre commande après PayPal. Ne payez pas une deuxième fois. Vérifiez le paiement ci-dessous.',
+            error: 'Nous n’avons pas pu confirmer le paiement PayPal. Ne payez pas une deuxième fois. Vérifiez le paiement ci-dessous.',
+            verify_payment: 'Vérifier le paiement',
+            verifying_payment: 'Vérification auprès de PayPal…',
+            verify_failed: 'PayPal n’a pas encore confirmé le paiement. Ne payez pas une deuxième fois ; réessayez de vérifier le statut dans quelques instants.'
         }
     };
     const message = (messages[currentLang] || messages.en)[result];
@@ -255,6 +261,32 @@ function showPaymentReturnNotice() {
     close.setAttribute('aria-label', 'Close');
     close.textContent = '×';
     close.addEventListener('click', () => notice.remove());
+    const paypalOrderId = new URLSearchParams(window.location.search).get('paypal_order_id');
+    if (paypalOrderId && ['capture-error', 'error'].includes(result)) {
+        const verifyButton = document.createElement('button');
+        verifyButton.type = 'button';
+        verifyButton.className = 'checkout-payment-reconcile';
+        verifyButton.textContent = (messages[currentLang] || messages.en).verify_payment;
+        verifyButton.addEventListener('click', async () => {
+            verifyButton.disabled = true;
+            verifyButton.textContent = (messages[currentLang] || messages.en).verifying_payment;
+            try {
+                const verification = await api.reconcilePaypalPayment(paypalOrderId);
+                if (verification.success && verification.payment_status === 'paid') {
+                    clearCart();
+                    updateCartBadges();
+                    window.location.assign('/order-success.html?payment=paypal');
+                    return;
+                }
+                notice.firstChild.textContent = verification.message || (messages[currentLang] || messages.en).verify_failed;
+            } catch (error) {
+                notice.firstChild.textContent = error.message || (messages[currentLang] || messages.en).verify_failed;
+            }
+            verifyButton.disabled = false;
+            verifyButton.textContent = (messages[currentLang] || messages.en).verify_payment;
+        });
+        notice.append(verifyButton);
+    }
     notice.append(close);
     document.querySelector('.checkout-steps')?.insertAdjacentElement('afterend', notice);
 }

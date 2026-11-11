@@ -132,12 +132,15 @@
     document.addEventListener('langChange', () => window.location.reload());
     const lang = currentLang;
 
+    if (new URLSearchParams(location.search).get('payment') === 'paypal') {
+        clearCart();
+        updateCartBadges();
+    }
     const order = JSON.parse(sessionStorage.getItem('last_order') || '{}');
 
     if (!order.order_number) {
         window.location.href = '/';
     }
-    if (new URLSearchParams(location.search).get('payment') === 'paypal') clearCart();
     function escapeSuccessHtml(value) {
         return String(value ?? '').replace(/[&<>"']/g, char => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[char]));
     }

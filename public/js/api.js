@@ -173,6 +173,12 @@ const api = {
         body: JSON.stringify({ paypal_order_id: paypalOrderId })
     }),
 
+    reconcilePaypalPayment: async (paypalOrderId) => fetchApi(`${API_BASE}/orders/paypal/reconcile`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ paypal_order_id: paypalOrderId })
+    }),
+
     // ---- Seller Auth ----
     login: async (username, password) => {
         const res = await fetch(`${API_BASE}/seller/login`, {
