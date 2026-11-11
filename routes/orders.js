@@ -441,15 +441,17 @@ router.get('/paypal/return', async (req, res) => {
                 ? paypalOrder
                 : await paypalRequest(`/v2/checkout/orders/${encodeURIComponent(paypalOrderId)}/capture`, { method: 'POST', body: '{}' });
             const capturedPurchase = capture.purchase_units?.[0];
-            const captureInfo = capturedPurchase?.payments?.captures?.[0];
+            const captures = capturedPurchase?.payments?.captures || [];
+            const captureInfo = captures.find(item => item.status === 'COMPLETED');
             if (capture.status !== 'COMPLETED' || captureInfo?.status !== 'COMPLETED' ||
                 capturedPurchase?.custom_id !== order.order_number ||
                 !moneyMatches(captureInfo?.amount, order.total_amount, order.currency)) {
                 await client.query('ROLLBACK');
                 return failReturn('paypal_capture_not_completed_or_amount_mismatch', 'capture-error', {
                     captureOrderStatus: capture.status || null,
-                    captureStatus: captureInfo?.status || null,
-                    referenceMatches: capturedPurchase?.custom_id === order.order_number
+                    captureStatuses: captures.map(item => item.status || null),
+                    referenceMatches: capturedPurchase?.custom_id === order.order_number,
+                    captureAmountMatches: moneyMatches(captureInfo?.amount, order.total_amount, order.currency)
                 });
             }
 
