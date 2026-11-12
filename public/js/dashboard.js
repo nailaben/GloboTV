@@ -141,10 +141,13 @@ async function loadProductsTable(search = '') {
 
     let res;
     try {
-        res = await api.getSellerProducts();
+        res = await Promise.race([
+            api.getSellerProducts(),
+            new Promise((_, reject) => setTimeout(() => reject(new Error('Products request timed out')), 10000))
+        ]);
     } catch (error) {
         console.error('Load seller products error:', error);
-        const timedOut = error.name === 'AbortError';
+        const timedOut = error.name === 'AbortError' || error.message?.includes('timed out');
         tbody.innerHTML = `<tr><td colspan="7"><div class="empty-state"><p>${timedOut
             ? t('Loading took too long. Check your connection and try again.', 'Le chargement a pris trop de temps. Vérifiez votre connexion et réessayez.')
             : t('Could not load products. Check your connection and try again.', 'Impossible de charger les produits. Vérifiez votre connexion et réessayez.')}</p><button class="btn btn-secondary" type="button" onclick="loadProductsTable()">${t('Try again', 'Réessayer')}</button></div></td></tr>`;
