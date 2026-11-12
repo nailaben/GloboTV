@@ -62,7 +62,7 @@ const checkoutI18n = {
         whatsapp_code: 'WhatsApp code',
         code_placeholder: '6-digit code',
         verify_continue: 'Verify and continue',
-        verify_notice: 'No email code is needed here. Choose or confirm the phone number for this order.',
+        verify_notice: '',
         codes_sent_notice: 'Email verification code sent. It expires in 15 minutes.',
         email_only_sent_notice: 'Email code sent. Check your inbox and Spam/Junk folder, then enter it below. WhatsApp verification is temporarily not required.',
         whatsapp_only_sent_notice: 'WhatsApp code sent. Enter it below. Email delivery is not configured yet, so payment will remain locked until email is verified.',
@@ -154,7 +154,7 @@ const checkoutI18n = {
         whatsapp_code: 'Code WhatsApp',
         code_placeholder: 'Code à 6 chiffres',
         verify_continue: 'Vérifier et continuer',
-        verify_notice: 'Aucun code e-mail n’est nécessaire ici. Choisissez ou confirmez le numéro de cette commande.',
+        verify_notice: '',
         codes_sent_notice: 'Code de vérification envoyé par e-mail. Il expire dans 15 minutes.',
         email_only_sent_notice: 'Code e-mail envoyé. Vérifiez votre boîte de réception et le dossier spam/indésirables, puis saisissez-le ci-dessous.',
         whatsapp_only_sent_notice: 'Code WhatsApp envoyé. Saisissez-le ci-dessous. L’e-mail n’est pas configuré ; le paiement restera bloqué jusqu’à la vérification de l’e-mail.',
@@ -320,7 +320,6 @@ function setupCheckoutSteps() {
     const checkoutGrid = document.querySelector('.checkout-grid');
     const paymentStep = document.getElementById('payment-step-card');
     const continueButton = document.getElementById('continue-account-btn');
-    const backButton = document.getElementById('back-to-summary-btn');
     const backToVerifyButton = document.getElementById('back-to-verify-btn');
     const steps = [...document.querySelectorAll('.checkout-step')];
 
@@ -348,7 +347,6 @@ function setupCheckoutSteps() {
     };
 
     continueButton.addEventListener('click', () => showStep(2));
-    backButton.addEventListener('click', () => showStep(1));
     backToVerifyButton.addEventListener('click', () => showStep(2));
     document.getElementById('continue-after-verification').addEventListener('click', () => {
         const customer = JSON.parse(localStorage.getItem('playora_customer') || 'null');
@@ -376,6 +374,13 @@ let checkoutWhatsAppVerified = false;
 let checkoutVerificationToken = null;
 let checkoutSessionResolved = false;
 let checkoutNoticeKey = 'verify_notice';
+
+function setCheckoutNotice(key) {
+    const notice = document.getElementById('verify-notice');
+    if (!notice) return;
+    notice.textContent = ctr(key);
+    notice.hidden = !notice.textContent.trim();
+}
 let checkoutCanResend = false;
 let checkoutResendUntil = 0;
 let checkoutResendTimer = null;
@@ -545,7 +550,7 @@ async function requestCheckoutCodes() {
         document.getElementById('verify-whatsapp-required').textContent = ctr('required_state');
         const noticeKey = checkoutEmailSent ? 'email_only_sent_notice' : 'email_not_sent';
         checkoutNoticeKey = noticeKey;
-        document.getElementById('verify-notice').textContent = ctr(noticeKey);
+        setCheckoutNotice(noticeKey);
         showToast(ctr(noticeKey), checkoutEmailSent ? 'success' : 'error');
         if (checkoutEmailSent) {
             document.querySelector('#email-code-panel input')?.focus();
@@ -643,7 +648,7 @@ async function verifyCheckoutChannel(channel) {
         if (result.token) {
             checkoutVerificationToken = result.token;
             checkoutNoticeKey = 'contacts_verified_notice';
-            document.getElementById('verify-notice').textContent = ctr('contacts_verified_notice');
+            setCheckoutNotice('contacts_verified_notice');
             document.getElementById('continue-after-verification').disabled = false;
             updateCheckoutVerificationActions();
             showToast(ctr('contacts_verified_notice'), 'success');
@@ -651,7 +656,7 @@ async function verifyCheckoutChannel(channel) {
         }
         const noticeKey = 'email_verified_waiting_whatsapp';
         checkoutNoticeKey = noticeKey;
-        document.getElementById('verify-notice').textContent = ctr(noticeKey);
+        setCheckoutNotice(noticeKey);
         showToast(ctr(noticeKey), 'success');
         updateCheckoutVerificationActions();
     } catch (error) {
@@ -687,7 +692,7 @@ function updateCheckoutVerificationStatus() {
     document.getElementById('verify-whatsapp-required').textContent = ctr(checkoutPhoneChoiceConfirmed ? 'selected_state' : 'required_state');
     document.getElementById('email-code-panel').hidden = true;
     document.getElementById('whatsapp-code-panel').hidden = true;
-    document.getElementById('verify-notice').textContent = ctr('verify_notice');
+    setCheckoutNotice('verify_notice');
     const customer = JSON.parse(localStorage.getItem('playora_customer') || 'null');
     document.getElementById('continue-after-verification').disabled = !customer?.email || !checkoutPhoneChoiceConfirmed;
     updateCheckoutVerifiedIndicators();
