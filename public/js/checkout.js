@@ -497,6 +497,11 @@ function setupContactConfirmation() {
         phoneInput.readOnly = true;
         countrySelect.disabled = true;
         document.getElementById('verify-phone-value').textContent = formatInternationalPhone();
+        if (checkoutEmailVerified) {
+            checkoutEmailChoiceConfirmed = true;
+            document.getElementById('verify-email-value').textContent = document.getElementById('verify-email-address').value;
+            updateEmailChoiceActions();
+        }
         updatePhoneChoiceActions();
         updateCheckoutVerificationActions();
         updateCheckoutVerificationStatus();
@@ -803,9 +808,10 @@ function updateCheckoutVerifiedIndicators() {
     const emailCard = document.getElementById('verify-email-card');
     const whatsappCard = document.getElementById('verify-whatsapp-card');
     emailCard.classList.toggle('is-verified', checkoutEmailVerified);
-    whatsappCard.classList.toggle('is-verified', checkoutWhatsAppVerified);
+    const phoneConfirmed = checkoutPhoneChoiceConfirmed || checkoutWhatsAppVerified;
+    whatsappCard.classList.toggle('is-verified', phoneConfirmed);
     document.querySelector('#verify-email-card .checkout-verify-icon').textContent = checkoutEmailVerified ? '✓' : '2';
-    document.querySelector('#verify-whatsapp-card .checkout-verify-icon').textContent = checkoutWhatsAppVerified ? '✓' : '1';
+    document.querySelector('#verify-whatsapp-card .checkout-verify-icon').textContent = phoneConfirmed ? '✓' : '1';
 }
 
 function updateCheckoutVerificationStatus() {
