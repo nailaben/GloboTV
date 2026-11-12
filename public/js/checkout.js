@@ -235,6 +235,7 @@ function showPaymentReturnNotice() {
             error: 'We could not confirm the PayPal payment. Do not pay again. Verify the payment below.',
             verify_payment: 'Verify payment',
             verifying_payment: 'Checking PayPal…',
+            auto_verifying_payment: 'Checking your payment automatically…',
             verify_failed: 'PayPal has not confirmed the completed payment yet. Do not pay again; try checking the payment status again shortly.'
         },
         fr: {
@@ -245,6 +246,7 @@ function showPaymentReturnNotice() {
             error: 'Nous n’avons pas pu confirmer le paiement PayPal. Ne payez pas une deuxième fois. Vérifiez le paiement ci-dessous.',
             verify_payment: 'Vérifier le paiement',
             verifying_payment: 'Vérification auprès de PayPal…',
+            auto_verifying_payment: 'Vérification automatique du paiement…',
             verify_failed: 'PayPal n’a pas encore confirmé le paiement. Ne payez pas une deuxième fois ; réessayez de vérifier le statut dans quelques instants.'
         }
     };
@@ -266,26 +268,37 @@ function showPaymentReturnNotice() {
         const verifyButton = document.createElement('button');
         verifyButton.type = 'button';
         verifyButton.className = 'checkout-payment-reconcile';
-        verifyButton.textContent = (messages[currentLang] || messages.en).verify_payment;
-        verifyButton.addEventListener('click', async () => {
+        const localized = () => messages[currentLang] || messages.en;
+        let verificationInProgress = false;
+        const runVerification = async automatic => {
+            if (verificationInProgress) return;
+            verificationInProgress = true;
             verifyButton.disabled = true;
-            verifyButton.textContent = (messages[currentLang] || messages.en).verifying_payment;
-            try {
-                const verification = await api.reconcilePaypalPayment(paypalOrderId);
-                if (verification.success && verification.payment_status === 'paid') {
-                    clearCart();
-                    updateCartBadges();
-                    window.location.assign('/order-success.html?payment=paypal');
-                    return;
+            verifyButton.textContent = automatic ? localized().auto_verifying_payment : localized().verifying_payment;
+            const attempts = automatic ? 3 : 1;
+            for (let attempt = 0; attempt < attempts; attempt++) {
+                try {
+                    const verification = await api.reconcilePaypalPayment(paypalOrderId);
+                    if (verification.success && verification.payment_status === 'paid') {
+                        clearCart();
+                        updateCartBadges();
+                        window.location.assign('/order-success.html?payment=paypal');
+                        return;
+                    }
+                    notice.firstChild.textContent = verification.message || localized().verify_failed;
+                } catch (error) {
+                    notice.firstChild.textContent = error.message || localized().verify_failed;
                 }
-                notice.firstChild.textContent = verification.message || (messages[currentLang] || messages.en).verify_failed;
-            } catch (error) {
-                notice.firstChild.textContent = error.message || (messages[currentLang] || messages.en).verify_failed;
+                if (attempt + 1 < attempts) await new Promise(resolve => setTimeout(resolve, 2000));
             }
             verifyButton.disabled = false;
-            verifyButton.textContent = (messages[currentLang] || messages.en).verify_payment;
-        });
+            verifyButton.textContent = localized().verify_payment;
+            verificationInProgress = false;
+        };
+        verifyButton.textContent = localized().auto_verifying_payment;
+        verifyButton.addEventListener('click', () => runVerification(false));
         notice.append(verifyButton);
+        runVerification(true);
     }
     notice.append(close);
     document.querySelector('.checkout-steps')?.insertAdjacentElement('afterend', notice);

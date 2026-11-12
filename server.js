@@ -19,6 +19,8 @@ app.set('trust proxy', 1);
 
 // Middleware
 app.use(cors());
+// PayPal's signature verification needs the untouched webhook request body.
+app.use('/api/orders/paypal/webhook', express.raw({ type: 'application/json' }));
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 

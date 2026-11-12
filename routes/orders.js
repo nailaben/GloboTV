@@ -625,6 +625,104 @@ router.post('/paypal/reconcile', async (req, res) => {
     }
 });
 
+router.post('/paypal/webhook', async (req, res) => {
+    const webhookId = process.env.GloboTV_PAYPAL_WEBHOOK_ID;
+    if (!webhookId) return res.status(503).json({ success: false, message: 'PayPal webhook is not configured.' });
+
+    let event;
+    try {
+        event = JSON.parse(Buffer.isBuffer(req.body) ? req.body.toString('utf8') : '');
+    } catch {
+        return res.status(400).json({ success: false, message: 'Invalid PayPal webhook payload.' });
+    }
+
+    try {
+        const headers = req.headers;
+        const verification = await paypalRequest('/v1/notifications/verify-webhook-signature', {
+            method: 'POST',
+            body: JSON.stringify({
+                auth_algo: headers['paypal-auth-algo'],
+                cert_url: headers['paypal-cert-url'],
+                transmission_id: headers['paypal-transmission-id'],
+                transmission_sig: headers['paypal-transmission-sig'],
+                transmission_time: headers['paypal-transmission-time'],
+                webhook_id: webhookId,
+                webhook_event: event
+            })
+        });
+        if (verification.verification_status !== 'SUCCESS') {
+            console.warn('PayPal webhook signature verification failed.');
+            return res.status(400).json({ success: false, message: 'Invalid PayPal webhook signature.' });
+        }
+        if (event.event_type !== 'PAYMENT.CAPTURE.COMPLETED') return res.sendStatus(200);
+
+        const captureEvent = event.resource || {};
+        const paypalOrderId = captureEvent.supplementary_data?.related_ids?.order_id ||
+            captureEvent.links?.find(link => link.rel === 'up')?.href?.match(/\/v2\/checkout\/orders\/([^/?]+)/)?.[1];
+        if (!paypalOrderId || captureEvent.status !== 'COMPLETED' || !captureEvent.id) {
+            console.warn('PayPal completed-capture webhook is missing its order or capture reference.');
+            return res.sendStatus(200);
+        }
+
+        await ensurePaymentSchema();
+        const paypalOrder = await paypalRequest(`/v2/checkout/orders/${encodeURIComponent(paypalOrderId)}`);
+        const purchase = paypalOrder.purchase_units?.[0];
+        if (!purchase?.custom_id) return res.sendStatus(200);
+
+        let client;
+        try {
+            client = await pool.connect();
+            await client.query('BEGIN');
+            const result = await client.query('SELECT * FROM orders WHERE order_number = $1 FOR UPDATE', [purchase.custom_id]);
+            const order = result.rows[0];
+            const moneyMatches = (amount, orderAmount, orderCurrency) => {
+                const cents = Number.isFinite(Number(amount?.value)) ? Math.round(Number(amount.value) * 100) : NaN;
+                return String(amount?.currency_code || '').toUpperCase() === String(orderCurrency || '').toUpperCase() &&
+                    cents === Math.round(Number(orderAmount) * 100);
+            };
+            const capture = findCompletedCapture(paypalOrder, order || {}, moneyMatches);
+            if (!order || order.payment_provider !== 'paypal' || order.payment_reference !== paypalOrderId ||
+                !moneyMatches(purchase.amount, order.total_amount, order.currency) ||
+                !capture || capture.capture.id !== captureEvent.id || !moneyMatches(captureEvent.amount, order.total_amount, order.currency)) {
+                await client.query('ROLLBACK');
+                console.warn('PayPal completed-capture webhook did not match the local order.');
+                return res.sendStatus(200);
+            }
+            if (order.payment_status === 'paid' && order.payment_capture_id === captureEvent.id) {
+                await client.query('COMMIT');
+                return res.sendStatus(200);
+            }
+            if (!['pending', 'expired', 'cancelled'].includes(order.payment_status)) {
+                await client.query('ROLLBACK');
+                console.warn('PayPal completed-capture webhook matched an order in an unexpected local state.');
+                return res.sendStatus(200);
+            }
+
+            await commitReservedStock(client, order.id);
+            await client.query(`
+                UPDATE orders SET payment_status = 'paid', payment_capture_id = $1,
+                    paid_at = COALESCE(paid_at, NOW()), stock_reserved = FALSE,
+                    status = 'confirmed', updated_at = NOW()
+                WHERE id = $2
+            `, [captureEvent.id, order.id]);
+            await client.query('COMMIT');
+            return res.sendStatus(200);
+        } catch (error) {
+            if (client) await client.query('ROLLBACK').catch(() => {});
+            throw error;
+        } finally {
+            client?.release();
+        }
+    } catch (error) {
+        console.error('PayPal webhook processing failed:', JSON.stringify({
+            message: error.message,
+            name: error.name,
+            paypal: error.paypal || null
+        }));
+        return res.status(500).json({ success: false, message: 'PayPal webhook processing failed.' });
+    }
+});
+
 router.get('/paypal/cancel', async (req, res) => {
     const paypalOrderId = String(req.query.token || '');
     if (!paypalOrderId) return res.redirect('/checkout.html?payment=cancelled');
