@@ -260,8 +260,12 @@ router.get('/google/callback', finishOAuth);
 
 router.post('/checkout/send-codes', limitCheckoutCodeSend, customerAuth, async (req, res) => {
     const phone = String(req.body.phone || '').trim();
+    const requestedEmail = String(req.body.email || '').trim().toLowerCase();
     if (!/^\+[1-9]\d{7,14}$/.test(phone)) {
         return res.status(400).json({ success: false, message: 'Enter a valid international phone number including its country code.' });
+    }
+    if (requestedEmail && !/^\S+@\S+\.\S+$/.test(requestedEmail)) {
+        return res.status(400).json({ success: false, message: 'Enter a valid email address.' });
     }
     if (!process.env.JWT_SECRET) return res.status(503).json({ success: false, message: 'Account security is not configured.' });
 
@@ -272,7 +276,7 @@ router.post('/checkout/send-codes', limitCheckoutCodeSend, customerAuth, async (
         const customerResult = await pool.query('SELECT id, email FROM customers WHERE id = $1', [req.customer.id]);
         const customer = customerResult.rows[0];
         if (!customer) return res.status(404).json({ success: false, message: 'Account not found. Please sign in again.' });
-        email = String(customer.email).trim().toLowerCase();
+        email = requestedEmail || String(customer.email).trim().toLowerCase();
         if (!/^\S+@\S+\.\S+$/.test(email)) return res.status(400).json({ success: false, message: 'Add a valid email address to your account first.' });
 
         const id = crypto.randomUUID();
@@ -341,9 +345,10 @@ router.post('/checkout/send-codes', limitCheckoutCodeSend, customerAuth, async (
 
 router.post('/checkout/verify-codes', limitCheckoutCodeVerify, customerAuth, async (req, res) => {
     const phone = String(req.body.phone || '').trim();
+    const email = String(req.body.email || '').trim().toLowerCase();
     const emailCode = String(req.body.emailCode || '').trim();
     const whatsappCode = String(req.body.whatsappCode || '').trim();
-    if (!/^\+[1-9]\d{7,14}$/.test(phone) || !/^\d{6}$/.test(emailCode) || whatsappCode) {
+    if (!/^\+[1-9]\d{7,14}$/.test(phone) || !/^\S+@\S+\.\S+$/.test(email) || !/^\d{6}$/.test(emailCode) || whatsappCode) {
         return res.status(400).json({ success: false, message: 'Enter the 6-digit code sent to your email.' });
     }
     if (!process.env.JWT_SECRET) return res.status(503).json({ success: false, message: 'Account security is not configured.' });
@@ -354,12 +359,11 @@ router.post('/checkout/verify-codes', limitCheckoutCodeVerify, customerAuth, asy
         client = await pool.connect();
         await client.query('BEGIN');
         const result = await client.query(
-            `SELECT v.*, c.email AS current_email FROM customer_checkout_verifications v
-             JOIN customers c ON c.id = v.customer_id WHERE v.customer_id = $1 FOR UPDATE OF v`,
+            'SELECT * FROM customer_checkout_verifications WHERE customer_id = $1 FOR UPDATE',
             [req.customer.id]
         );
         const pending = result.rows[0];
-        if (!pending || pending.phone !== phone || pending.email !== String(pending.current_email).toLowerCase()) {
+        if (!pending || pending.phone !== phone || pending.email !== email) {
             await client.query('ROLLBACK');
             return res.status(400).json({ success: false, message: 'No matching verification request. Request new codes and try again.' });
         }
@@ -383,11 +387,30 @@ router.post('/checkout/verify-codes', limitCheckoutCodeVerify, customerAuth, asy
             return res.status(400).json({ success: false, message: 'The email verification code is incorrect.' });
         }
 
+        const duplicate = await client.query(
+            'SELECT id FROM customers WHERE lower(email) = $1 AND id <> $2 LIMIT 1',
+            [pending.email, req.customer.id]
+        );
+        if (duplicate.rows.length) {
+            await client.query('ROLLBACK');
+            return res.status(409).json({ success: false, message: 'An account with this email already exists.' });
+        }
+
         await client.query(
             'UPDATE customer_checkout_verifications SET email_verified_at = NOW(), verified_at = NOW() WHERE customer_id = $1',
             [req.customer.id]
         );
+        const customerUpdate = await client.query(
+            'UPDATE customers SET email = $2 WHERE id = $1 RETURNING id, name, email, phone',
+            [req.customer.id, pending.email]
+        );
+        if (!customerUpdate.rows[0]) {
+            await client.query('ROLLBACK');
+            return res.status(404).json({ success: false, message: 'Account not found.' });
+        }
         await client.query('COMMIT');
+        const verifiedCustomer = { ...customerUpdate.rows[0], emailVerified: true };
+        setSessionCookie(req, res, 'globotv_customer_session', createToken(verifiedCustomer), 30 * 24 * 60 * 60 * 1000);
         const token = jwt.sign({
             type: 'checkout_verification',
             id: req.customer.id,
@@ -402,11 +425,13 @@ router.post('/checkout/verify-codes', limitCheckoutCodeVerify, customerAuth, asy
             whatsappVerified: false,
             whatsappRequired: false,
             token,
+            customer: verifiedCustomer,
             message: 'Email verified. WhatsApp verification is temporarily not required.'
         });
     } catch (err) {
         if (client) await client.query('ROLLBACK').catch(() => {});
         console.error('Checkout code verification error:', err.message);
+        if (err.code === '23505') return res.status(409).json({ success: false, message: 'An account with this email already exists.' });
         return res.status(500).json({ success: false, message: 'Could not verify the codes.' });
     } finally {
         client?.release();
@@ -536,7 +561,14 @@ router.get('/me', customerAuth, async (req, res) => {
     try {
         const result = await pool.query('SELECT id, name, email, phone, created_at FROM customers WHERE id = $1', [req.customer.id]);
         if (!result.rows[0]) return res.status(404).json({ success: false, message: 'Account not found.' });
-        res.json({ success: true, customer: result.rows[0] });
+        const customer = result.rows[0];
+        res.json({
+            success: true,
+            customer: {
+                ...customer,
+                emailVerified: String(req.customer.email || '').trim().toLowerCase() === String(customer.email || '').trim().toLowerCase()
+            }
+        });
     } catch (err) {
         console.error('Customer profile error:', err);
         res.status(500).json({ success: false, message: 'Could not load account.' });

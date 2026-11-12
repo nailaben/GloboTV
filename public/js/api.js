@@ -80,20 +80,20 @@ const api = {
         return res.json();
     },
 
-    sendCheckoutVerificationCodes: async (phone) => {
+    sendCheckoutVerificationCodes: async (phone, email) => {
         const res = await fetch(`${API_BASE}/customer/checkout/send-codes`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ phone })
+            body: JSON.stringify({ phone, email })
         });
         return res.json();
     },
 
-    verifyCheckoutCodes: async (phone, emailCode, whatsappCode) => {
+    verifyCheckoutCodes: async (phone, email, emailCode, whatsappCode) => {
         const res = await fetch(`${API_BASE}/customer/checkout/verify-codes`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ phone, emailCode, whatsappCode })
+            body: JSON.stringify({ phone, email, emailCode, whatsappCode })
         });
         return res.json();
     },

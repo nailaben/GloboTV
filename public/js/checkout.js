@@ -389,6 +389,7 @@ let checkoutCodesSent = false;
 let checkoutEmailSent = false;
 let checkoutWhatsAppSent = false;
 let checkoutEmailVerified = false;
+let checkoutVerifiedEmail = '';
 let checkoutWhatsAppVerified = false;
 let checkoutVerificationToken = null;
 let checkoutSessionResolved = false;
@@ -438,9 +439,10 @@ function renderVerificationPanel() {
     if (!emailInput.dataset.initialized) {
         emailInput.value = customer.email || '';
         checkoutEmailSnapshot = emailInput.value;
+        checkoutVerifiedEmail = String(customer.email || '').trim().toLowerCase();
         checkoutEmailEditing = false;
         checkoutEmailChoiceConfirmed = false;
-        checkoutEmailVerified = Boolean(emailInput.value);
+        checkoutEmailVerified = Boolean(checkoutVerifiedEmail && emailInput.value.trim().toLowerCase() === checkoutVerifiedEmail);
         emailInput.readOnly = true;
         emailInput.dataset.initialized = 'true';
         updateEmailChoiceActions();
@@ -547,7 +549,7 @@ function setupContactConfirmation() {
         if (checkoutEmailEditing && checkoutEmailSnapshot) emailInput.value = checkoutEmailSnapshot;
         checkoutEmailEditing = false;
         checkoutEmailChoiceConfirmed = true;
-        checkoutEmailVerified = Boolean(checkoutEmailSnapshot);
+        checkoutEmailVerified = emailInput.value.trim().toLowerCase() === checkoutVerifiedEmail;
         checkoutCanResend = !checkoutEmailVerified;
         emailInput.readOnly = true;
         document.getElementById('verify-email-value').textContent = emailInput.value;
@@ -573,18 +575,12 @@ function setupContactConfirmation() {
             emailInput.focus();
             return;
         }
-        const customer = JSON.parse(localStorage.getItem('playora_customer') || 'null') || {};
         confirmEmailButton.disabled = true;
         try {
-            if (email !== String(customer.email || '').trim().toLowerCase()) {
-                const result = await api.updateCustomer({ name: customer.name || '', email, phone: customer.phone || '' });
-                if (!result.success || !result.customer) throw new Error(result.message || ctr('generic_error'));
-                localStorage.setItem('playora_customer', JSON.stringify(result.customer));
-            }
             checkoutEmailSnapshot = email;
             checkoutEmailEditing = false;
             checkoutEmailChoiceConfirmed = true;
-            checkoutEmailVerified = email === String(customer.email || '').trim().toLowerCase();
+            checkoutEmailVerified = email === checkoutVerifiedEmail;
             checkoutCanResend = !checkoutEmailVerified;
             emailInput.readOnly = true;
             document.getElementById('verify-email-value').textContent = email;
@@ -656,7 +652,8 @@ async function requestCheckoutCodes() {
     }
     sendButton.disabled = true;
     try {
-        const result = await api.sendCheckoutVerificationCodes(phone);
+        const email = document.getElementById('verify-email-address').value.trim().toLowerCase();
+        const result = await api.sendCheckoutVerificationCodes(phone, email);
         if (!result.success) throw new Error(result.message || ctr('generic_error'));
         checkoutCodesSent = true;
         checkoutCanResend = true;
@@ -759,9 +756,17 @@ async function verifyCheckoutChannel(channel) {
     const button = document.getElementById(emailChannel ? 'verify-email-code-btn' : 'verify-whatsapp-code-btn');
     button.disabled = true;
     try {
-        const result = await api.verifyCheckoutCodes(phone, emailChannel ? code : '', emailChannel ? '' : code);
+        const email = document.getElementById('verify-email-address').value.trim().toLowerCase();
+        const result = await api.verifyCheckoutCodes(phone, email, emailChannel ? code : '', emailChannel ? '' : code);
         if (!result.success) throw new Error(result.message || ctr('generic_error'));
         checkoutEmailVerified = Boolean(result.emailVerified);
+        if (checkoutEmailVerified && result.customer) {
+            checkoutVerifiedEmail = String(result.customer.email || '').trim().toLowerCase();
+            checkoutEmailSnapshot = checkoutVerifiedEmail;
+            document.getElementById('verify-email-address').value = checkoutVerifiedEmail;
+            document.getElementById('verify-email-value').textContent = checkoutVerifiedEmail;
+            localStorage.setItem('playora_customer', JSON.stringify(result.customer));
+        }
         checkoutWhatsAppVerified = Boolean(result.whatsappVerified);
         updateCheckoutVerifiedIndicators();
         clearCheckoutOtp(channel);
