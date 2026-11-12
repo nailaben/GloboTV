@@ -236,7 +236,7 @@ const generateOrderNumber = () => {
 
 // POST /api/orders - Create new order (public)
 router.post('/', async (req, res) => {
-    const { customer_name, customer_phone, customer_email, notes, items, payment_provider, checkoutVerificationToken } = req.body;
+    const { customer_name, customer_phone, customer_email, notes, items, payment_provider } = req.body;
 
     if (!customer_name || !customer_phone || !customer_email || !Array.isArray(items) || items.length === 0) {
         return res.status(400).json({ success: false, message: 'All required fields must be provided' });
@@ -246,19 +246,15 @@ router.post('/', async (req, res) => {
     }
 
     let customerSession;
-    let checkoutVerification;
     try {
         customerSession = jwt.verify(readCookie(req, 'globotv_customer_session'), process.env.JWT_SECRET);
-        checkoutVerification = jwt.verify(String(checkoutVerificationToken || ''), process.env.JWT_SECRET);
-        const normalizedPhone = String(customer_phone).replace(/\s/g, '');
-        if (customerSession.type !== 'customer' || checkoutVerification.type !== 'checkout_verification' ||
-            String(customerSession.id) !== String(checkoutVerification.id) ||
-            String(customer_email).trim().toLowerCase() !== String(checkoutVerification.email).toLowerCase() ||
-            normalizedPhone !== checkoutVerification.phone || !checkoutVerification.verificationId) {
-            throw new Error('Checkout verification does not match the order.');
-        }
+        if (customerSession.type !== 'customer' || !customerSession.id) throw new Error('Sign in required.');
     } catch {
-        return res.status(403).json({ success: false, message: 'Verify your email before placing the order.' });
+        return res.status(403).json({ success: false, message: 'Sign in with your account before placing the order.' });
+    }
+    const normalizedPhone = String(customer_phone).replace(/\s/g, '');
+    if (!/^\+[1-9]\d{7,14}$/.test(normalizedPhone)) {
+        return res.status(400).json({ success: false, message: 'Enter a valid international phone number for this order.' });
     }
 
     let client;
@@ -268,18 +264,14 @@ router.post('/', async (req, res) => {
         await client.query('BEGIN');
         await expireStalePaypalOrders(client);
 
-        const verification = await client.query(
-            `SELECT id FROM customer_checkout_verifications
-             WHERE id = $1 AND customer_id = $2 AND email = $3 AND phone = $4
-                AND email_verified_at IS NOT NULL AND verified_at IS NOT NULL AND consumed_at IS NULL AND expires_at > NOW()
-             FOR UPDATE`,
-            [checkoutVerification.verificationId, customerSession.id, checkoutVerification.email, checkoutVerification.phone]
+        const customerResult = await client.query(
+            'SELECT id, email FROM customers WHERE id = $1 FOR SHARE',
+            [customerSession.id]
         );
-        if (!verification.rows[0]) {
+        if (!customerResult.rows[0] || String(customer_email).trim().toLowerCase() !== String(customerResult.rows[0].email).toLowerCase()) {
             await client.query('ROLLBACK');
-            return res.status(403).json({ success: false, message: 'Your email verification expired or was already used. Verify your email again.' });
+            return res.status(403).json({ success: false, message: 'Sign in with the account email before placing the order.' });
         }
-        await client.query('UPDATE customer_checkout_verifications SET consumed_at = NOW() WHERE id = $1', [checkoutVerification.verificationId]);
 
         // Validate products and calculate total
         let subtotalCents = 0;
