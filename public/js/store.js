@@ -29,12 +29,13 @@ document.addEventListener('DOMContentLoaded', async () => {
     searchQuery = initialQuery.get('search') || '';
     activeCategory = initialQuery.get('category') || 'all';
     applyTranslations();
+    applyWhatsAppBarTranslation();
     setupNavbar();
     updateCustomerNav();
     setupLangToggle();
     setupCart();
     createHeroParticles();
-    document.addEventListener('langChange', () => { applyTranslations(); renderProducts(); renderCart(); renderCategories(); });
+    document.addEventListener('langChange', () => { applyTranslations(); applyWhatsAppBarTranslation(); renderProducts(); renderCart(); renderCategories(); });
     const searchInput = document.getElementById('search-input');
     if (searchInput && searchQuery) {
         searchInput.value = searchQuery;
@@ -49,6 +50,22 @@ document.addEventListener('DOMContentLoaded', async () => {
         document.getElementById('products-section')?.scrollIntoView({ behavior: 'smooth' });
     }
 });
+
+function applyWhatsAppBarTranslation() {
+    const bar = document.querySelector('.whatsapp-top-bar');
+    if (!bar) return;
+    const copy = bar.querySelector('.whatsapp-top-bar-copy');
+    const title = copy?.querySelector('strong');
+    const description = copy?.querySelector('small');
+    const action = bar.querySelector('.whatsapp-top-bar-cta span:last-child');
+    const french = currentLang === 'fr';
+    if (title) title.textContent = french ? 'Contactez-nous sur WhatsApp' : 'Contact us on WhatsApp';
+    if (description) description.textContent = french
+        ? 'Pour commander ou poser une question, envoyez-nous un message.'
+        : 'For orders or questions, send us a direct message.';
+    if (action) action.textContent = french ? 'Envoyer un message' : 'Send a message';
+    bar.setAttribute('aria-label', french ? 'Contactez-nous sur WhatsApp' : 'Contact us on WhatsApp');
+}
 
 // ---- Translations ----
 const i18n = {

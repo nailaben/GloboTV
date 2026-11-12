@@ -299,7 +299,7 @@ const supportedLanguages = ['en', 'fr'];
 const languageNames = { fr: 'Français', en: 'English' };
 let currentLang = supportedLanguages.includes(localStorage.getItem('playora_lang'))
     ? localStorage.getItem('playora_lang')
-    : 'en';
+    : 'fr';
 
 function setLang(lang) {
     if (!supportedLanguages.includes(lang)) return;
@@ -320,7 +320,7 @@ function t(en, fr = en) { return currentLang === 'fr' ? fr : en; }
 
 function initLang() {
     const savedLanguage = localStorage.getItem('playora_lang');
-    const lang = supportedLanguages.includes(savedLanguage) ? savedLanguage : 'en';
+    const lang = supportedLanguages.includes(savedLanguage) ? savedLanguage : 'fr';
     setLang(lang);
 }
 

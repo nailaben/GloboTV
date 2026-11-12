@@ -499,8 +499,8 @@ async function loadOrdersTable() {
             </td>
             <td style="font-size:0.8rem;color:var(--text-muted)">
                 ${escapeHtml(o.customer_email)}
-                <button type="button" class="btn btn-secondary" style="display:block;margin-top:.35rem;padding:.35rem .55rem;font-size:.75rem" onclick="previewCustomerEmail(${o.id})">${t('Preview email', 'Aperçu de l’e-mail')}</button>
                 ${o.payment_status === 'paid' ? `<button type="button" class="btn btn-secondary" style="display:block;margin-top:.35rem;padding:.35rem .55rem;font-size:.75rem" onclick="composeCustomerEmail(${o.id})">${t('Open email draft', 'Ouvrir le brouillon')}</button>` : ''}
+                ${o.payment_status === 'paid' ? `<button type="button" class="btn btn-secondary" style="display:block;margin-top:.35rem;padding:.35rem .55rem;font-size:.75rem" onclick="composeCustomerWhatsApp(${o.id})">${t('Send code via WhatsApp', 'Envoyer le code par WhatsApp')}</button>` : ''}
             </td>
             <td>${o.items_count || '—'}</td>
             <td><span style="font-weight:700;color:var(--accent)">${new Intl.NumberFormat(currentLang === 'fr' ? 'fr-FR' : 'en-IE',{style:'currency',currency:o.currency||'EUR'}).format(Number(o.total_amount))}</span></td>
@@ -513,7 +513,6 @@ async function loadOrdersTable() {
                 ${paymentLabel ? `<small style="display:block;margin-top:.3rem;color:var(--text-muted)">${paymentLabel}</small>` : ''}
                 ${o.payment_status === 'legacy_unverified' ? `<button type="button" class="btn btn-secondary" style="margin-top:.35rem;padding:.35rem .55rem;font-size:.75rem" onclick="reconcilePayment(${o.id})">${t('Verify PayPal payment', 'Vérifier le paiement PayPal')}</button>` : ''}
                 ${o.payment_status === 'pending' && o.payment_provider === 'paypal' ? `<button type="button" class="btn btn-secondary" style="margin-top:.35rem;padding:.35rem .55rem;font-size:.75rem" onclick="reconcilePayment(${o.id}, '')">${t('Check PayPal payment', 'Vérifier le paiement PayPal')}</button>` : ''}
-                ${o.payment_status === 'paid' && o.payment_provider === 'paypal' ? `<button type="button" class="btn btn-secondary" style="margin-top:.35rem;padding:.35rem .55rem;font-size:.75rem" onclick="refundOrder(${o.id})">${t('Refund via PayPal', 'Rembourser via PayPal')}</button>` : ''}
                 ${o.payment_status === 'refund_pending' ? `<button type="button" class="btn btn-secondary" style="margin-top:.35rem;padding:.35rem .55rem;font-size:.75rem" onclick="checkRefundStatus(${o.id})">${t('Check refund status', 'Vérifier le remboursement')}</button>` : ''}
             </td>
             <td style="font-size:0.78rem;color:var(--text-muted)">${formatDate(o.created_at)}</td>
@@ -652,6 +651,33 @@ window.composeCustomerEmail = async function(orderId) {
     } catch (error) {
         composeWindow?.close();
         showToast(error.message || t('Could not prepare the email', 'Impossible de préparer l’e-mail'), 'error');
+    }
+};
+
+window.composeCustomerWhatsApp = async function(orderId) {
+    try {
+        const result = await api.getOrder(orderId);
+        if (!result.success || !result.order) throw new Error(result.message || 'Could not load this order');
+        const order = result.order;
+        if (order.payment_status !== 'paid') throw new Error(t('Payment is not confirmed yet', 'Le paiement n’est pas encore confirmé'));
+        const code = window.prompt(t('Paste the product activation code to include in the WhatsApp message:', 'Collez le code d’activation à inclure dans le message WhatsApp :'));
+        if (code === null || !code.trim()) return;
+        const phone = String(order.customer_phone || '').replace(/[^\d]/g, '');
+        if (!phone) throw new Error(t('This order has no valid phone number', 'Cette commande ne contient pas de numéro de téléphone valide'));
+        const itemLines = (result.items || []).map(item => `• ${item.product_name_en} × ${item.quantity}`).join('\n');
+        const message = [
+            `Hello ${order.customer_name},`,
+            '',
+            `Your GloboTV order ${order.order_number} is confirmed.`,
+            itemLines,
+            '',
+            `Product activation code: ${code.trim()}`,
+            '',
+            'Thank you for your purchase!'
+        ].filter(Boolean).join('\n');
+        window.open(`https://wa.me/${phone}?text=${encodeURIComponent(message)}`, '_blank', 'noopener');
+    } catch (error) {
+        showToast(error.message || t('Could not prepare the WhatsApp message', 'Impossible de préparer le message WhatsApp'), 'error');
     }
 };
 

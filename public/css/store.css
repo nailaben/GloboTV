@@ -80,7 +80,7 @@
 }
 
 .whatsapp-top-bar:hover { border-color: rgba(86, 244, 156, .7); color: #fff; }
-.whatsapp-top-bar-copy { display: flex; flex-direction: column; gap: .12rem; direction: rtl; }
+.whatsapp-top-bar-copy { display: flex; flex-direction: column; gap: .12rem; direction: ltr; text-align: left; }
 .whatsapp-top-bar-copy strong { font-size: .88rem; }
 .whatsapp-top-bar-copy small { color: #c3e6d3; font-size: .7rem; }
 .whatsapp-top-bar-cta { display: inline-flex; align-items: center; justify-content: center; gap: .35rem; min-height: 36px; padding: 0 .85rem; border-radius: 9px; background: #20c766; color: #fff; font-size: .78rem; font-weight: 700; white-space: nowrap; }
