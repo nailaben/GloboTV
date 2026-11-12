@@ -64,7 +64,7 @@
     left: 0;
     z-index: 1101;
     width: 100%;
-    min-height: 60px;
+    min-height: 48px;
     display: flex;
     align-items: center;
     justify-content: space-between;
@@ -80,16 +80,14 @@
 }
 
 .whatsapp-top-bar:hover { border-color: rgba(86, 244, 156, .7); color: #fff; }
-.whatsapp-top-bar-copy { display: flex; flex-direction: column; gap: .12rem; direction: ltr; text-align: left; }
+.whatsapp-top-bar-copy { display: flex; align-items: center; direction: ltr; text-align: left; }
 .whatsapp-top-bar-copy strong { font-size: .88rem; }
-.whatsapp-top-bar-copy small { color: #c3e6d3; font-size: .7rem; }
 .whatsapp-top-bar-cta { display: inline-flex; align-items: center; justify-content: center; gap: .35rem; min-height: 36px; padding: 0 .85rem; border-radius: 9px; background: #20c766; color: #fff; font-size: .78rem; font-weight: 700; white-space: nowrap; }
 .whatsapp-top-bar-cta .material-symbols-outlined { font-size: 19px; }
 
 @media (max-width: 640px) {
-    .whatsapp-top-bar { min-height: 54px; padding: .35rem 14px; gap: .55rem; }
+    .whatsapp-top-bar { min-height: 46px; padding: .25rem 14px; gap: .55rem; }
     .whatsapp-top-bar-copy strong { font-size: .78rem; }
-    .whatsapp-top-bar-copy small { font-size: .64rem; }
     .whatsapp-top-bar-cta { min-height: 34px; padding: 0 .6rem; gap: .25rem; font-size: .7rem; }
 }
 

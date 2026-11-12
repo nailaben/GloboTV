@@ -40,8 +40,8 @@
 
 /* Palette accents for the shop product experience. */
 .product-navbar { background: #100b17; border-color: #392943; }
-body:not(.product-page-body) .product-navbar { position: fixed; top: 60px; }
-@media(max-width:650px){body:not(.product-page-body) .product-navbar{top:54px}}
+body:not(.product-page-body) .product-navbar { position: fixed; top: 48px; }
+@media(max-width:650px){body:not(.product-page-body) .product-navbar{top:46px}}
 .product-nav-search, .offer-panel, .product-tabs, .product-loading, .product-unavailable,
 .product-related-card { background-color: #1d1526; border-color: #392943; }
 .product-gallery-main { border-color: #462C7D; background: linear-gradient(145deg, #462C7D 0%, #291a30 62%, #100b17 100%); }

@@ -57,13 +57,9 @@ function applyWhatsAppBarTranslation() {
     if (!bar) return;
     const copy = bar.querySelector('.whatsapp-top-bar-copy');
     const title = copy?.querySelector('strong');
-    const description = copy?.querySelector('small');
     const action = bar.querySelector('.whatsapp-top-bar-cta span:last-child');
     const french = currentLang === 'fr';
     if (title) title.textContent = french ? 'Contactez-nous sur WhatsApp' : 'Contact us on WhatsApp';
-    if (description) description.textContent = french
-        ? 'Pour commander ou poser une question, envoyez-nous un message.'
-        : 'For orders or questions, send us a direct message.';
     if (action) action.textContent = french ? 'Envoyer un message' : 'Send a message';
     bar.setAttribute('aria-label', french ? 'Contactez-nous sur WhatsApp' : 'Contact us on WhatsApp');
 }
