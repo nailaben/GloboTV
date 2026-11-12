@@ -778,13 +778,6 @@ function renderCheckoutAccount() {
                     <div class="checkout-account-header">
                         <h1 class="checkout-account-title">Account</h1>
                     </div>
-                    <div class="checkout-account-card">
-                        <div class="checkout-account-info">
-                            <div class="checkout-account-row"><span class="checkout-account-label">Full name</span><span class="checkout-account-value">${escapeHtml(customer.name || '—')}</span></div>
-                            <div class="checkout-account-row"><span class="checkout-account-label">Email</span><span class="checkout-account-value">${escapeHtml(customer.email || '—')}</span></div>
-                            <div class="checkout-account-row"><span class="checkout-account-label">Phone</span><span class="checkout-account-value">${escapeHtml(customer.phone || '—')}</span></div>
-                        </div>
-                    </div>
                 </div>
             `;
         renderVerificationPanel();
