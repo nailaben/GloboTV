@@ -807,22 +807,23 @@ function renderVerificationSummary() {
 function updateCheckoutVerifiedIndicators() {
     const emailCard = document.getElementById('verify-email-card');
     const whatsappCard = document.getElementById('verify-whatsapp-card');
-    emailCard.classList.toggle('is-verified', checkoutEmailVerified);
-    const phoneConfirmed = checkoutPhoneChoiceConfirmed || checkoutWhatsAppVerified;
-    whatsappCard.classList.toggle('is-verified', phoneConfirmed);
-    document.querySelector('#verify-email-card .checkout-verify-icon').textContent = checkoutEmailVerified ? '✓' : '2';
-    document.querySelector('#verify-whatsapp-card .checkout-verify-icon').textContent = phoneConfirmed ? '✓' : '1';
+    const contactsConfirmed = checkoutPhoneChoiceConfirmed && checkoutEmailChoiceConfirmed && checkoutEmailVerified;
+    emailCard.classList.toggle('is-verified', contactsConfirmed);
+    whatsappCard.classList.toggle('is-verified', contactsConfirmed);
+    document.querySelector('#verify-email-card .checkout-verify-icon').textContent = contactsConfirmed ? '✓' : '2';
+    document.querySelector('#verify-whatsapp-card .checkout-verify-icon').textContent = contactsConfirmed ? '✓' : '1';
 }
 
 function updateCheckoutVerificationStatus() {
+    const contactsConfirmed = checkoutPhoneChoiceConfirmed && checkoutEmailChoiceConfirmed && checkoutEmailVerified;
     document.getElementById('verify-email-status').textContent = checkoutEmailVerified
         ? ctr('email_verified_status')
         : checkoutEmailSent
             ? ctr('email_code_sent').replace('{email}', document.getElementById('verify-email-value').textContent)
             : ctr('email_waiting');
     document.getElementById('verify-whatsapp-status').textContent = ctr('phone_order_note');
-    document.getElementById('verify-email-required').textContent = ctr(checkoutEmailVerified ? 'verified_state' : 'required_state');
-    document.getElementById('verify-whatsapp-required').textContent = ctr(checkoutPhoneChoiceConfirmed ? 'selected_state' : 'required_state');
+    document.getElementById('verify-email-required').textContent = ctr(contactsConfirmed ? 'verified_state' : 'required_state');
+    document.getElementById('verify-whatsapp-required').textContent = ctr(contactsConfirmed ? 'verified_state' : 'required_state');
     document.getElementById('email-code-panel').hidden = !checkoutEmailSent || checkoutEmailVerified;
     document.getElementById('whatsapp-code-panel').hidden = true;
     setCheckoutNotice('verify_notice');
