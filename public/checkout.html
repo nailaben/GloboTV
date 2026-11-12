@@ -413,6 +413,9 @@
         .checkout-verify-card.is-verified .checkout-verify-icon { color: #22c55e; background: rgba(34,197,94,.12); }
         .checkout-verify-notice { padding: .9rem 1rem; border: 1px solid rgba(124,58,237,.25); border-radius: var(--radius-md); color: var(--text-secondary); background: rgba(124,58,237,.07); }
         .checkout-phone-input { display: grid; grid-template-columns: minmax(145px, .7fr) minmax(0, 1.3fr); gap: .65rem; }
+        .checkout-phone-box { padding: 1rem; border: 1px solid var(--border-light); border-radius: var(--radius-md); background: rgba(255,255,255,.025); }
+        .checkout-phone-box #verify-whatsapp-card { padding: 0; border: 0; border-radius: 0; background: transparent; }
+        .checkout-phone-box > .form-group { margin: 1rem 0 0; }
         .checkout-phone-actions { display: flex; align-items: center; flex-wrap: wrap; gap: .6rem; margin-top: .65rem; }
         .checkout-phone-actions small { flex: 1 0 100%; color: var(--text-muted); }
         .checkout-phone-actions button { border: 1px solid var(--border-light); color: var(--text-primary); background: rgba(255,255,255,.04); }
@@ -640,6 +643,7 @@
                                 <h1 data-co-i18n="verify_title">Confirm your details</h1>
                                 <p data-co-i18n="verify_subtitle" hidden></p>
                             </header>
+                            <div class="checkout-phone-box">
                             <div class="checkout-verify-card" id="verify-whatsapp-card">
                                 <span class="checkout-verify-icon" aria-hidden="true">1</span>
                                 <div class="checkout-verify-copy">
@@ -708,6 +712,7 @@
                                     <small id="phone-choice-status" data-co-i18n="phone_choice_note">Choose the number to use for this order.</small>
                                 </div>
                             </div>
+                            </div>
                             <div class="checkout-verify-card" id="verify-email-card" hidden>
                                 <span class="checkout-verify-icon" aria-hidden="true">2</span>
                                 <div class="checkout-verify-copy">
@@ -773,7 +778,7 @@
     </div>
 
     <script src="/js/api.js?v=20261112-paypal-recovery"></script>
-    <script src="/js/checkout.js?v=20261112-hide-empty-account-card"></script>
+    <script src="/js/checkout.js?v=20261112-group-phone-box"></script>
 </body>
 
 </html>
