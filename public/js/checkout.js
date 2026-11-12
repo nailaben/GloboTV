@@ -324,8 +324,9 @@ function setupCheckoutSteps() {
     const steps = [...document.querySelectorAll('.checkout-step')];
 
     const showStep = (activeStep) => {
+        const customer = JSON.parse(localStorage.getItem('playora_customer') || 'null');
         cartStep.hidden = activeStep !== 1;
-        accountStep.hidden = activeStep !== 2;
+        accountStep.hidden = activeStep !== 2 || Boolean(customer?.name);
         verifyStep.hidden = activeStep !== 2;
         paymentStep.hidden = activeStep !== 3;
         verificationSummary.hidden = activeStep !== 2;
@@ -773,6 +774,7 @@ function renderCheckoutAccount() {
 
     const customer = JSON.parse(localStorage.getItem('playora_customer') || 'null');
     if (customer?.name) {
+        document.getElementById('account-step-card').hidden = true;
         panel.innerHTML = `
                 <div class="checkout-account-panel">
                     <div class="checkout-account-header">
