@@ -416,6 +416,8 @@
         .checkout-phone-box { padding: 1rem; border: 1px solid var(--border-light); border-radius: var(--radius-md); background: rgba(255,255,255,.025); }
         .checkout-phone-box #verify-whatsapp-card { padding: 0; border: 0; border-radius: 0; background: transparent; }
         .checkout-phone-box > .form-group { margin: 1rem 0 0; }
+        .checkout-email-entry { flex: 0 0 100%; min-width: 0; }
+        .checkout-email-entry .form-label { display: block; margin-bottom: .5rem; }
         .checkout-phone-actions { display: flex; align-items: center; flex-wrap: wrap; gap: .6rem; margin-top: .65rem; }
         .checkout-phone-actions small { flex: 1 0 100%; color: var(--text-muted); }
         .checkout-phone-actions button { border: 1px solid var(--border-light); color: var(--text-primary); background: rgba(255,255,255,.04); }
@@ -713,7 +715,7 @@
                                 </div>
                             </div>
                             </div>
-                            <div class="checkout-verify-card" id="verify-email-card" hidden>
+                            <div class="checkout-verify-card" id="verify-email-card">
                                 <span class="checkout-verify-icon" aria-hidden="true">2</span>
                                 <div class="checkout-verify-copy">
                                     <strong data-co-i18n="email_verification">Email verification</strong>
@@ -722,6 +724,16 @@
                                     <small id="verify-email-status" data-co-i18n="email_waiting">Waiting to send a code</small>
                                 </div>
                                 <span class="checkout-verify-state" id="verify-email-required" data-co-i18n="required_state">Required</span>
+                                <div class="checkout-email-entry">
+                                    <label class="form-label" for="verify-email-address" data-co-i18n="email_label">Email</label>
+                                    <input class="form-input" id="verify-email-address" type="email" autocomplete="email" readonly>
+                                    <div class="checkout-phone-actions">
+                                        <button type="button" class="btn btn-sm" id="keep-email-btn" data-co-i18n="keep_email">Keep this email</button>
+                                        <button type="button" class="btn btn-sm" id="change-email-btn" data-co-i18n="change_email">Change email</button>
+                                        <button type="button" class="btn btn-sm" id="confirm-email-btn" data-co-i18n="use_email" hidden>Use this email</button>
+                                        <small id="email-choice-status" data-co-i18n="email_choice_note_short">Choose the email to use for this order.</small>
+                                    </div>
+                                </div>
                                 <div class="checkout-otp-panel" id="email-code-panel" hidden>
                                     <div class="checkout-otp-inputs" data-otp-group="email" role="group" aria-label="Email verification code">
                                         <input class="form-input" type="text" inputmode="numeric" autocomplete="one-time-code" maxlength="1" aria-label="Email code digit 1">
@@ -735,7 +747,6 @@
                                 </div>
                                 <button type="button" class="checkout-text-action" id="send-checkout-codes-btn" data-co-i18n="send_codes" hidden>Send email code</button>
                             </div>
-                            <div id="verify-notice" class="checkout-verify-notice" data-co-i18n="verify_notice" hidden></div>
                         </div>
                     </section>
 
@@ -778,7 +789,7 @@
     </div>
 
     <script src="/js/api.js?v=20261112-paypal-recovery"></script>
-    <script src="/js/checkout.js?v=20261112-group-phone-box"></script>
+    <script src="/js/checkout.js?v=20261112-email-choice-actions"></script>
 </body>
 
 </html>
