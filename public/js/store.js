@@ -34,6 +34,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     updateCustomerNav();
     setupLangToggle();
     setupCart();
+    if (new URLSearchParams(location.search).get('cart') === 'open') openCart();
     createHeroParticles();
     document.addEventListener('langChange', () => { applyTranslations(); applyWhatsAppBarTranslation(); renderProducts(); renderCart(); renderCategories(); });
     const searchInput = document.getElementById('search-input');
