@@ -330,7 +330,6 @@ function setupLangToggle() {
 
 function setupCheckoutSteps() {
     const cartStep = document.getElementById('cart-step-content');
-    const accountStep = document.getElementById('account-step-card');
     const verifyStep = document.getElementById('verify-step-card');
     const verificationSummary = document.getElementById('verification-summary');
     const checkoutGrid = document.querySelector('.checkout-grid');
@@ -342,10 +341,9 @@ function setupCheckoutSteps() {
     const showStep = (activeStep) => {
         const customer = JSON.parse(localStorage.getItem('playora_customer') || 'null');
         cartStep.hidden = activeStep !== 1;
-        accountStep.hidden = activeStep !== 2 || Boolean(customer?.name);
-        verifyStep.hidden = customer?.name ? activeStep !== 3 : activeStep !== 2;
+        verifyStep.hidden = activeStep !== 2;
         paymentStep.hidden = activeStep !== 3;
-        verificationSummary.hidden = customer?.name ? activeStep !== 3 : activeStep !== 2;
+        verificationSummary.hidden = activeStep !== 2;
         checkoutGrid.classList.toggle('is-verifying', activeStep === 2);
         steps.forEach((step, index) => {
             const stepNumber = index + 1;
@@ -364,16 +362,19 @@ function setupCheckoutSteps() {
     };
 
     continueButton.addEventListener('click', () => {
-        const customer = JSON.parse(localStorage.getItem('playora_customer') || 'null');
         if (!checkoutSessionResolved) {
             showToast(ctr('account_required'), 'error');
             return;
         }
-        showStep(customer?.name ? 3 : 2);
+        const customer = JSON.parse(localStorage.getItem('playora_customer') || 'null');
+        if (!customer?.name) {
+            window.location.assign('/auth.html?next=%2Fcheckout.html');
+            return;
+        }
+        showStep(2);
     });
     backToVerifyButton.addEventListener('click', () => {
-        const customer = JSON.parse(localStorage.getItem('playora_customer') || 'null');
-        showStep(customer?.name ? 3 : 2);
+        showStep(2);
     });
     document.getElementById('continue-after-verification').addEventListener('click', () => {
         const customer = JSON.parse(localStorage.getItem('playora_customer') || 'null');
@@ -707,11 +708,7 @@ function renderPaymentSummary() {
 }
 
 function renderCheckoutAccount() {
-    const panel = document.getElementById('account-step-content');
-    if (!panel) return;
-
     if (!checkoutSessionResolved) {
-        panel.innerHTML = '<div class="checkout-account-panel"><div class="checkout-account-header"><h1 class="checkout-account-title">Account</h1></div><p class="checkout-account-subtitle">Loading your account…</p></div>';
         api.getCustomer().then(result => {
             checkoutSessionResolved = true;
             if (result.success && result.customer) {
@@ -720,8 +717,7 @@ function renderCheckoutAccount() {
                 const emailInput = document.getElementById('verify-email-address');
                 if (phoneInput && !phoneInput.dataset.initialized) phoneInput.value = result.customer.phone || '';
                 if (emailInput && !emailInput.dataset.initialized) emailInput.value = result.customer.email || '';
-            }
-            else {
+            } else {
                 localStorage.removeItem('playora_customer_token');
                 localStorage.removeItem('playora_customer');
             }
@@ -730,175 +726,15 @@ function renderCheckoutAccount() {
             checkoutSessionResolved = true;
             localStorage.removeItem('playora_customer_token');
             localStorage.removeItem('playora_customer');
-            renderCheckoutAccount();
         });
         return;
     }
 
     const customer = JSON.parse(localStorage.getItem('playora_customer') || 'null');
-    if (customer?.name) {
-        document.getElementById('account-step-card').hidden = true;
-        panel.innerHTML = `
-                <div class="checkout-account-panel">
-                    <div class="checkout-account-header">
-                        <h1 class="checkout-account-title">Account</h1>
-                    </div>
-                </div>
-            `;
-        renderVerificationPanel();
-        updateCheckoutVerificationStatus();
-        renderVerificationSummary();
-        return;
-    }
-
-    let authMode = 'login';
-    panel.innerHTML = `
-        <div class="checkout-account-panel">
-            <div class="checkout-account-header">
-                <h1 class="checkout-account-title">Account</h1>
-                <p class="checkout-account-subtitle">Sign in or create an account so we can deliver your codes to it.</p>
-            </div>
-            <div class="checkout-account-toggle" role="tablist" aria-label="Authentication mode">
-                <button type="button" class="active" data-auth-mode="login">Sign in</button>
-                <button type="button" data-auth-mode="register">Sign up</button>
-            </div>
-            <a href="/api/customer/google" class="checkout-google-button"><span class="checkout-google-mark">G</span> Continue with Google</a>
-            <div class="checkout-divider">OR</div>
-            <form id="checkout-auth-form" class="checkout-auth-form" novalidate>
-                <div class="checkout-field" id="checkout-name-field" hidden>
-                    <label for="checkout-name">Full name</label>
-                    <input id="checkout-name" class="checkout-input" placeholder="Full name" autocomplete="name">
-                </div>
-                <div class="checkout-field">
-                    <label for="checkout-email">Email address</label>
-                    <input id="checkout-email" class="checkout-input" type="email" placeholder="you@example.com" autocomplete="email" required>
-                </div>
-                <div class="checkout-field">
-                    <label for="checkout-password">Password</label>
-                    <div class="checkout-password-wrap">
-                        <input id="checkout-password" class="checkout-input" type="password" placeholder="At least 8 characters" autocomplete="current-password" required>
-                        <button type="button" class="checkout-password-toggle" aria-label="Show password" data-toggle-password>👁</button>
-                    </div>
-                </div>
-                <div class="checkout-field" id="checkout-verification-field" hidden>
-                    <label for="checkout-verification-code">Email verification code</label>
-                    <input id="checkout-verification-code" class="checkout-input" inputmode="numeric" autocomplete="one-time-code" maxlength="6" pattern="[0-9]{6}" placeholder="6-digit code">
-                    <button type="button" id="checkout-resend-verification" class="checkout-verify-action">Resend code</button>
-                </div>
-                <div id="checkout-auth-error" class="auth-error" hidden></div>
-                <button type="submit" class="btn btn-primary btn-lg checkout-auth-submit">Log in</button>
-            </form>
-        </div>
-    `;
-
-    const toggleButtons = panel.querySelectorAll('[data-auth-mode]');
-    const nameField = panel.querySelector('#checkout-name-field');
-    const verificationField = panel.querySelector('#checkout-verification-field');
-    const submitButton = panel.querySelector('[type="submit"]');
-    const form = panel.querySelector('#checkout-auth-form');
-    let pendingVerificationEmail = '';
-
-    const syncAuthMode = (mode) => {
-        authMode = mode;
-        toggleButtons.forEach(button => button.classList.toggle('active', button.dataset.authMode === mode));
-        nameField.hidden = mode !== 'register';
-        submitButton.textContent = mode === 'register' ? 'Create account' : 'Log in';
-        const nameInput = panel.querySelector('#checkout-name');
-        if (nameInput) nameInput.required = mode === 'register';
-    };
-
-    toggleButtons.forEach(button => {
-        button.addEventListener('click', () => syncAuthMode(button.dataset.authMode));
-    });
-
-    panel.querySelector('[data-toggle-password]').addEventListener('click', () => {
-        const passwordInput = panel.querySelector('#checkout-password');
-        passwordInput.type = passwordInput.type === 'password' ? 'text' : 'password';
-    });
-
-    panel.querySelector('#checkout-resend-verification').addEventListener('click', async () => {
-        const errorBox = panel.querySelector('#checkout-auth-error');
-        try {
-            const result = await api.resendCustomerVerification(pendingVerificationEmail);
-            if (!result.success) throw new Error(result.message || 'Could not resend the code.');
-            errorBox.textContent = currentLang === 'fr'
-                ? `Code envoyé à ${pendingVerificationEmail}. Vérifiez aussi le dossier Spam.`
-                : `Code sent to ${pendingVerificationEmail}. Check your Spam folder too.`;
-            errorBox.hidden = false;
-        } catch (error) {
-            errorBox.textContent = error.message || 'Could not resend the code.';
-            errorBox.hidden = false;
-        }
-    });
-
-    form.addEventListener('submit', async (event) => {
-        event.preventDefault();
-        const email = panel.querySelector('#checkout-email').value.trim();
-        const password = panel.querySelector('#checkout-password').value;
-        const name = panel.querySelector('#checkout-name')?.value.trim() || '';
-        const codeInput = panel.querySelector('#checkout-verification-code');
-        const errorBox = panel.querySelector('#checkout-auth-error');
-        const submit = panel.querySelector('[type="submit"]');
-
-        if (!pendingVerificationEmail && (!email || !password || (authMode === 'register' && name.length < 2))) {
-            errorBox.textContent = 'Please fill in all required fields.';
-            errorBox.hidden = false;
-            return;
-        }
-
-        submit.disabled = true;
-        submit.textContent = 'Please wait...';
-        errorBox.hidden = true;
-
-        try {
-            const result = pendingVerificationEmail
-                ? await api.verifyCustomerEmail(pendingVerificationEmail, codeInput.value.trim())
-                : (authMode === 'register'
-                    ? await api.customerRegister({ name, email, password })
-                    : await api.customerLogin({ email, password }));
-
-            if (!result.success) {
-                throw new Error(result.message || 'Could not sign in.');
-            }
-
-            if (result.verificationRequired) {
-                pendingVerificationEmail = result.email;
-                panel.querySelector('#checkout-email').value = result.email;
-                panel.querySelector('#checkout-email').readOnly = true;
-                panel.querySelector('#checkout-password').closest('.checkout-field').hidden = true;
-                nameField.hidden = true;
-                verificationField.hidden = false;
-                toggleButtons.forEach(button => { button.hidden = true; });
-                panel.querySelector('.checkout-google-button').hidden = true;
-                panel.querySelector('.checkout-divider').hidden = true;
-                codeInput.required = true;
-                submit.textContent = 'Verify and create account';
-                errorBox.textContent = currentLang === 'fr'
-                    ? `Code envoyé à ${result.email}. Vérifiez aussi le dossier Spam.`
-                    : `Code sent to ${result.email}. Check your Spam folder too.`;
-                errorBox.hidden = false;
-                submit.disabled = false;
-                return;
-            }
-
-            pendingVerificationEmail = '';
-            checkoutSessionResolved = true;
-            localStorage.removeItem('playora_customer_token');
-            localStorage.setItem('playora_customer', JSON.stringify(result.customer));
-            const phoneInput = document.getElementById('verify-phone');
-            const emailInput = document.getElementById('verify-email-address');
-            if (phoneInput && result.customer.phone) phoneInput.value = result.customer.phone;
-            if (emailInput && result.customer.email) emailInput.value = result.customer.email;
-            renderCheckoutAccount();
-        } catch (error) {
-            errorBox.textContent = error.message || 'Could not sign in.';
-            errorBox.hidden = false;
-            submit.disabled = false;
-            submit.textContent = authMode === 'register' ? 'Create account' : 'Log in';
-        }
-    });
-
-    syncAuthMode(authMode);
+    if (!customer?.name) return;
+    renderVerificationPanel();
+    updateCheckoutVerificationStatus();
+    renderVerificationSummary();
 }
 
 function setupForm() {
