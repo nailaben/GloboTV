@@ -343,9 +343,9 @@ function setupCheckoutSteps() {
         const customer = JSON.parse(localStorage.getItem('playora_customer') || 'null');
         cartStep.hidden = activeStep !== 1;
         accountStep.hidden = activeStep !== 2 || Boolean(customer?.name);
-        verifyStep.hidden = activeStep !== 2;
+        verifyStep.hidden = customer?.name ? activeStep !== 3 : activeStep !== 2;
         paymentStep.hidden = activeStep !== 3;
-        verificationSummary.hidden = activeStep !== 2;
+        verificationSummary.hidden = customer?.name ? activeStep !== 3 : activeStep !== 2;
         checkoutGrid.classList.toggle('is-verifying', activeStep === 2);
         steps.forEach((step, index) => {
             const stepNumber = index + 1;
@@ -363,8 +363,18 @@ function setupCheckoutSteps() {
         window.scrollTo({ top: 0, behavior: 'smooth' });
     };
 
-    continueButton.addEventListener('click', () => showStep(2));
-    backToVerifyButton.addEventListener('click', () => showStep(2));
+    continueButton.addEventListener('click', () => {
+        const customer = JSON.parse(localStorage.getItem('playora_customer') || 'null');
+        if (!checkoutSessionResolved) {
+            showToast(ctr('account_required'), 'error');
+            return;
+        }
+        showStep(customer?.name ? 3 : 2);
+    });
+    backToVerifyButton.addEventListener('click', () => {
+        const customer = JSON.parse(localStorage.getItem('playora_customer') || 'null');
+        showStep(customer?.name ? 3 : 2);
+    });
     document.getElementById('continue-after-verification').addEventListener('click', () => {
         const customer = JSON.parse(localStorage.getItem('playora_customer') || 'null');
         const phone = formatInternationalPhone().replace(/\s/g, '');
@@ -594,7 +604,7 @@ async function verifyCheckoutChannel(channel) {
             checkoutVerificationToken = result.token;
             checkoutNoticeKey = 'contacts_verified_notice';
             setCheckoutNotice('contacts_verified_notice');
-            document.getElementById('continue-after-verification').disabled = false;
+        document.getElementById('continue-after-verification').disabled = false;
             updateCheckoutVerificationActions();
             showToast(ctr('contacts_verified_notice'), 'success');
             return;
@@ -704,7 +714,13 @@ function renderCheckoutAccount() {
         panel.innerHTML = '<div class="checkout-account-panel"><div class="checkout-account-header"><h1 class="checkout-account-title">Account</h1></div><p class="checkout-account-subtitle">Loading your account…</p></div>';
         api.getCustomer().then(result => {
             checkoutSessionResolved = true;
-            if (result.success && result.customer) localStorage.setItem('playora_customer', JSON.stringify(result.customer));
+            if (result.success && result.customer) {
+                localStorage.setItem('playora_customer', JSON.stringify(result.customer));
+                const phoneInput = document.getElementById('verify-phone');
+                const emailInput = document.getElementById('verify-email-address');
+                if (phoneInput && !phoneInput.dataset.initialized) phoneInput.value = result.customer.phone || '';
+                if (emailInput && !emailInput.dataset.initialized) emailInput.value = result.customer.email || '';
+            }
             else {
                 localStorage.removeItem('playora_customer_token');
                 localStorage.removeItem('playora_customer');
@@ -869,6 +885,10 @@ function renderCheckoutAccount() {
             checkoutSessionResolved = true;
             localStorage.removeItem('playora_customer_token');
             localStorage.setItem('playora_customer', JSON.stringify(result.customer));
+            const phoneInput = document.getElementById('verify-phone');
+            const emailInput = document.getElementById('verify-email-address');
+            if (phoneInput && result.customer.phone) phoneInput.value = result.customer.phone;
+            if (emailInput && result.customer.email) emailInput.value = result.customer.email;
             renderCheckoutAccount();
         } catch (error) {
             errorBox.textContent = error.message || 'Could not sign in.';
