@@ -1,4 +1,4 @@
-const favCopy={en:{empty:'Your favorites list is empty',remove:'Remove',view:'View product',error:'Could not load products'},fr:{empty:'Votre liste de favoris est vide',remove:'Retirer',view:'Voir le produit',error:'Impossible de charger les produits'}};
+const favCopy={en:{empty:'Your favorites list is empty',remove:'Remove',view:'View product',error:'Could not load products'},fr:{empty:'Votre liste de favoris est vide',remove:'Retirer',view:'Voir le produit',error:'Impossible de charger les produits'},ar:{empty:'قائمة المفضلة فارغة',remove:'إزالة',view:'عرض المنتج',error:'تعذر تحميل المنتجات'}};
 initLang();setupLangToggle();function favText(){return favCopy[currentLang]||favCopy.en;}
 document.addEventListener('langChange',()=>{document.querySelectorAll('[data-en]').forEach(el=>el.textContent=el.dataset[currentLang]||el.dataset.en);if(window._favoriteProducts)renderFavorites(window._favoriteProducts);});
 function readFavorites(){try{const data=JSON.parse(localStorage.getItem('playora_liked_products')||'[]');return Array.isArray(data)?data.map(String):[];}catch{return[];}}

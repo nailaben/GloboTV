@@ -652,9 +652,9 @@
                                 <div class="checkout-verify-copy">
                                     <strong data-co-i18n="whatsapp_verification">Phone for this order</strong>
                                     <small id="verify-phone-value"></small>
-                                    <small id="verify-whatsapp-status" data-co-i18n="phone_order_note">Choose or confirm the phone number for this order.</small>
+                                    <small id="verify-whatsapp-status" data-co-i18n="phone_order_note" hidden>Choose or confirm the phone number for this order.</small>
                                 </div>
-                                <span class="checkout-verify-state" id="verify-whatsapp-required" data-co-i18n="required_state">Required</span>
+                                <span class="checkout-verify-state" id="verify-whatsapp-required" data-co-i18n="required_state" hidden>Required</span>
                                 <div class="checkout-otp-panel" id="whatsapp-code-panel" hidden>
                                     <div class="checkout-otp-inputs" data-otp-group="whatsapp" role="group" aria-label="WhatsApp verification code">
                                         <input class="form-input" type="text" inputmode="numeric" autocomplete="one-time-code" maxlength="1" aria-label="WhatsApp code digit 1">
@@ -708,45 +708,21 @@
                                     </select>
                                     <input class="form-input" id="verify-phone" type="tel" autocomplete="tel-national" data-co-placeholder="phone_placeholder" placeholder="e.g. 0555123456">
                                 </div>
-                                <div class="checkout-phone-actions">
-                                    <button type="button" class="btn btn-sm" id="keep-phone-btn" data-co-i18n="keep_phone">Keep this number</button>
-                                    <button type="button" class="btn btn-sm" id="change-phone-btn" data-co-i18n="change_phone">Change number</button>
-                                    <button type="button" class="btn btn-sm" id="confirm-phone-btn" data-co-i18n="use_phone" hidden>Use this number</button>
-                                    <small id="phone-choice-status" data-co-i18n="phone_choice_note">Choose the number to use for this order.</small>
-                                </div>
                             </div>
                             </div>
                             <div class="checkout-verify-card" id="verify-email-card">
                                 <span class="checkout-verify-icon" aria-hidden="true">2</span>
                                 <div class="checkout-verify-copy">
                                     <strong data-co-i18n="email_verification">Email verification</strong>
-                                    <small id="verify-email-value"></small>
-                                    <small data-co-i18n="email_choice_note">Your email is verified when you create your account.</small>
-                                    <small id="verify-email-status" data-co-i18n="email_waiting">Waiting to send a code</small>
+                                    <small id="verify-email-value" hidden></small>
+                                    <small data-co-i18n="email_choice_note" hidden>Your email is verified when you create your account.</small>
+                                    <small id="verify-email-status" data-co-i18n="email_verified_status" hidden>Email is ready to use.</small>
                                 </div>
-                                <span class="checkout-verify-state" id="verify-email-required" data-co-i18n="required_state">Required</span>
+                                <span class="checkout-verify-state" id="verify-email-required" data-co-i18n="required_state" hidden>Required</span>
                                 <div class="checkout-email-entry">
                                     <label class="form-label" for="verify-email-address" data-co-i18n="email_label">Email</label>
-                                    <input class="form-input" id="verify-email-address" type="email" autocomplete="email" readonly>
-                                    <div class="checkout-phone-actions">
-                                        <button type="button" class="btn btn-sm" id="keep-email-btn" data-co-i18n="keep_email">Keep this email</button>
-                                        <button type="button" class="btn btn-sm" id="change-email-btn" data-co-i18n="change_email">Change email</button>
-                                        <button type="button" class="btn btn-sm" id="confirm-email-btn" data-co-i18n="use_email" hidden>Use this email</button>
-                                        <small id="email-choice-status" data-co-i18n="email_choice_note_short">Choose the email to use for this order.</small>
-                                    </div>
+                                    <input class="form-input" id="verify-email-address" type="email" autocomplete="email">
                                 </div>
-                                <div class="checkout-otp-panel" id="email-code-panel" hidden>
-                                    <div class="checkout-otp-inputs" data-otp-group="email" role="group" aria-label="Email verification code">
-                                        <input class="form-input" type="text" inputmode="numeric" autocomplete="one-time-code" maxlength="1" aria-label="Email code digit 1">
-                                        <input class="form-input" type="text" inputmode="numeric" maxlength="1" aria-label="Email code digit 2">
-                                        <input class="form-input" type="text" inputmode="numeric" maxlength="1" aria-label="Email code digit 3">
-                                        <input class="form-input" type="text" inputmode="numeric" maxlength="1" aria-label="Email code digit 4">
-                                        <input class="form-input" type="text" inputmode="numeric" maxlength="1" aria-label="Email code digit 5">
-                                        <input class="form-input" type="text" inputmode="numeric" maxlength="1" aria-label="Email code digit 6">
-                                    </div>
-                                    <button type="button" class="btn btn-primary checkout-otp-verify" id="verify-email-code-btn" data-co-i18n="verify_email" hidden>Verify email</button>
-                                </div>
-                                <button type="button" class="checkout-text-action" id="send-checkout-codes-btn" data-co-i18n="send_codes" hidden>Send email code</button>
                             </div>
                         </div>
                     </section>

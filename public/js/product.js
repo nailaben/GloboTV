@@ -25,6 +25,17 @@ const productCopy = {
         reviewsTitle: 'Avis clients', reviewsText: 'Ce produit n’a pas encore d’avis.',
         relatedTitle: 'Vous aimerez aussi',
         like: 'Ajouter aux favoris', unlike: 'Retirer des favoris',
+    },
+    ar: {
+        home: 'الرئيسية', shop: 'المتجر', signin: 'تسجيل الدخول', search: 'ابحث عن منتج أو علامة…',
+        instant: 'توصيل فوري', select: 'اختر العرض', item: 'المنتج', plan: 'الخطة', cart: 'أضف إلى السلة',
+        added: 'أُضيف إلى السلة', stock: 'متوفر — جاهز للإرسال', out: 'نفد المخزون',
+        noOffers: 'العروض غير متاحة حالياً. يرجى التواصل مع البائع.', failed: 'تعذر تحميل هذا المنتج.',
+        secure: 'دفع آمن', support: 'دعم على مدار الساعة', instantTrust: 'توصيل فوري', available: 'متاح فوراً', help: 'نحن هنا لمساعدتك',
+        descriptionTab: 'الوصف', deliveryTab: 'التوصيل', reviewsTab: 'التقييمات', descriptionTitle: 'تفاصيل المنتج',
+        deliveryTitle: 'معلومات التوصيل', deliveryText: 'سيتم تجهيز عرضك الرقمي للتوصيل بعد تأكيد الطلب.',
+        reviewsTitle: 'آراء العملاء', reviewsText: 'لا توجد تقييمات لهذا المنتج بعد.', relatedTitle: 'قد يعجبك أيضاً',
+        like: 'أضف إلى المفضلة', unlike: 'أزل من المفضلة',
     }
 };
 

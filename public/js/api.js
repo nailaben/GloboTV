@@ -295,18 +295,30 @@ function getCartCount() {
 function clearCart() { localStorage.removeItem('playora_cart'); }
 
 // ---- Language ----
-const supportedLanguages = ['en', 'fr'];
-const languageNames = { fr: 'Français', en: 'English' };
+const supportedLanguages = ['en', 'fr', 'ar'];
+const languageNames = { fr: 'Français', en: 'English', ar: 'العربية' };
+function detectPreferredLanguage() {
+    const browserLanguages = navigator.languages?.length ? navigator.languages : [navigator.language || ''];
+    for (const browserLanguage of browserLanguages) {
+        const code = String(browserLanguage).toLowerCase().split(/[-_]/)[0];
+        if (code === 'ar' || code === 'fr' || code === 'en') return code;
+    }
+    return 'en';
+}
 let currentLang = supportedLanguages.includes(localStorage.getItem('playora_lang'))
     ? localStorage.getItem('playora_lang')
-    : 'fr';
+    : detectPreferredLanguage();
 
 function setLang(lang) {
     if (!supportedLanguages.includes(lang)) return;
     currentLang = lang;
     localStorage.setItem('playora_lang', lang);
     document.documentElement.lang = lang;
-    document.body.dir = 'ltr';
+    document.body.dir = lang === 'ar' ? 'rtl' : 'ltr';
+    document.querySelectorAll('select.language-select').forEach(select => {
+        const hasLanguage = [...select.options].some(option => option.value === lang);
+        if (!hasLanguage) select.add(new Option(languageNames[lang] || lang, lang));
+    });
     document.querySelectorAll('.language-select').forEach(select => { select.value = lang; });
     document.dispatchEvent(new CustomEvent('langChange', { detail: lang }));
 }
@@ -320,7 +332,7 @@ function t(en, fr = en) { return currentLang === 'fr' ? fr : en; }
 
 function initLang() {
     const savedLanguage = localStorage.getItem('playora_lang');
-    const lang = supportedLanguages.includes(savedLanguage) ? savedLanguage : 'fr';
+    const lang = supportedLanguages.includes(savedLanguage) ? savedLanguage : detectPreferredLanguage();
     setLang(lang);
 }
 

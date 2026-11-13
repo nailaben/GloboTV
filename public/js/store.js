@@ -58,10 +58,15 @@ function applyWhatsAppBarTranslation() {
     const copy = bar.querySelector('.whatsapp-top-bar-copy');
     const title = copy?.querySelector('strong');
     const action = bar.querySelector('.whatsapp-top-bar-cta span:last-child');
-    const french = currentLang === 'fr';
-    if (title) title.textContent = french ? 'Contactez-nous sur WhatsApp' : 'Contact us on WhatsApp';
-    if (action) action.textContent = french ? 'Envoyer un message' : 'Send a message';
-    bar.setAttribute('aria-label', french ? 'Contactez-nous sur WhatsApp' : 'Contact us on WhatsApp');
+    const copyByLanguage = {
+        en: ['Contact us on WhatsApp', 'Send a message'],
+        fr: ['Contactez-nous sur WhatsApp', 'Envoyer un message'],
+        ar: ['تواصل معنا عبر واتساب', 'أرسل رسالة']
+    };
+    const [label, actionLabel] = copyByLanguage[currentLang] || copyByLanguage.en;
+    if (title) title.textContent = label;
+    if (action) action.textContent = actionLabel;
+    bar.setAttribute('aria-label', label);
 }
 
 // ---- Translations ----
@@ -135,6 +140,20 @@ const i18n = {
         footer_desc: 'Votre destination rapide et fiable pour des cartes numériques au meilleur prix',
         quick_links: 'Liens rapides', home: 'Accueil', support: 'Assistance', contact: 'Nous contacter',
         privacy: 'Politique de confidentialité', terms: 'Conditions d’utilisation', copyright: '© 2024 GloboTV. Tous droits réservés.', remove: 'Retirer cet article',
+    },
+    ar: {
+        hero_badge: 'وجهتك الأسرع للبطاقات الرقمية', hero_title_1: 'اكتشف عالم', hero_title_2: 'اشتراكات IPTV',
+        shop_now: 'تسوق الآن', explore_cats: 'اكتشف الفئات', all_products: 'جميع المنتجات', new_arrivals: 'المنتجات',
+        out_of_stock: 'نفد المخزون', add_to_cart: 'أضف إلى السلة', cart_title: 'سلة التسوق', cart_empty: 'سلة التسوق فارغة',
+        checkout: 'إتمام الطلب', subtotal: 'المجموع الفرعي', total: 'الإجمالي', products_label: 'المنتجات',
+        orders_label: 'الطلبات المكتملة', customers_label: 'عملاء سعداء', loading: 'جارٍ التحميل…',
+        no_products: 'لم يتم العثور على منتجات', view_all_results: 'عرض كل النتائج', search_placeholder: 'ابحث عن منتج…',
+        store_link: 'المتجر', sign_in: 'تسجيل الدخول', my_account: 'حسابي', cart_added: ' تمت الإضافة إلى السلة',
+        connection_error: 'تعذر الاتصال بالخادم', like_product: 'أضف إلى المفضلة', unlike_product: 'أزل من المفضلة',
+        liked_product: 'أضيف إلى المفضلة', unliked_product: 'أزيل من المفضلة',
+        footer_desc: 'وجهتك السريعة والموثوقة للبطاقات الرقمية بأسعار رائعة', quick_links: 'روابط سريعة',
+        home: 'الرئيسية', support: 'الدعم', contact: 'اتصل بنا', privacy: 'سياسة الخصوصية', terms: 'شروط الاستخدام',
+        copyright: '© 2024 GloboTV. جميع الحقوق محفوظة.', remove: 'إزالة المنتج'
     }
 };
 
@@ -179,15 +198,7 @@ function setupNavbar() {
 
     const searchInput = document.getElementById('search-input');
     const searchDropdown = document.getElementById('search-dropdown');
-    const searchToggle = document.getElementById('product-search-toggle');
     let searchDebounce;
-
-    searchToggle?.addEventListener('click', () => {
-        const search = document.getElementById('product-nav-search');
-        const isOpen = search?.classList.toggle('is-open') || false;
-        searchToggle.setAttribute('aria-expanded', String(isOpen));
-        if (isOpen) searchInput?.focus();
-    });
 
     function renderSearchDropdown(query) {
         if (!searchDropdown) return;
@@ -280,10 +291,8 @@ function setupNavbar() {
     }
 
     document.addEventListener('click', (e) => {
-        if (!e.target.closest('#product-nav-search') && !e.target.closest('#product-search-toggle')) {
+        if (!e.target.closest('#product-nav-search')) {
             searchDropdown?.classList.remove('is-open');
-            document.getElementById('product-nav-search')?.classList.remove('is-open');
-            searchToggle?.setAttribute('aria-expanded', 'false');
         }
     });
 }

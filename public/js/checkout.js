@@ -18,8 +18,6 @@ document.addEventListener('DOMContentLoaded', () => {
         renderPaymentSummary();
         renderVerificationSummary();
         renderCheckoutAccount();
-        updatePhoneChoiceActions();
-        updateEmailChoiceActions();
         updateCheckoutVerificationStatus();
         updateCheckoutVerificationActions();
     });
@@ -413,23 +411,7 @@ let checkoutEmailEditing = false;
 let checkoutEmailChoiceConfirmed = false;
 
 function updateCheckoutVerificationActions() {
-    const sendButton = document.getElementById('send-checkout-codes-btn');
-    if (!sendButton) return;
-    if (!checkoutCodesSent) {
-        sendButton.hidden = true;
-        const seconds = Math.max(0, Math.ceil((checkoutResendUntil - Date.now()) / 1000));
-        sendButton.textContent = seconds
-            ? ctr('resend_in').replace('{seconds}', String(seconds))
-            : ctr('send_codes');
-        sendButton.disabled = seconds > 0;
-        return;
-    }
-    sendButton.hidden = true;
-    const seconds = Math.max(0, Math.ceil((checkoutResendUntil - Date.now()) / 1000));
-    sendButton.textContent = seconds
-        ? ctr('resend_in').replace('{seconds}', String(seconds))
-        : ctr('resend_code');
-    sendButton.disabled = seconds > 0;
+    // Checkout contacts are entered directly; no verification-code action is shown.
 }
 
 function renderVerificationPanel() {
@@ -463,18 +445,15 @@ function renderVerificationPanel() {
         checkoutPhoneSnapshot = phoneInput.value ? { country: countrySelect.value, number: phoneInput.value } : null;
         checkoutPhoneEditing = !phoneInput.value;
         checkoutPhoneChoiceConfirmed = false;
-        phoneInput.readOnly = !checkoutPhoneEditing;
-        countrySelect.disabled = !checkoutPhoneEditing;
+        phoneInput.readOnly = false;
+        countrySelect.disabled = false;
         phoneInput.dataset.initialized = 'true';
-        updatePhoneChoiceActions();
     }
     if (phoneInput.value && !checkoutPhoneSnapshot) {
         const phone = formatInternationalPhone().replace(/\s/g, '');
         if (/^\+[1-9]\d{7,14}$/.test(phone)) {
             checkoutPhoneSnapshot = { country: countrySelect.value, number: phoneInput.value };
             checkoutPhoneChoiceConfirmed = true;
-            phoneInput.readOnly = true;
-            countrySelect.disabled = true;
         }
     }
     document.getElementById('verify-email-value').textContent = emailInput.value || customer.email || '—';
@@ -491,189 +470,36 @@ function formatInternationalPhone() {
 function setupContactConfirmation() {
     const phoneInput = document.getElementById('verify-phone');
     const countrySelect = document.getElementById('verify-country-code');
-    const keepButton = document.getElementById('keep-phone-btn');
-    const changeButton = document.getElementById('change-phone-btn');
-    const confirmButton = document.getElementById('confirm-phone-btn');
     const emailInput = document.getElementById('verify-email-address');
-    const keepEmailButton = document.getElementById('keep-email-btn');
-    const changeEmailButton = document.getElementById('change-email-btn');
-    const confirmEmailButton = document.getElementById('confirm-email-btn');
-
-    const selectPhone = () => {
+    const updatePhone = () => {
         const phone = formatInternationalPhone().replace(/\s/g, '');
-        if (!/^\+[1-9]\d{7,14}$/.test(phone)) return false;
-        checkoutPhoneSnapshot = { country: countrySelect.value, number: phoneInput.value };
-        checkoutPhoneEditing = false;
-        checkoutPhoneChoiceConfirmed = true;
-        phoneInput.readOnly = true;
-        countrySelect.disabled = true;
-        document.getElementById('verify-phone-value').textContent = formatInternationalPhone();
-        updatePhoneChoiceActions();
-        updateCheckoutVerificationActions();
-        updateCheckoutVerificationStatus();
-        return true;
-    };
-    keepButton.addEventListener('click', () => {
-        if (checkoutPhoneEditing && checkoutPhoneSnapshot) {
-            countrySelect.value = checkoutPhoneSnapshot.country;
-            phoneInput.value = checkoutPhoneSnapshot.number;
-        }
-        checkoutPhoneEditing = false;
-        checkoutPhoneChoiceConfirmed = true;
-        phoneInput.readOnly = true;
-        countrySelect.disabled = true;
-        document.getElementById('verify-phone-value').textContent = formatInternationalPhone();
-        checkoutEmailChoiceConfirmed = true;
-        checkoutEmailVerified = true;
-        updateEmailChoiceActions();
-        updatePhoneChoiceActions();
-        updateCheckoutVerificationActions();
-        updateCheckoutVerificationStatus();
-    });
-    changeButton.addEventListener('click', () => {
-        checkoutPhoneEditing = true;
-        checkoutPhoneChoiceConfirmed = false;
-        phoneInput.readOnly = false;
-        countrySelect.disabled = false;
-        updatePhoneChoiceActions();
-        updateCheckoutVerificationActions();
-        updateCheckoutVerificationStatus();
-        phoneInput.focus();
-        emailInput.focus();
-    });
-    confirmButton.addEventListener('click', () => {
-        if (!selectPhone()) {
-            showToast(ctr('verify_contact_error'), 'error');
-            phoneInput.focus();
-        }
-    });
-    const resetPhoneChoice = () => {
-        checkoutPhoneChoiceConfirmed = false;
+        checkoutPhoneChoiceConfirmed = /^\+[1-9]\d{7,14}$/.test(phone);
+        checkoutPhoneSnapshot = checkoutPhoneChoiceConfirmed ? { country: countrySelect.value, number: phoneInput.value } : null;
         document.getElementById('verify-phone-value').textContent = formatInternationalPhone();
         updateCheckoutVerificationActions();
-        updatePhoneChoiceActions();
         updateCheckoutVerificationStatus();
     };
-    phoneInput.addEventListener('input', () => {
-        checkoutPhoneChoiceConfirmed = false;
-        checkoutPhoneEditing = true;
-        phoneInput.readOnly = false;
-        updatePhoneChoiceActions();
-        const national = phoneInput.value.replace(/\D/g, '').replace(/^0/, '');
-        if (national.length >= 7 && national.length <= 15) {
-            selectPhone();
-        } else {
-            document.getElementById('verify-phone-value').textContent = formatInternationalPhone();
-            updateCheckoutVerificationActions();
-            updateCheckoutVerificationStatus();
-        }
-    });
-    countrySelect.addEventListener('change', () => {
-        resetPhoneChoice();
-        const phone = formatInternationalPhone().replace(/\s/g, '');
-        if (/^\+[1-9]\d{7,14}$/.test(phone)) selectPhone();
-    });
-
-    keepEmailButton.addEventListener('click', () => {
-        if (checkoutEmailEditing && checkoutEmailSnapshot) emailInput.value = checkoutEmailSnapshot;
-        checkoutEmailEditing = false;
-        checkoutEmailChoiceConfirmed = true;
-        checkoutEmailVerified = true;
-        checkoutCanResend = !checkoutEmailVerified;
-        emailInput.readOnly = true;
-        document.getElementById('verify-email-value').textContent = emailInput.value;
-        updateEmailChoiceActions();
-        updateCheckoutVerificationActions();
-        updateCheckoutVerificationStatus();
-    });
-    changeEmailButton.addEventListener('click', () => {
-        checkoutEmailEditing = true;
-        checkoutEmailChoiceConfirmed = false;
-        checkoutEmailVerified = false;
-        checkoutCanResend = false;
-        emailInput.readOnly = false;
-        updateEmailChoiceActions();
-        updateCheckoutVerificationActions();
-        updateCheckoutVerificationStatus();
-        emailInput.focus();
-    });
-    confirmEmailButton.addEventListener('click', () => {
-        const email = emailInput.value.trim().toLowerCase();
-        if (!/^\S+@\S+\.\S+$/.test(email)) {
-            showToast(ctr('invalid_email'), 'error');
-            emailInput.focus();
-            return;
-        }
-        checkoutEmailSnapshot = email;
-        checkoutEmailEditing = false;
-        checkoutEmailChoiceConfirmed = true;
-        checkoutEmailVerified = true;
-        checkoutCanResend = false;
-        emailInput.readOnly = true;
-        document.getElementById('verify-email-value').textContent = email;
-        checkoutCodesSent = false;
-        checkoutEmailSent = false;
-        checkoutVerificationToken = null;
-        document.getElementById('email-code-panel').hidden = true;
-        document.getElementById('verify-email-status').textContent = ctr('email_verified_status');
-        updateEmailChoiceActions();
-        updateCheckoutVerificationActions();
-        updateCheckoutVerificationStatus();
-    });
-    emailInput.addEventListener('input', () => {
+    const updateEmail = () => {
         const email = emailInput.value.trim().toLowerCase();
         checkoutEmailChoiceConfirmed = /^\S+@\S+\.\S+$/.test(email);
         checkoutEmailVerified = checkoutEmailChoiceConfirmed;
-        if (checkoutEmailChoiceConfirmed) {
-            checkoutEmailSnapshot = email;
-            document.getElementById('verify-email-value').textContent = email;
-            checkoutEmailEditing = false;
-            emailInput.readOnly = true;
-        } else {
-            checkoutEmailVerified = false;
-        }
-        updateEmailChoiceActions();
+        checkoutEmailSnapshot = checkoutEmailChoiceConfirmed ? email : '';
+        document.getElementById('verify-email-value').textContent = email || '—';
         updateCheckoutVerificationActions();
         updateCheckoutVerificationStatus();
-    });
-}
-
-function updatePhoneChoiceActions() {
-    const keepButton = document.getElementById('keep-phone-btn');
-    const changeButton = document.getElementById('change-phone-btn');
-    const confirmButton = document.getElementById('confirm-phone-btn');
-    const status = document.getElementById('phone-choice-status');
-    if (!keepButton || !changeButton || !confirmButton || !status) return;
-
-    keepButton.hidden = !checkoutPhoneSnapshot || checkoutPhoneEditing || checkoutPhoneChoiceConfirmed;
-    changeButton.hidden = !checkoutPhoneSnapshot || checkoutPhoneEditing;
-    confirmButton.hidden = true;
-    status.textContent = ctr(checkoutPhoneChoiceConfirmed
-        ? 'phone_selected_note'
-        : checkoutPhoneEditing ? 'phone_edit_note' : 'phone_choice_note');
-}
-
-function updateEmailChoiceActions() {
-    const keepButton = document.getElementById('keep-email-btn');
-    const changeButton = document.getElementById('change-email-btn');
-    const confirmButton = document.getElementById('confirm-email-btn');
-    const status = document.getElementById('email-choice-status');
-    const input = document.getElementById('verify-email-address');
-    if (!keepButton || !changeButton || !confirmButton || !status || !input) return;
-    keepButton.hidden = !checkoutEmailSnapshot || checkoutEmailEditing || checkoutEmailChoiceConfirmed;
-    changeButton.hidden = !checkoutEmailSnapshot || checkoutEmailEditing;
-    confirmButton.hidden = true;
-    status.textContent = ctr(checkoutEmailChoiceConfirmed
-        ? 'email_choice_selected'
-        : checkoutEmailEditing ? 'email_choice_edit' : 'email_choice_note_short');
+    };
+    phoneInput.readOnly = false;
+    countrySelect.disabled = false;
+    emailInput.readOnly = false;
+    phoneInput.addEventListener('input', updatePhone);
+    countrySelect.addEventListener('change', updatePhone);
+    emailInput.addEventListener('input', updateEmail);
+    updatePhone();
+    updateEmail();
 }
 
 async function requestCheckoutCodes() {
-    const sendButton = document.getElementById('send-checkout-codes-btn');
-    const phoneInput = document.getElementById('verify-phone');
-    sendButton.hidden = true;
-    sendButton.disabled = true;
-    phoneInput.focus();
+    return;
 }
 
 function startCheckoutResendTimer() {
@@ -807,14 +633,12 @@ function updateCheckoutVerifiedIndicators() {
 
 function updateCheckoutVerificationStatus() {
     const contactsConfirmed = checkoutPhoneChoiceConfirmed && checkoutEmailChoiceConfirmed;
-    document.getElementById('verify-email-status').textContent = checkoutEmailVerified
-        ? ctr('email_verified_status')
-            : ctr('email_verified_status');
-    document.getElementById('verify-whatsapp-status').textContent = ctr('phone_order_note');
-    document.getElementById('verify-email-required').textContent = ctr(contactsConfirmed ? 'verified_state' : 'required_state');
-    document.getElementById('verify-whatsapp-required').textContent = ctr(contactsConfirmed ? 'verified_state' : 'required_state');
-    document.getElementById('email-code-panel').hidden = true;
-    document.getElementById('whatsapp-code-panel').hidden = true;
+    document.getElementById('verify-email-status').hidden = true;
+    document.getElementById('verify-whatsapp-status').hidden = true;
+    document.getElementById('verify-email-required').hidden = true;
+    document.getElementById('verify-whatsapp-required').hidden = true;
+    document.getElementById('email-code-panel')?.setAttribute('hidden', '');
+    document.getElementById('whatsapp-code-panel')?.setAttribute('hidden', '');
     setCheckoutNotice('verify_notice');
     const customer = JSON.parse(localStorage.getItem('playora_customer') || 'null');
     const email = document.getElementById('verify-email-address').value.trim();
