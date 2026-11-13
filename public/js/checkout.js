@@ -4,6 +4,7 @@
 
 document.addEventListener('DOMContentLoaded', () => {
     initLang();
+    populateCheckoutCountrySelects();
     applyCheckoutTranslations();
     setupLangToggle();
     renderOrderSummary();
@@ -13,6 +14,7 @@ document.addEventListener('DOMContentLoaded', () => {
     setupForm();
     showPaymentReturnNotice();
     document.addEventListener('langChange', () => {
+        populateCheckoutCountrySelects();
         applyCheckoutTranslations();
         renderOrderSummary();
         renderPaymentSummary();
@@ -59,7 +61,7 @@ const checkoutI18n = {
         verify_whatsapp: 'Verify WhatsApp',
         resend_code: 'Resend code',
         enter_six_digit_code: 'Enter the 6-digit code sent to your email.',
-        verification_summary_note: 'Your email is verified when you create your account. Choose the phone number for this order.',
+        verification_summary_note: 'Review or update the phone number and email address for your order.',
         item_count: '{count} item(s)',
         send_codes: 'Send email code',
         resend_codes: 'Resend email code',
@@ -104,6 +106,9 @@ const checkoutI18n = {
         full_name: 'Full Name',
         phone: 'Phone Number',
         email: 'Email Address',
+        country_calling_code: 'Country calling code',
+        saving_contact_details: 'Saving contact details…',
+        contact_save_failed: 'Could not save your contact details. Please try again.',
         notes: 'Notes (Optional)',
         place_order: 'Continue to payment',
         subtotal: 'Subtotal',
@@ -158,7 +163,7 @@ const checkoutI18n = {
         verify_whatsapp: 'Vérifier WhatsApp',
         resend_code: 'Renvoyer le code',
         enter_six_digit_code: 'Saisissez le code à 6 chiffres envoyé par e-mail.',
-        verification_summary_note: 'Votre e-mail est vérifié lors de la création du compte. Choisissez le numéro de téléphone pour cette commande.',
+        verification_summary_note: 'Vérifiez ou modifiez le numéro de téléphone et l’adresse e-mail de votre commande.',
         item_count: '{count} article(s)',
         send_codes: 'Envoyer le code e-mail',
         resend_codes: 'Renvoyer le code e-mail',
@@ -203,6 +208,9 @@ const checkoutI18n = {
         full_name: 'Nom complet',
         phone: 'Téléphone',
         email: 'Adresse e-mail',
+        country_calling_code: 'Indicatif téléphonique du pays',
+        saving_contact_details: 'Enregistrement des coordonnées…',
+        contact_save_failed: 'Impossible d’enregistrer vos coordonnées. Réessayez.',
         notes: 'Remarques (facultatif)',
         place_order: 'Continuer vers le paiement',
         subtotal: 'Sous-total',
@@ -239,6 +247,16 @@ function applyCheckoutTranslations() {
     });
     document.querySelectorAll('[data-co-placeholder]').forEach(el => {
         el.placeholder = ctr(el.getAttribute('data-co-placeholder'));
+    });
+    document.querySelectorAll('[data-co-aria-label]').forEach(el => {
+        el.setAttribute('aria-label', ctr(el.getAttribute('data-co-aria-label')));
+    });
+}
+
+function populateCheckoutCountrySelects() {
+    ['account-country-code', 'verify-country-code'].forEach(id => {
+        const select = document.getElementById(id);
+        if (select) window.populateCallingCodeSelect(select, currentLang || 'en');
     });
 }
 
@@ -373,18 +391,52 @@ function setupCheckoutSteps() {
         renderAccountConfirmation(customer);
         showStep(2);
     });
-    document.getElementById('confirm-account-continue').addEventListener('click', () => {
+    document.getElementById('confirm-account-continue').addEventListener('click', async event => {
         const customer = JSON.parse(localStorage.getItem('playora_customer') || 'null');
         if (!customer?.name || !customer?.email) {
             window.location.assign('/auth.html?next=%2Fcheckout.html');
             return;
         }
-        if (customer.phone) document.getElementById('verify-phone').value = customer.phone;
-        document.getElementById('verify-email-address').value = customer.email;
-        renderVerificationPanel();
-        updateCheckoutVerificationStatus();
-        renderPaymentSummary();
-        showStep(3);
+        const error = document.getElementById('account-contact-error');
+        const button = event.currentTarget;
+        const buttonLabel = button.querySelector('[data-co-i18n]');
+        const email = document.getElementById('account-email').value.trim().toLowerCase();
+        const phone = formatAccountInternationalPhone();
+
+        error.hidden = true;
+        if (!/^\S+@\S+\.\S+$/.test(email)) {
+            error.textContent = ctr('invalid_email');
+            error.hidden = false;
+            return;
+        }
+        if (!/^\+[1-9]\d{7,14}$/.test(phone)) {
+            error.textContent = ctr('invalid_phone');
+            error.hidden = false;
+            return;
+        }
+
+        button.disabled = true;
+        buttonLabel.textContent = ctr('saving_contact_details');
+        try {
+            const result = await api.updateCustomer({ name: customer.name, email, phone });
+            if (!result.success || !result.customer) throw new Error(result.message || ctr('contact_save_failed'));
+
+            localStorage.setItem('playora_customer', JSON.stringify(result.customer));
+            const phoneParts = parseInternationalPhone(result.customer.phone);
+            document.getElementById('verify-country-code').value = phoneParts.countryCode;
+            document.getElementById('verify-phone').value = phoneParts.nationalNumber;
+            document.getElementById('verify-email-address').value = result.customer.email;
+            renderVerificationPanel();
+            updateCheckoutVerificationStatus();
+            renderPaymentSummary();
+            showStep(3);
+        } catch (err) {
+            error.textContent = err.message || ctr('contact_save_failed');
+            error.hidden = false;
+        } finally {
+            button.disabled = false;
+            buttonLabel.textContent = ctr('continue_to_payment');
+        }
     });
     backToVerifyButton.addEventListener('click', () => showStep(2));
     document.getElementById('continue-after-verification').addEventListener('click', () => {
@@ -741,10 +793,36 @@ function renderPaymentSummary() {
     document.getElementById('payment-total').textContent = formattedTotal;
 }
 
+function parseInternationalPhone(phone) {
+    const normalized = String(phone || '').replace(/[\s()-]/g, '');
+    const match = window.callingCountries
+        .map(([region, dialCode]) => ({ region, countryCode: `+${dialCode}`, dialCode }))
+        .filter(country => normalized.startsWith(country.countryCode))
+        .sort((a, b) => b.dialCode.length - a.dialCode.length)[0];
+
+    return match
+        ? { countryCode: match.countryCode, nationalNumber: normalized.slice(match.countryCode.length).replace(/\D/g, '') }
+        : { countryCode: '+213', nationalNumber: normalized.replace(/\D/g, '') };
+}
+
+function formatAccountInternationalPhone() {
+    const countryCode = document.getElementById('account-country-code').value;
+    let nationalNumber = document.getElementById('account-phone').value.replace(/\D/g, '');
+    if (nationalNumber.startsWith('0')) nationalNumber = nationalNumber.slice(1);
+    return `${countryCode}${nationalNumber}`;
+}
+
 function renderAccountConfirmation(customer) {
-    const phone = String(customer.phone || '').trim();
-    document.getElementById('account-confirmation-phone').textContent = phone || '—';
-    document.getElementById('account-confirmation-email').textContent = String(customer.email || '').trim() || '—';
+    const phoneInput = document.getElementById('account-phone');
+    const countrySelect = document.getElementById('account-country-code');
+    const emailInput = document.getElementById('account-email');
+    if (phoneInput.dataset.initialized) return;
+
+    const phoneParts = parseInternationalPhone(customer.phone);
+    countrySelect.value = phoneParts.countryCode;
+    phoneInput.value = phoneParts.nationalNumber;
+    emailInput.value = String(customer.email || '').trim();
+    phoneInput.dataset.initialized = 'true';
 }
 
 function renderCheckoutAccount() {

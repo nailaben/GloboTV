@@ -199,15 +199,9 @@
             min-height: 340px;
         }
 
-        .checkout-confirmation-value {
-            margin: .5rem 0 1.25rem;
-            padding: .9rem 1rem;
-            border: 1px solid var(--border-light);
-            border-radius: var(--radius-md);
-            color: var(--text-primary);
-            background: rgba(255,255,255,.025);
-            overflow-wrap: anywhere;
-        }
+        .checkout-account-confirmation .checkout-phone-input { margin-bottom: 1.25rem; }
+        .checkout-account-confirmation .checkout-phone-input .form-input { min-width: 0; }
+        .checkout-account-confirmation .checkout-contact-error { margin: .75rem 0; color: #fca5a5; }
 
         .order-summary-card {
             max-width: 760px;
@@ -653,13 +647,17 @@
                                 <p data-co-i18n="verification_summary_note">Check the contact details saved to your account.</p>
                             </header>
                             <div class="form-group">
-                                <label class="form-label" data-co-i18n="phone">Phone Number</label>
-                                <p class="checkout-confirmation-value" id="account-confirmation-phone">—</p>
+                                <label class="form-label" for="account-phone" data-co-i18n="phone">Phone Number</label>
+                                <div class="checkout-phone-input">
+                                    <select class="form-input checkout-country-select" id="account-country-code" autocomplete="tel-country-code" aria-label="Country calling code" data-co-aria-label="country_calling_code"></select>
+                                    <input class="form-input" id="account-phone" type="tel" inputmode="tel" autocomplete="tel-national" data-co-placeholder="phone_placeholder" placeholder="e.g. 0555123456">
+                                </div>
                             </div>
                             <div class="form-group">
-                                <label class="form-label" data-co-i18n="email">Email Address</label>
-                                <p class="checkout-confirmation-value" id="account-confirmation-email">—</p>
+                                <label class="form-label" for="account-email" data-co-i18n="email">Email Address</label>
+                                <input class="form-input" id="account-email" type="email" autocomplete="email" data-co-placeholder="email_placeholder" placeholder="example@email.com">
                             </div>
+                            <p class="checkout-contact-error" id="account-contact-error" role="alert" hidden></p>
                             <button type="button" class="btn btn-primary btn-lg w-full" id="confirm-account-continue">
                                 <span data-co-i18n="continue_to_payment">Continue to payment</span>
                             </button>
@@ -696,42 +694,7 @@
                             <div class="form-group">
                                 <label class="form-label" for="verify-country-code" data-co-i18n="phone">Phone Number</label>
                                 <div class="checkout-phone-input">
-                                    <select class="form-input checkout-country-select" id="verify-country-code" aria-label="Choose country calling code">
-                                        <option value="+213" selected>🇩🇿 Algeria (+213)</option>
-                                        <option value="+33">🇫🇷 France (+33)</option>
-                                        <option value="+212">🇲🇦 Morocco (+212)</option>
-                                        <option value="+216">🇹🇳 Tunisia (+216)</option>
-                                        <option value="+234">🇳🇬 Nigeria (+234)</option>
-                                        <option value="+20">🇪🇬 Egypt (+20)</option>
-                                        <option value="+1">🇺🇸 United States / Canada (+1)</option>
-                                        <option value="+44">🇬🇧 United Kingdom (+44)</option>
-                                        <option value="+49">🇩🇪 Germany (+49)</option>
-                                        <option value="+34">🇪🇸 Spain (+34)</option>
-                                        <option value="+39">🇮🇹 Italy (+39)</option>
-                                        <option value="+31">🇳🇱 Netherlands (+31)</option>
-                                        <option value="+32">🇧🇪 Belgium (+32)</option>
-                                        <option value="+41">🇨🇭 Switzerland (+41)</option>
-                                        <option value="+351">🇵🇹 Portugal (+351)</option>
-                                        <option value="+90">🇹🇷 Türkiye (+90)</option>
-                                        <option value="+971">🇦🇪 United Arab Emirates (+971)</option>
-                                        <option value="+966">🇸🇦 Saudi Arabia (+966)</option>
-                                        <option value="+974">🇶🇦 Qatar (+974)</option>
-                                        <option value="+965">🇰🇼 Kuwait (+965)</option>
-                                        <option value="+962">🇯🇴 Jordan (+962)</option>
-                                        <option value="+961">🇱🇧 Lebanon (+961)</option>
-                                        <option value="+218">🇱🇾 Libya (+218)</option>
-                                        <option value="+221">🇸🇳 Senegal (+221)</option>
-                                        <option value="+225">🇨🇮 Côte d’Ivoire (+225)</option>
-                                        <option value="+233">🇬🇭 Ghana (+233)</option>
-                                        <option value="+254">🇰🇪 Kenya (+254)</option>
-                                        <option value="+27">🇿🇦 South Africa (+27)</option>
-                                        <option value="+91">🇮🇳 India (+91)</option>
-                                        <option value="+86">🇨🇳 China (+86)</option>
-                                        <option value="+81">🇯🇵 Japan (+81)</option>
-                                        <option value="+82">🇰🇷 South Korea (+82)</option>
-                                        <option value="+61">🇦🇺 Australia (+61)</option>
-                                        <option value="+7">🇷🇺 Russia (+7)</option>
-                                    </select>
+                                    <select class="form-input checkout-country-select" id="verify-country-code" aria-label="Choose country calling code" data-co-aria-label="country_calling_code"></select>
                                     <input class="form-input" id="verify-phone" type="tel" autocomplete="tel-national" data-co-placeholder="phone_placeholder" placeholder="e.g. 0555123456">
                                 </div>
                             </div>
@@ -775,7 +738,6 @@
                             <div class="checkout-payment-breakdown">
                                 <div class="checkout-payment-row"><span data-co-i18n="items_label">Items</span><strong id="payment-items-count">0</strong></div>
                                 <div class="checkout-payment-row"><span data-co-i18n="payment_subtotal">Subtotal</span><strong id="payment-subtotal">—</strong></div>
-                                <div class="checkout-payment-row"><span data-co-i18n="payment_fees">Payment fees</span><strong data-co-i18n="provider_fees">Set by provider</strong></div>
                                 <div class="checkout-payment-row total"><span data-co-i18n="total">Total</span><strong id="payment-total">—</strong></div>
                             </div>
                             <p class="checkout-account-subtitle" data-co-i18n="payment_redirect_note">You will be redirected to the secure payment page to complete your order.</p>
@@ -792,7 +754,8 @@
     </div>
 
     <script src="/js/api.js?v=20261112-email-verification-state"></script>
-    <script src="/js/checkout.js?v=20261112-email-verification-state"></script>
+    <script src="/js/country-calling-codes.js?v=20261113-all-countries"></script>
+    <script src="/js/checkout.js?v=20261113-editable-contacts"></script>
 </body>
 
 </html>

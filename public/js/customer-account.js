@@ -11,25 +11,10 @@ const accountCopy = {
     }
 };
 
-const callingCountries = [
-    ['+213', '🇩🇿 Algeria'], ['+33', '🇫🇷 France'], ['+212', '🇲🇦 Morocco'], ['+216', '🇹🇳 Tunisia'],
-    ['+234', '🇳🇬 Nigeria'], ['+20', '🇪🇬 Egypt'], ['+1', '🇺🇸 United States / Canada'], ['+44', '🇬🇧 United Kingdom'],
-    ['+49', '🇩🇪 Germany'], ['+34', '🇪🇸 Spain'], ['+39', '🇮🇹 Italy'], ['+31', '🇳🇱 Netherlands'],
-    ['+32', '🇧🇪 Belgium'], ['+41', '🇨🇭 Switzerland'], ['+351', '🇵🇹 Portugal'], ['+90', '🇹🇷 Türkiye'],
-    ['+971', '🇦🇪 United Arab Emirates'], ['+966', '🇸🇦 Saudi Arabia'], ['+974', '🇶🇦 Qatar'], ['+965', '🇰🇼 Kuwait'],
-    ['+962', '🇯🇴 Jordan'], ['+961', '🇱🇧 Lebanon'], ['+218', '🇱🇾 Libya'], ['+221', '🇸🇳 Senegal'],
-    ['+225', '🇨🇮 Côte d’Ivoire'], ['+233', '🇬🇭 Ghana'], ['+254', '🇰🇪 Kenya'], ['+27', '🇿🇦 South Africa'],
-    ['+91', '🇮🇳 India'], ['+86', '🇨🇳 China'], ['+81', '🇯🇵 Japan'], ['+82', '🇰🇷 South Korea'],
-    ['+61', '🇦🇺 Australia'], ['+7', '🇷🇺 Russia']
-];
-
 const countryCodeSelect = document.getElementById('profile-country-code');
-countryCodeSelect.innerHTML = callingCountries.map(([code, country]) =>
-    `<option value="${code}">${country} (${code})</option>`
-).join('');
-countryCodeSelect.value = '+213';
 
 initLang();
+window.populateCallingCodeSelect(countryCodeSelect, currentLang || 'en');
 setupLangToggle();
 
 function accountText() {
@@ -42,7 +27,7 @@ function fillProfile(customer) {
     document.getElementById('profile-last-name').value = nameParts.join(' ');
     document.getElementById('profile-email').value = customer.email || '';
     const savedPhone = String(customer.phone || '').replace(/[\s()-]/g, '');
-    const matchingCountry = callingCountries.map(([code]) => code).sort((a, b) => b.length - a.length)
+    const matchingCountry = window.callingCountries.map(([, dialCode]) => `+${dialCode}`).sort((a, b) => b.length - a.length)
         .find(code => savedPhone.startsWith(code));
     countryCodeSelect.value = matchingCountry || '+213';
     document.getElementById('profile-phone').value = matchingCountry
@@ -58,6 +43,7 @@ function showProfileMessage(message, isError = false) {
 }
 
 document.addEventListener('langChange', () => {
+    window.populateCallingCodeSelect(countryCodeSelect, currentLang || 'en');
     document.querySelectorAll('[data-en]').forEach(element => {
         element.textContent = element.dataset[currentLang] || element.dataset.en;
     });
