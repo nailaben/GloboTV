@@ -336,7 +336,7 @@ function setupCheckoutSteps() {
     const paymentStep = document.getElementById('payment-step-card');
     const continueButton = document.getElementById('continue-account-btn');
     const backToVerifyButton = document.getElementById('back-to-verify-btn');
-    const steps = [...document.querySelectorAll('.checkout-step')];
+    const steps = [...document.querySelectorAll('.checkout-step')].filter((_, index) => index !== 1);
 
     const showStep = (activeStep) => {
         const customer = JSON.parse(localStorage.getItem('playora_customer') || 'null');
@@ -346,7 +346,7 @@ function setupCheckoutSteps() {
         verificationSummary.hidden = activeStep !== 2;
         checkoutGrid.classList.toggle('is-verifying', activeStep === 2);
         steps.forEach((step, index) => {
-            const stepNumber = index + 1;
+            const stepNumber = index === 0 ? 1 : 3;
             const number = step.querySelector('.checkout-step-number');
             const complete = stepNumber < activeStep;
             step.classList.toggle('is-active', stepNumber === activeStep);
@@ -355,27 +355,27 @@ function setupCheckoutSteps() {
             else step.removeAttribute('aria-current');
             if (number) {
                 number.classList.toggle('material-symbols-outlined', complete);
-                number.textContent = complete ? 'check' : String(stepNumber);
+                number.textContent = complete ? 'check' : String(stepNumber === 3 ? 2 : stepNumber);
             }
         });
         window.scrollTo({ top: 0, behavior: 'smooth' });
     };
 
     continueButton.addEventListener('click', () => {
-        if (!checkoutSessionResolved) {
-            showToast(ctr('account_required'), 'error');
-            return;
-        }
+        if (!checkoutSessionResolved) return;
         const customer = JSON.parse(localStorage.getItem('playora_customer') || 'null');
-        if (!customer?.name) {
+        if (!customer?.name || !customer?.email) {
             window.location.assign('/auth.html?next=%2Fcheckout.html');
             return;
         }
-        showStep(2);
+        const phoneInput = document.getElementById('verify-phone');
+        const emailInput = document.getElementById('verify-email-address');
+        if (customer.phone && phoneInput) phoneInput.value = customer.phone;
+        if (customer.email && emailInput) emailInput.value = customer.email;
+        renderPaymentSummary();
+        showStep(3);
     });
-    backToVerifyButton.addEventListener('click', () => {
-        showStep(2);
-    });
+    backToVerifyButton.addEventListener('click', () => showStep(2));
     document.getElementById('continue-after-verification').addEventListener('click', () => {
         const customer = JSON.parse(localStorage.getItem('playora_customer') || 'null');
         const phone = formatInternationalPhone().replace(/\s/g, '');
@@ -438,7 +438,12 @@ function renderVerificationPanel() {
         checkoutEmailChoiceConfirmed = false;
         checkoutEmailVerified = true;
         emailInput.dataset.initialized = 'true';
-        updateEmailChoiceActions();
+    }
+    if (customer.email) {
+        emailInput.value = customer.email;
+        checkoutEmailSnapshot = customer.email;
+        checkoutEmailChoiceConfirmed = true;
+        checkoutEmailVerified = true;
     }
     if (!phoneInput.dataset.initialized && customer.phone) {
         const savedPhone = String(customer.phone).replace(/[\s()-]/g, '');
@@ -459,6 +464,21 @@ function renderVerificationPanel() {
         phoneInput.readOnly = false;
         countrySelect.disabled = false;
         phoneInput.dataset.initialized = 'true';
+    }
+    if (customer.phone) {
+        const savedPhone = String(customer.phone).replace(/[\s()-]/g, '');
+        const matchingCountry = [...countrySelect.options]
+            .filter(option => savedPhone.startsWith(option.value))
+            .sort((a, b) => b.value.length - a.value.length)[0];
+        if (savedPhone.startsWith('+') && matchingCountry) {
+            countrySelect.value = matchingCountry.value;
+            phoneInput.value = savedPhone.slice(matchingCountry.value.length);
+        } else {
+            phoneInput.value = savedPhone;
+        }
+        const normalizedPhone = formatInternationalPhone().replace(/\s/g, '');
+        checkoutPhoneSnapshot = { country: countrySelect.value, number: phoneInput.value };
+        checkoutPhoneChoiceConfirmed = /^\+[1-9]\d{7,14}$/.test(normalizedPhone);
     }
     if (phoneInput.value && !checkoutPhoneSnapshot) {
         const phone = formatInternationalPhone().replace(/\s/g, '');
@@ -507,6 +527,9 @@ function setupContactConfirmation() {
     emailInput.addEventListener('input', updateEmail);
     updatePhone();
     updateEmail();
+    if (checkoutEmailChoiceConfirmed && checkoutPhoneChoiceConfirmed && !document.getElementById('payment-step-card').hidden) {
+        renderPaymentSummary();
+    }
 }
 
 async function requestCheckoutCodes() {
@@ -717,6 +740,10 @@ function renderCheckoutAccount() {
                 const emailInput = document.getElementById('verify-email-address');
                 if (phoneInput && !phoneInput.dataset.initialized) phoneInput.value = result.customer.phone || '';
                 if (emailInput && !emailInput.dataset.initialized) emailInput.value = result.customer.email || '';
+                if (result.customer.name && result.customer.email) {
+                    renderVerificationPanel();
+                    updateCheckoutVerificationStatus();
+                }
             } else {
                 localStorage.removeItem('playora_customer_token');
                 localStorage.removeItem('playora_customer');

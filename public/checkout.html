@@ -601,10 +601,6 @@
             </div>
             <div class="checkout-step">
                 <span class="checkout-step-number" aria-hidden="true">2</span>
-                <span data-co-i18n="step_account">Account</span>
-            </div>
-            <div class="checkout-step">
-                <span class="checkout-step-number" aria-hidden="true">3</span>
                 <span data-co-i18n="step_payment">Payment</span>
             </div>
         </nav>
@@ -632,7 +628,7 @@
                             </div>
                         </div>
                         <button type="button" class="btn btn-primary btn-lg w-full" id="continue-account-btn" style="margin-top:1.25rem;">
-                            <span data-co-i18n="continue_to_account">Continue to account</span>
+                            <span data-co-i18n="continue_to_payment">Continue to payment</span>
                         </button>
                     </section>
 
@@ -733,12 +729,12 @@
                             <span data-co-i18n="total">Total</span>
                             <strong id="verification-total">—</strong>
                         </div>
-                        <p class="checkout-summary-note" data-co-i18n="verification_summary_note">Your email was confirmed when you created your account. Choose the phone number for this order.</p>
-                        <button type="button" class="btn btn-primary btn-lg w-full" id="continue-after-verification" disabled data-co-i18n="continue_to_payment">Continue to payment</button>
+                        <p class="checkout-summary-note" data-co-i18n="verification_summary_note" hidden>Your email was confirmed when you created your account. Choose the phone number for this order.</p>
+                        <button type="button" class="btn btn-primary btn-lg w-full" id="continue-after-verification" disabled hidden data-co-i18n="continue_to_payment">Continue to payment</button>
                     </aside>
 
                     <section class="checkout-form-card" id="payment-step-card" hidden>
-                        <button type="button" class="btn btn-sm checkout-step-back" id="back-to-verify-btn" style="margin-bottom:1.25rem;">
+                        <button type="button" class="btn btn-sm checkout-step-back" id="back-to-verify-btn" hidden style="margin-bottom:1.25rem;">
                             <span data-co-i18n="back_to_account">Back to Account</span>
                         </button>
                         <div class="checkout-payment-panel">
