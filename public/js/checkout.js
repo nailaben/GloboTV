@@ -330,23 +330,25 @@ function setupLangToggle() {
 
 function setupCheckoutSteps() {
     const cartStep = document.getElementById('cart-step-content');
+    const accountStep = document.getElementById('account-confirmation-step');
     const verifyStep = document.getElementById('verify-step-card');
     const verificationSummary = document.getElementById('verification-summary');
     const checkoutGrid = document.querySelector('.checkout-grid');
     const paymentStep = document.getElementById('payment-step-card');
     const continueButton = document.getElementById('continue-account-btn');
     const backToVerifyButton = document.getElementById('back-to-verify-btn');
-    const steps = [...document.querySelectorAll('.checkout-step')].filter((_, index) => index !== 1);
+    const steps = [...document.querySelectorAll('.checkout-step')];
 
     const showStep = (activeStep) => {
         const customer = JSON.parse(localStorage.getItem('playora_customer') || 'null');
         cartStep.hidden = activeStep !== 1;
-        verifyStep.hidden = activeStep !== 2;
+        accountStep.hidden = activeStep !== 2;
+        verifyStep.hidden = true;
         paymentStep.hidden = activeStep !== 3;
         verificationSummary.hidden = activeStep !== 2;
         checkoutGrid.classList.toggle('is-verifying', activeStep === 2);
         steps.forEach((step, index) => {
-            const stepNumber = index === 0 ? 1 : 3;
+            const stepNumber = index + 1;
             const number = step.querySelector('.checkout-step-number');
             const complete = stepNumber < activeStep;
             step.classList.toggle('is-active', stepNumber === activeStep);
@@ -355,7 +357,7 @@ function setupCheckoutSteps() {
             else step.removeAttribute('aria-current');
             if (number) {
                 number.classList.toggle('material-symbols-outlined', complete);
-                number.textContent = complete ? 'check' : String(stepNumber === 3 ? 2 : stepNumber);
+                number.textContent = complete ? 'check' : String(stepNumber);
             }
         });
         window.scrollTo({ top: 0, behavior: 'smooth' });
@@ -368,10 +370,19 @@ function setupCheckoutSteps() {
             window.location.assign('/auth.html?next=%2Fcheckout.html');
             return;
         }
-        const phoneInput = document.getElementById('verify-phone');
-        const emailInput = document.getElementById('verify-email-address');
-        if (customer.phone && phoneInput) phoneInput.value = customer.phone;
-        if (customer.email && emailInput) emailInput.value = customer.email;
+        renderAccountConfirmation(customer);
+        showStep(2);
+    });
+    document.getElementById('confirm-account-continue').addEventListener('click', () => {
+        const customer = JSON.parse(localStorage.getItem('playora_customer') || 'null');
+        if (!customer?.name || !customer?.email) {
+            window.location.assign('/auth.html?next=%2Fcheckout.html');
+            return;
+        }
+        if (customer.phone) document.getElementById('verify-phone').value = customer.phone;
+        document.getElementById('verify-email-address').value = customer.email;
+        renderVerificationPanel();
+        updateCheckoutVerificationStatus();
         renderPaymentSummary();
         showStep(3);
     });
@@ -730,6 +741,12 @@ function renderPaymentSummary() {
     document.getElementById('payment-total').textContent = formattedTotal;
 }
 
+function renderAccountConfirmation(customer) {
+    const phone = String(customer.phone || '').trim();
+    document.getElementById('account-confirmation-phone').textContent = phone || '—';
+    document.getElementById('account-confirmation-email').textContent = String(customer.email || '').trim() || '—';
+}
+
 function renderCheckoutAccount() {
     if (!checkoutSessionResolved) {
         api.getCustomer().then(result => {
@@ -759,6 +776,7 @@ function renderCheckoutAccount() {
 
     const customer = JSON.parse(localStorage.getItem('playora_customer') || 'null');
     if (!customer?.name) return;
+    renderAccountConfirmation(customer);
     renderVerificationPanel();
     updateCheckoutVerificationStatus();
     renderVerificationSummary();

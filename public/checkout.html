@@ -199,6 +199,16 @@
             min-height: 340px;
         }
 
+        .checkout-confirmation-value {
+            margin: .5rem 0 1.25rem;
+            padding: .9rem 1rem;
+            border: 1px solid var(--border-light);
+            border-radius: var(--radius-md);
+            color: var(--text-primary);
+            background: rgba(255,255,255,.025);
+            overflow-wrap: anywhere;
+        }
+
         .order-summary-card {
             max-width: 760px;
             width: 100%;
@@ -601,6 +611,10 @@
             </div>
             <div class="checkout-step">
                 <span class="checkout-step-number" aria-hidden="true">2</span>
+                <span data-co-i18n="step_account">Account</span>
+            </div>
+            <div class="checkout-step">
+                <span class="checkout-step-number" aria-hidden="true">3</span>
                 <span data-co-i18n="step_payment">Payment</span>
             </div>
         </nav>
@@ -628,8 +642,28 @@
                             </div>
                         </div>
                         <button type="button" class="btn btn-primary btn-lg w-full" id="continue-account-btn" style="margin-top:1.25rem;">
-                            <span data-co-i18n="continue_to_payment">Continue to payment</span>
+                            <span data-co-i18n="continue_to_account">Continue to account</span>
                         </button>
+                    </section>
+
+                    <section class="checkout-form-card checkout-account-confirmation" id="account-confirmation-step" hidden>
+                        <div class="checkout-verify-panel">
+                            <header class="checkout-verify-heading">
+                                <h1 data-co-i18n="step_account">Account</h1>
+                                <p data-co-i18n="verification_summary_note">Check the contact details saved to your account.</p>
+                            </header>
+                            <div class="form-group">
+                                <label class="form-label" data-co-i18n="phone">Phone Number</label>
+                                <p class="checkout-confirmation-value" id="account-confirmation-phone">—</p>
+                            </div>
+                            <div class="form-group">
+                                <label class="form-label" data-co-i18n="email">Email Address</label>
+                                <p class="checkout-confirmation-value" id="account-confirmation-email">—</p>
+                            </div>
+                            <button type="button" class="btn btn-primary btn-lg w-full" id="confirm-account-continue">
+                                <span data-co-i18n="continue_to_payment">Continue to payment</span>
+                            </button>
+                        </div>
                     </section>
 
                     <section class="checkout-form-card" id="verify-step-card" hidden>
@@ -734,7 +768,7 @@
                     </aside>
 
                     <section class="checkout-form-card" id="payment-step-card" hidden>
-                        <button type="button" class="btn btn-sm checkout-step-back" id="back-to-verify-btn" hidden style="margin-bottom:1.25rem;">
+                        <button type="button" class="btn btn-sm checkout-step-back" id="back-to-verify-btn" style="margin-bottom:1.25rem;">
                             <span data-co-i18n="back_to_account">Back to Account</span>
                         </button>
                         <div class="checkout-payment-panel">
