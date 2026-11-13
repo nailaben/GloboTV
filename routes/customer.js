@@ -163,17 +163,37 @@ function cookieValue(req, key) {
     return entry ? decodeURIComponent(entry.slice(key.length + 1)) : '';
 }
 
-function redirectAuthError(res, reason) {
-    return res.redirect(`/auth.html?error=${encodeURIComponent(reason)}`);
+function safeLocalReturnPath(value, fallback = '/account.html') {
+    if (!value) return fallback;
+    try {
+        const target = new URL(String(value || ''), 'http://globotv.local');
+        if (target.origin !== 'http://globotv.local' || !target.pathname.startsWith('/') || target.pathname.startsWith('//')) return fallback;
+        return `${target.pathname}${target.search}${target.hash}`;
+    } catch {
+        return fallback;
+    }
+}
+
+function redirectAuthError(res, reason, returnPath = '/account.html') {
+    const next = safeLocalReturnPath(returnPath);
+    return res.redirect(`/auth.html?error=${encodeURIComponent(reason)}&next=${encodeURIComponent(next)}`);
 }
 
 async function startOAuth(req, res) {
     const clientId = process.env.GOOGLE_CLIENT_ID;
     const clientSecret = process.env.GOOGLE_CLIENT_SECRET;
-    if (!clientId || !clientSecret) return redirectAuthError(res, 'google_unconfigured');
+    const returnPath = safeLocalReturnPath(req.query.next);
+    if (!clientId || !clientSecret) return redirectAuthError(res, 'google_unconfigured', returnPath);
 
     const state = crypto.randomBytes(32).toString('hex');
     res.cookie('playora_oauth_google', state, {
+        httpOnly: true,
+        sameSite: 'lax',
+        secure: process.env.NODE_ENV === 'production' || Boolean(req.secure),
+        maxAge: 10 * 60 * 1000,
+        path: '/api/customer/google/callback'
+    });
+    res.cookie('playora_oauth_next', returnPath, {
         httpOnly: true,
         sameSite: 'lax',
         secure: process.env.NODE_ENV === 'production' || Boolean(req.secure),
@@ -195,12 +215,14 @@ async function startOAuth(req, res) {
 
 async function finishOAuth(req, res) {
     const stateCookie = cookieValue(req, 'playora_oauth_google');
+    const returnPath = safeLocalReturnPath(cookieValue(req, 'playora_oauth_next'));
     res.clearCookie('playora_oauth_google', { path: '/api/customer/google/callback' });
+    res.clearCookie('playora_oauth_next', { path: '/api/customer/google/callback' });
     const state = String(req.query.state || '');
     if (!stateCookie || stateCookie.length !== state.length || !crypto.timingSafeEqual(Buffer.from(stateCookie), Buffer.from(state))) {
-        return redirectAuthError(res, 'oauth_state_invalid');
+        return redirectAuthError(res, 'oauth_state_invalid', returnPath);
     }
-    if (req.query.error || !req.query.code) return redirectAuthError(res, 'oauth_cancelled');
+    if (req.query.error || !req.query.code) return redirectAuthError(res, 'oauth_cancelled', returnPath);
 
     const clientId = process.env.GOOGLE_CLIENT_ID;
     const clientSecret = process.env.GOOGLE_CLIENT_SECRET;
@@ -248,10 +270,10 @@ async function finishOAuth(req, res) {
             customer = result.rows[0];
         }
         setSessionCookie(req, res, 'globotv_customer_session', createToken(customer), 30 * 24 * 60 * 60 * 1000);
-        res.redirect('/account.html');
+        res.redirect(returnPath);
     } catch (error) {
         console.error('Google customer sign-in error:', error.message);
-        redirectAuthError(res, 'oauth_failed');
+        redirectAuthError(res, 'oauth_failed', returnPath);
     }
 }
 

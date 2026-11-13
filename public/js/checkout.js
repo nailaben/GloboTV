@@ -260,6 +260,11 @@ function populateCheckoutCountrySelects() {
     });
 }
 
+function redirectToCheckoutSignIn() {
+    const next = encodeURIComponent('/checkout.html?step=2');
+    window.location.assign(`/auth.html?next=${next}`);
+}
+
 function showPaymentReturnNotice() {
     const result = new URLSearchParams(window.location.search).get('payment');
     if (!result || result === 'paypal') return;
@@ -385,7 +390,7 @@ function setupCheckoutSteps() {
         if (!checkoutSessionResolved) return;
         const customer = JSON.parse(localStorage.getItem('playora_customer') || 'null');
         if (!customer?.name || !customer?.email) {
-            window.location.assign('/auth.html?next=%2Fcheckout.html');
+            redirectToCheckoutSignIn();
             return;
         }
         renderAccountConfirmation(customer);
@@ -394,7 +399,7 @@ function setupCheckoutSteps() {
     document.getElementById('confirm-account-continue').addEventListener('click', async event => {
         const customer = JSON.parse(localStorage.getItem('playora_customer') || 'null');
         if (!customer?.name || !customer?.email) {
-            window.location.assign('/auth.html?next=%2Fcheckout.html');
+            redirectToCheckoutSignIn();
             return;
         }
         const error = document.getElementById('account-contact-error');
@@ -466,6 +471,7 @@ let checkoutVerifiedEmail = '';
 let checkoutWhatsAppVerified = false;
 let checkoutVerificationToken = null;
 let checkoutSessionResolved = false;
+let checkoutRequestedStep = new URLSearchParams(window.location.search).get('step') === '2' ? 2 : 1;
 let checkoutNoticeKey = 'verify_notice';
 
 function setCheckoutNotice(key) {
@@ -848,16 +854,21 @@ function renderCheckoutAccount() {
             checkoutSessionResolved = true;
             localStorage.removeItem('playora_customer_token');
             localStorage.removeItem('playora_customer');
+            if (checkoutRequestedStep === 2) redirectToCheckoutSignIn();
         });
         return;
     }
 
     const customer = JSON.parse(localStorage.getItem('playora_customer') || 'null');
-    if (!customer?.name) return;
+    if (!customer?.name) {
+        if (checkoutRequestedStep === 2) redirectToCheckoutSignIn();
+        return;
+    }
     renderAccountConfirmation(customer);
     renderVerificationPanel();
     updateCheckoutVerificationStatus();
     renderVerificationSummary();
+    if (checkoutRequestedStep === 2) window.checkoutGoToStep?.(2);
 }
 
 function setupForm() {
