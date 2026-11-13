@@ -55,3 +55,13 @@ body:not(.product-page-body) .product-navbar { position: fixed; top: 48px; }
 .product-tab.active { border-bottom-color: #D552A3; }
 .product-related h2 { border-left-color: #D552A3; }
 .product-related-card:hover { border-color: #D552A3; }
+
+/* Keep mobile search in the icon row and reveal its field on tap. */
+.product-search-toggle { display: none; width: 32px; height: 34px; padding: 0; border: 0; background: transparent; cursor: pointer; }
+@media(max-width:650px) {
+    .product-navbar .product-nav-inner { position: relative; flex-wrap: nowrap; gap: 10px; }
+    .product-navbar .product-nav-search { display: none; position: absolute; top: calc(100% + 8px); left: 0; right: 0; z-index: 1200; flex-basis: auto; width: 100%; max-width: none; box-shadow: 0 12px 28px rgba(0,0,0,.4); }
+    .product-navbar .product-nav-search.is-open { display: flex; }
+    .product-navbar .product-search-toggle { display: grid; flex: 0 0 32px; }
+    .product-navbar .navbar-actions { gap: 9px; }
+}

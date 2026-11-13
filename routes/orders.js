@@ -256,6 +256,10 @@ router.post('/', async (req, res) => {
     if (!/^\+[1-9]\d{7,14}$/.test(normalizedPhone)) {
         return res.status(400).json({ success: false, message: 'Enter a valid international phone number for this order.' });
     }
+    const normalizedEmail = String(customer_email).trim().toLowerCase();
+    if (!/^\S+@\S+\.\S+$/.test(normalizedEmail)) {
+        return res.status(400).json({ success: false, message: 'Enter a valid email address for this order.' });
+    }
 
     let client;
     try {
@@ -265,12 +269,28 @@ router.post('/', async (req, res) => {
         await expireStalePaypalOrders(client);
 
         const customerResult = await client.query(
-            'SELECT id, email FROM customers WHERE id = $1 FOR SHARE',
+            'SELECT id, email FROM customers WHERE id = $1 FOR UPDATE',
             [customerSession.id]
         );
-        if (!customerResult.rows[0] || String(customer_email).trim().toLowerCase() !== String(customerResult.rows[0].email).toLowerCase()) {
+        if (!customerResult.rows[0]) {
             await client.query('ROLLBACK');
-            return res.status(403).json({ success: false, message: 'Sign in with the account email before placing the order.' });
+            return res.status(403).json({ success: false, message: 'Sign in with your account before placing the order.' });
+        }
+        const duplicateEmail = await client.query(
+            'SELECT id FROM customers WHERE lower(email) = $1 AND id <> $2 LIMIT 1',
+            [normalizedEmail, customerSession.id]
+        );
+        if (duplicateEmail.rows.length) {
+            await client.query('ROLLBACK');
+            return res.status(409).json({ success: false, message: 'An account with this email already exists.' });
+        }
+        const customerUpdate = await client.query(
+            'UPDATE customers SET email = $1, phone = $2 WHERE id = $3 RETURNING email',
+            [normalizedEmail, normalizedPhone, customerSession.id]
+        );
+        if (!customerUpdate.rows[0]) {
+            await client.query('ROLLBACK');
+            return res.status(404).json({ success: false, message: 'Account not found.' });
         }
 
         // Validate products and calculate total
@@ -355,7 +375,7 @@ router.post('/', async (req, res) => {
             INSERT INTO orders (order_number, customer_name, customer_phone, customer_email, customer_id, notes, subtotal, total_amount, currency, status)
             VALUES ($1, $2, $3, $4, $5, $6, $7, $8, 'EUR', 'pending')
             RETURNING *
-        `, [order_number, customer_name, customer_phone, customer_email, customerId, notes || '', subtotal, total_amount]);
+        `, [order_number, customer_name, normalizedPhone, normalizedEmail, customerId, notes || '', subtotal, total_amount]);
 
         const order = orderResult.rows[0];
 

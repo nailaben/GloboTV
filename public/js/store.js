@@ -179,7 +179,15 @@ function setupNavbar() {
 
     const searchInput = document.getElementById('search-input');
     const searchDropdown = document.getElementById('search-dropdown');
+    const searchToggle = document.getElementById('product-search-toggle');
     let searchDebounce;
+
+    searchToggle?.addEventListener('click', () => {
+        const search = document.getElementById('product-nav-search');
+        const isOpen = search?.classList.toggle('is-open') || false;
+        searchToggle.setAttribute('aria-expanded', String(isOpen));
+        if (isOpen) searchInput?.focus();
+    });
 
     function renderSearchDropdown(query) {
         if (!searchDropdown) return;
@@ -272,8 +280,10 @@ function setupNavbar() {
     }
 
     document.addEventListener('click', (e) => {
-        if (!e.target.closest('#product-nav-search')) {
+        if (!e.target.closest('#product-nav-search') && !e.target.closest('#product-search-toggle')) {
             searchDropdown?.classList.remove('is-open');
+            document.getElementById('product-nav-search')?.classList.remove('is-open');
+            searchToggle?.setAttribute('aria-expanded', 'false');
         }
     });
 }
